@@ -1,0 +1,22 @@
+body {
+  margin: 0;
+  overflow: hidden;
+  font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  background: #131414;
+  color: #fff;
+}
+
+canvas {
+  display: block;
+  background-color: #111;
+}
+
+button {
+  padding: 10px;
+  font-size: 2.2vh;
+  font-weight: 800;
+  background-color: #242728;
+  border: 0;
+  border-radius: 1vh;
+  color: #fff;
+}
