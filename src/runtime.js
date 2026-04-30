@@ -11,8 +11,9 @@ import { MeshLineGeometry, MeshLineMaterial } from 'meshline'
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as physics from './physics';
 import * as ogsUI from './ui';
-import * as bridge from './bridge';
-import { BallTrail, GroundUtils } from './helpers';
+import { app } from './app';
+import { BallTrail } from './ballTrail';
+import { GroundUtils } from './groundUtils';
 import pkg from '../package.json';
 import './base.css';
 
@@ -35,16 +36,17 @@ window.GroundUtils = GroundUtils;
 
 window.openGolfSim = {
   _version: pkg.version,
+  app,
   physics,
-  bridge,
+  app,
 };
 
-document.addEventListener('DOMContentLoaded', () => {
-  const uiRoot = document.createElement('div');
-  uiRoot.setAttribute('id', 'ui-root');
-  document.body.prepend(uiRoot);
-  ogsUI.setupDefaultUI(uiRoot);
-});
+// document.addEventListener('DOMContentLoaded', () => {
+//   const uiRoot = document.createElement('div');
+//   uiRoot.setAttribute('id', 'ui-root');
+//   document.body.prepend(uiRoot);
+//   ogsUI.setupDefaultUI(uiRoot);
+// });
 
 /**
  * Rapier needs async init before use, so we expose a custom window event (engine.ready)
@@ -56,8 +58,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // that game code can await before doing anything
 window.RAPIER_READY = RAPIER.init().then(() => {
   console.log('[runtime] Rapier initialized');
-  const readyEvent = new CustomEvent('engine.ready', {
-    detail: {}
-  });
+  const readyEvent = new CustomEvent('engine.ready', { detail: {} });
   window.dispatchEvent(readyEvent);
 });
