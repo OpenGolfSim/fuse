@@ -1,4 +1,4 @@
-import styles from './ui.module.css';
+import styles from './css/ui.module.css';
 
 export function setupDefaultUI(rootEle, options = {}) {
   rootEle.className = styles.uiRoot;

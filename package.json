@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "vite build",
-    "vite-watch": "vite build --watch",
+    "build-watch": "vite build --watch",
     "project": "node scripts/project.js",
     "server": "concurrently 'vite build --watch' 'node scripts/server.js'",
     "server2": "concurrently 'vite build --watch' 'serve . -l 3112'",

@@ -119,4 +119,8 @@ export class BallTrail {
       this.trailCurve = null;
     }
   }
+
+  remove() {
+    this.scene.remove(this.trail);
+  }
 }

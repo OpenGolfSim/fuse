@@ -4,18 +4,21 @@ import { Line2 } from 'three/addons/lines/Line2';
 import { LineGeometry } from 'three/addons/lines/LineGeometry';
 import { LineMaterial } from 'three/addons/lines/LineMaterial';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader';
+import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader';
 import { Water } from 'three/addons/objects/Water';
 import { MeshLineGeometry, MeshLineMaterial } from 'meshline'
 
 import RAPIER from '@dimforge/rapier3d-compat';
-import * as physics from './physics';
 import * as ogsUI from './ui';
 import { app } from './app';
+import { BallPhysics, GroundPhysics } from './physics';
 import { BallTrail } from './ballTrail';
 import { GroundUtils } from './groundUtils';
+import { VolumetricClouds } from './clouds';
+import { TreePlanter } from './trees';
 import pkg from '../package.json';
-import './base.css';
+import './css/base.css';
 
 window.THREE = THREE;
 window.OrbitControls = OrbitControls;
@@ -23,6 +26,7 @@ window.Line2 = Line2;
 window.LineGeometry = LineGeometry;
 window.LineMaterial = LineMaterial;
 window.GLTFLoader = GLTFLoader;
+window.EXRLoader = EXRLoader;
 window.DRACOLoader = DRACOLoader;
 window.Water = Water;
 window.MeshLineGeometry = MeshLineGeometry;
@@ -32,14 +36,13 @@ window.RAPIER = RAPIER;
 
 // custom elements
 window.BallTrail = BallTrail;
+window.VolumetricClouds = VolumetricClouds;
 window.GroundUtils = GroundUtils;
+window.GroundPhysics = GroundPhysics;
+window.BallPhysics = BallPhysics;
+window.TreePlanter = TreePlanter;
 
-window.openGolfSim = {
-  _version: pkg.version,
-  app,
-  physics,
-  app,
-};
+window.openGolfSim = { _version: pkg.version, app };
 
 // document.addEventListener('DOMContentLoaded', () => {
 //   const uiRoot = document.createElement('div');

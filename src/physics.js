@@ -248,6 +248,11 @@ export class BallPhysics {
     this.groundedFrames = 0;
     this.syncMesh();
   }
+  
+  remove() {
+    this.world.removeRigidBody(this.rigidBody);
+    // this.world.removeCollider(this.groundCollider, wakeUp);
+  }
 
   // ─── Launch ──────────────────────────────────────────────────────
 
@@ -475,4 +480,45 @@ export class BallPhysics {
       }
     }
   }
+}
+
+export class GroundPhysics {
+  constructor(mesh, world, RAPIER, options = {}) {
+    this.options = { restitution: 0.35, friction: 0.8, ...options };
+    this.mesh = mesh;
+    this.world = world;
+    this.RAPIER = RAPIER;
+
+    const geo = mesh.geometry;
+    // Extract vertices and indices
+    const posAttr = geo.getAttribute('position');
+    const vertices = new Float32Array(posAttr.array);
+
+    // Apply the mesh's world transform to the vertices
+    mesh.updateMatrixWorld(true);
+    const matrix = mesh.matrixWorld;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < vertices.length; i += 3) {
+      v.set(vertices[i], vertices[i + 1], vertices[i + 2]);
+      v.applyMatrix4(matrix);
+      vertices[i] = v.x;
+      vertices[i + 1] = v.y;
+      vertices[i + 2] = v.z;
+    }
+
+    let indices;
+    if (geo.index) {
+      indices = new Uint32Array(geo.index.array);
+    } else {
+      // Non-indexed: generate sequential indices
+      indices = new Uint32Array(posAttr.count);
+      for (let i = 0; i < posAttr.count; i++) indices[i] = i;
+    }
+
+    const desc = RAPIER.ColliderDesc.trimesh(vertices, indices)
+      .setRestitution(this.options.restitution)
+      .setFriction(this.options.friction);
+    this.collider = this.world.createCollider(desc);
+    return this.collider;
+  }  
 }
