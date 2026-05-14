@@ -2,3 +2,5 @@ node_modules
 examples
 dist
 tmp
+backups
+.DS_Store

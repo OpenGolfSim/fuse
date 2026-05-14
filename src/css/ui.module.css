@@ -1,4 +1,12 @@
-
+:root {
+  --primary-color: rgb(33, 212, 141);
+  --bg-color: rgba(17, 28, 28, 0.9);
+  --text-color: #FFF;
+  --base-text-size: 1.5vh;
+  --large-text-size: 2.4vh;
+  --unit-text-size: 1.1vh;
+  --border-radius: 0.5vw;
+}
 .uiRoot {
   position: absolute;
   top: 0;
@@ -14,3 +22,111 @@
   flex-direction: column;
   width: 15vw;
 }
+
+
+.shotData {
+  position: absolute;
+  top: 1vh;
+  right: 1vh;
+  width: 15vh;
+}
+.shotDataContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 1vh;
+}
+.shotDataItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-color);
+  border-radius: var(--border-radius);
+  /* height: 8vh; */
+  font-size: 1.5vw;
+  padding: 1vh 0.5vw;
+  /* text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5); */
+}
+.shotDataItemLabel {
+  color: #aaa;
+  font-size: 1.25vh;
+  letter-spacing: 1px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+.shotDataItemValue {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 5px;
+}
+.shotDataItemDigit {
+  display: inline-block;
+  flex: 0;
+  color: #fff;
+  font-weight: 800;
+  font-size: var(--large-text-size);
+  /* line-height: var(--large-text-size); */
+  flex: 0;
+}
+.shotDataItemUnit {
+  display: inline-block;
+  color: var(--primary-color);
+  font-size: var(--unit-text-size);
+  font-weight: 800;
+  /* line-height: 1.2vh; */
+  flex: 0;
+}
+
+.rangeFinder {
+  background-color: var(--bg-color);
+  border-radius: var(--border-radius);
+  /* width: 10vw; */
+  /* height: 5vh; */
+  position: fixed;
+  top: 1vh;
+  justify-self: center;
+  padding: 0.5vh 1vw;
+}
+.rangeFinderContainer {
+  display: flex;
+  flex-direction: column;
+}
+.rangeFinderDistance {
+  display: flex;
+  flex-direction: row; 
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.rangeFinderHeightValue {
+  font-weight: 800;
+  font-size: 2vh;
+}
+.rangeFinderDistanceValue {
+  font-weight: 800;
+  font-size: var(--large-text-size);
+}
+.rangeFinderDistanceUnit {
+  font-weight: 800;
+  color: var(--primary-color);
+  font-size: var(--unit-text-size);
+}
+
+.mapContainer {
+  position: fixed;
+  left: 10px;
+  bottom: 10px;
+  background-color: var(--bg-color);
+  font-weight: 800;
+  color: var(--text-color);
+  font-size: var(--base-text-size);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+.mapHeader {
+  padding: 0.5vw;
+}
+.mapCanvas {}

@@ -6,7 +6,6 @@ export default defineConfig({
       entry: 'src/runtime.js',
       name: 'WebGLRuntime',
       fileName: 'runtime',
-      // fileName: (format, entryName) => `my-lib-${entryName}.${format}.js`,
       formats: ['iife'],  // self-executing — sets globals immediately on load
     },
     outDir: 'dist',

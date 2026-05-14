@@ -20,6 +20,10 @@ button {
   border-radius: 1vh;
   color: #fff;
 }
+button:hover {
+  cursor: pointer;
+  background-color: #343b3d;
+}
 @media (min-height: 500px) {
   button {
     font-size: 2.2vh;
