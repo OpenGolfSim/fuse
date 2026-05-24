@@ -1,9 +1,15 @@
 import { defineConfig } from 'vite';
+import path from 'path';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   build: {
     lib: {
-      entry: 'src/module.js',
+      entry: 'src/module.ts',
       name: 'WebGLModule',
       fileName: 'module',
       formats: ['es']

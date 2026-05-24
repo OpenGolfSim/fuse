@@ -1,0 +1,134 @@
+import EventEmitter from 'eventemitter3';
+import { type AimKeys } from './camera';
+
+interface CourseKeyboardControlEvents {
+  testShot: (shot: OpenGolfSim.Shot) => void;
+  toggleStats: () => void;
+  mulligan: () => void;
+  aim: (aimKeys: AimKeys) => void;
+}
+
+const MODIFIER_KEYS = new Set(['Meta', 'Control', 'Alt', 'Shift']);
+const AIM_CODES = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
+
+export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEvents> {
+  #testShots: boolean;
+  aimKeys: AimKeys;
+
+  constructor(options = { testShots: false }) {
+    super();
+    this.#testShots = options.testShots;
+    this.aimKeys = { left: false, right: false, forward: false, backward: false };    
+
+    window.addEventListener('keydown', this.#keyHandler.bind(this), true); // true = capture phase
+    window.addEventListener('keyup',   this.#keyHandler.bind(this), true);
+    // Reset aim state when the window loses focus (Cmd+Tab, etc.)
+    window.addEventListener('blur', this.#resetAimKeys.bind(this));
+  }
+  
+  #keyHandler(event: KeyboardEvent) {
+    const pressed = event.type === 'keydown';
+    let handled = false;
+    if (pressed && event.code.startsWith('Numpad')) {      
+      switch (event.code) {
+        case 's':
+          this.emit('toggleStats');
+          handled = true;
+          break;
+        case 'm':
+          this.emit('mulligan');
+          handled = true;
+          break;
+      }
+    }
+
+    if (this.#testShots && pressed) {
+      handled = this.#handleTestShotKeys(event.code);
+    }
+
+    // handled = this.#handleAimKeys(event.code, pressed);
+    // Don't set aim keys while a modifier is held — the keyup won't arrive.
+    if (!event.metaKey && !event.ctrlKey && !event.altKey) {
+      if (AIM_CODES.has(event.code)) {
+        handled = this.#handleAimKeys(event.code, pressed);
+      }
+    } else if (AIM_CODES.has(event.code)) {
+      // Arrow + modifier (e.g. Cmd+Right for word-jump): treat as unhandled
+      // and make sure the key isn't stuck true from a previous press.
+      this.#resetAimKeys();
+    }
+
+    
+    if (handled) {
+      event.preventDefault();
+    }
+  }
+
+  #handleAimKeys(code: string, pressed: boolean) {
+    switch (code) {
+      case 'ArrowLeft': 
+        this.aimKeys.left = pressed;
+        break;
+      case 'ArrowRight':
+        this.aimKeys.right = pressed;
+        break;
+      case 'ArrowUp':
+        this.aimKeys.forward = pressed;
+        break;
+      case 'ArrowDown': 
+        this.aimKeys.backward = pressed;
+        break;
+      // unhandled
+      default: return false;
+    }
+    this.emit('aim', this.aimKeys);
+    // handled
+    return true;
+  }
+
+  #handleTestShotKeys(code: string) {
+    switch (code) {
+      case 'Numpad1':
+        this.emit('testShot', { ballSpeed: 150, verticalLaunchAngle: 11, horizontalLaunchAngle: 0, spinSpeed: 2000, spinAxis: 0 });
+        break;
+      case 'Numpad2':
+        this.emit('testShot', { ballSpeed: 120, verticalLaunchAngle: 15, horizontalLaunchAngle: 0, spinSpeed: 3200, spinAxis: 0 });
+        break;
+      case 'Numpad3':
+        this.emit('testShot', { ballSpeed: 100, verticalLaunchAngle: 22, horizontalLaunchAngle: 0, spinSpeed: 5000, spinAxis: 0 });
+        break;
+      case 'Numpad4':
+        this.emit('testShot', { ballSpeed: 80, verticalLaunchAngle: 25, horizontalLaunchAngle: 0, spinSpeed: 7500, spinAxis: 0 });
+        break;
+      case 'Numpad5':
+        this.emit('testShot', { ballSpeed: 60, verticalLaunchAngle: 28, horizontalLaunchAngle: 0, spinSpeed: 7000, spinAxis: 0 });
+        break;
+      case 'Numpad6':
+        this.emit('testShot', { ballSpeed: 40, verticalLaunchAngle: 28, horizontalLaunchAngle: 0, spinSpeed: 6000, spinAxis: 0 });
+        break;
+      case 'Numpad7':
+        this.emit('testShot', { ballSpeed: 30, verticalLaunchAngle: 35, horizontalLaunchAngle: 0, spinSpeed: 6000, spinAxis: 0 });
+        break;
+      case 'Numpad8':
+        this.emit('testShot', { ballSpeed: 20, verticalLaunchAngle: 40, horizontalLaunchAngle: 0, spinSpeed: 4000, spinAxis: 0 });
+        break;
+      case 'Numpad9':
+        this.emit('testShot', { ballSpeed: 10, verticalLaunchAngle: 0, horizontalLaunchAngle: 1, spinSpeed: 0, spinAxis: 0 });
+        break;
+      // unhandled
+      default: return false;
+    }
+    // handled
+    return true;
+  }
+
+  #resetAimKeys() {
+    const wasActive = Object.values(this.aimKeys).some(Boolean);
+    this.aimKeys = { left: false, right: false, forward: false, backward: false };
+    if (wasActive) {
+      this.emit('aim', this.aimKeys);
+    }
+  }
+
+  update(dt: number) {}
+}

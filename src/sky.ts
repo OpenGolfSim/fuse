@@ -1,14 +1,19 @@
 import * as THREE from 'three';
+import { EXRLoader } from 'three/examples/jsm/Addons.js';
 
 export class SkyBox {
-  constructor(renderer, exrPath) {
+  pmremGenerator: THREE.PMREMGenerator;
+  exrLoader: EXRLoader;
+  sky: THREE.Mesh | null;
+
+  constructor(renderer: THREE.WebGLRenderer) {
     this.pmremGenerator = new THREE.PMREMGenerator(renderer);
     this.pmremGenerator.compileEquirectangularShader();
     this.exrLoader = new EXRLoader();
     this.sky = null;
   }
 
-  async load(exrPath) {
+  async load(scene: THREE.Scene, exrPath: string) {
     
     const texture = await this.exrLoader.loadAsync(exrPath);
     texture.mapping = THREE.EquirectangularReflectionMapping;
@@ -28,24 +33,29 @@ export class SkyBox {
     this.sky.position.set(0, 50, 0);      // additionally squash to lower the horizon
     // sky.scale.set(1, 0.6, 1);      // additionally squash to lower the horizon
     this.sky.rotation.y = -0.5;
-    // sky.rotation.x = -0.1;
 
-    // const texture = await exrLoader.loadAsync(exrPath);
-
-    // texture.mapping = THREE.EquirectangularReflectionMapping;
-
-    // // Use PMREM version only for lighting
-    // const envMap = this.pmremGenerator.fromEquirectangular(texture).texture;
-    // scene.environment = envMap;
-    // this.pmremGenerator.dispose();
-    
-    // scene.add(this.sky);
     return this.sky;
   }
 }
 
+type VolumetricCloudsOptions = {
+  density?: number;
+  opacity?: number;
+  scale?: number;
+  radius?: number;
+  position?: THREE.Vector3;
+  // colors
+  skyColor?: THREE.Color;
+  cloudColor?: THREE.Color;
+  fogColor?: THREE.Color;
+}
+
 export class VolumetricClouds {
-  constructor(camera, options = {}) {
+  camera: THREE.Camera;
+  cloudMaterial: THREE.ShaderMaterial;
+  object: THREE.Mesh;
+
+  constructor(camera: THREE.Camera, options: VolumetricCloudsOptions = {}) {
     this.camera = camera;
     const density = options.density ?? 0.4;
     const opacity = options.opacity ?? 0.8;

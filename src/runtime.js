@@ -11,24 +11,34 @@ import { Water } from 'three/addons/objects/Water';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass';
+import Stats from 'three/addons/libs/stats.module';
 import { MeshLineGeometry, MeshLineMaterial } from 'meshline'
 
 import RAPIER from '@dimforge/rapier3d-compat';
-// import * as ogsUI from './ui';
-import { UIShotData, UIRangeFinder } from './ui';
-import { app } from './app';
-import { BallPhysics, GroundPhysics, Heightfield } from './physics';
-import { BallTrail } from './ballTrail';
-import { GroundUtils } from './groundUtils';
-import { VolumetricClouds, SkyBox } from './sky';
-import { TreePlanter } from './trees';
-import { WaterSurface } from './water';
-import { ShotPerspectiveCamera, CourseMap } from './camera';
-import { CourseLoader } from './course';
-import { CourseLight } from './lights';
-import { SandShaderMaterial } from './shaders/sand';
-import { GrassShaderMaterial } from './shaders/grass';
-import { extractTintAttribute } from './shaders/utils';
+
+// import { UIShotData, UIRangeFinder, UIPlayerMenu } from '@/ui';
+import { UIPlayerMenu } from '@/ui/UIPlayerMenu';
+import { UIRangeFinder } from '@/ui/UIRangeFinder';
+import { UIShotData } from '@/ui/UIShotData';
+import { AppBridge } from '@/app';
+import { BallPhysics } from '@/physics/ballPhysics';
+import { GroundPhysics, GroundUtils } from '@/physics/groundPhysics';
+import { GolfBall } from '@/objects/golfBall';
+import { BallTrail } from '@/objects/ballTrail';
+import { VolumetricClouds, SkyBox } from '@/sky';
+import { TreePlanter } from '@/trees';
+import { ShotPerspectiveCamera } from '@/camera';
+import { CourseKeyboardControls } from '@/controls';
+import { CourseMap } from '@/map';
+import { CourseLoader } from '@/courses/loader';
+import { CourseGame } from '@/courses/game';
+import { CourseLight } from '@/lights';
+import { WaterSurface } from '@/shaders/water';
+import { SandShaderMaterial } from '@/shaders/sand';
+import { FlagStick } from '@/objects/flagStick';
+import { AimPoint } from '@/objects/aimPoint';
+import { UnitConversions } from '@/utils/units';
+
 import pkg from '../package.json';
 import './css/base.css';
 
@@ -47,49 +57,35 @@ window.EffectComposer = EffectComposer;
 window.UnrealBloomPass = UnrealBloomPass;
 window.MeshLineGeometry = MeshLineGeometry;
 window.MeshLineMaterial = MeshLineMaterial;
+window.Stats = Stats;
 
 window.RAPIER = RAPIER;
-
+window.GRAVITY = { x: 0, y: -9.81, z: 0 };
 // custom elements
+window.GolfBall = GolfBall;
 window.BallTrail = BallTrail;
 window.VolumetricClouds = VolumetricClouds;
 window.SkyBox = SkyBox;
 window.GroundUtils = GroundUtils;
 window.GroundPhysics = GroundPhysics;
-window.Heightfield = Heightfield;
 window.BallPhysics = BallPhysics;
 window.TreePlanter = TreePlanter;
 window.WaterSurface = WaterSurface;
 window.ShotPerspectiveCamera = ShotPerspectiveCamera;
+window.CourseKeyboardControls = CourseKeyboardControls;
 window.CourseMap = CourseMap;
 window.CourseLoader = CourseLoader;
+window.CourseGame = CourseGame;
 window.CourseLight = CourseLight;
 // shaders
 window.SandShaderMaterial = SandShaderMaterial;
-window.GrassShaderMaterial = GrassShaderMaterial;
-window.ShaderUtils = { extractTintAttribute };
 window.UIShotData = UIShotData;
 window.UIRangeFinder = UIRangeFinder;
+window.UIPlayerMenu = UIPlayerMenu;
+// objects
+window.AimPoint = AimPoint;
+window.FlagStick = FlagStick;
+window.UnitConversions = UnitConversions;
 
-window.openGolfSim = { _version: pkg.version, app };
-
-// document.addEventListener('DOMContentLoaded', () => {
-//   const uiRoot = document.createElement('div');
-//   uiRoot.setAttribute('id', 'ui-root');
-//   document.body.prepend(uiRoot);
-//   ogsUI.setupDefaultUI(uiRoot);
-// });
-
-/**
- * Rapier needs async init before use, so we expose a custom window event (engine.ready)
- * 
- * window.addEventListener('engine.ready', () => {
- *   // three.js + rapier are ready, setup your game
- * })
- */
-// that game code can await before doing anything
-window.RAPIER_READY = RAPIER.init().then(() => {
-  console.log('[runtime] Rapier initialized');
-  const readyEvent = new CustomEvent('engine.ready', { detail: {} });
-  window.dispatchEvent(readyEvent);
-});
+window.OpenGolfSimVersion = pkg.version;
+window.app = new AppBridge(RAPIER);

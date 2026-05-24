@@ -1,14 +1,18 @@
-export class CourseLight {
-  constructor(color = 0xfcfbf5) {
+import * as THREE from 'three';
 
-    this.group = new THREE.Group();
+export class CourseLight extends THREE.Group {
+  ambient: THREE.AmbientLight;
+  overhead: THREE.DirectionalLight;
+
+  constructor(color = 0xfcfbf5) {
+    super();
     // Bright warm ambient
     this.ambient = new THREE.AmbientLight(color, 1.0);
-    this.group.add(this.ambient);
+    this.add(this.ambient);
     
     // Main overhead light for shadows
     this.overhead = new THREE.DirectionalLight(color, 1.0);
-    this.overhead.position.set(600, 200, 600);
+    this.overhead.position.set(600, 300, 600);
     this.overhead.castShadow = true;
     this.overhead.shadow.mapSize.width = 2048; // Higher = crisper shadows
     this.overhead.shadow.mapSize.height = 2048;
@@ -23,8 +27,7 @@ export class CourseLight {
     // center of world
     this.overhead.target.position.set(500, 0, 500);
 
-    this.group.add(this.overhead.target);
-    this.group.add(this.overhead);
-    return this.group;
+    this.add(this.overhead.target);
+    this.add(this.overhead);
   }
 }

@@ -1,8 +1,9 @@
+import * as THREE from 'three';
 import { MeshLineGeometry, MeshLineMaterial, raycast } from 'meshline'
 
 const MAX_POINTS = 4000;
 
-function resampleByArcLength(points, spacing) {
+function resampleByArcLength(points: THREE.Vector3[], spacing: number) {
   if (points.length < 2) return points.slice();
 
   const out = [points[0].clone()];
@@ -35,7 +36,9 @@ function createTrailAlphaMap() {
   canvas.width = 256;
   canvas.height = 1;
   const ctx = canvas.getContext('2d');
-
+  if (!ctx) {
+    throw new Error('Unable to get 2d canvas context');
+  }
   const gradient = ctx.createLinearGradient(0, 0, 256, 0);
   // Fade at the OLD end of the trail (U=0). Flip stops if you want
   // the fade at the ball end instead.
@@ -54,8 +57,37 @@ function createTrailAlphaMap() {
   return tex;
 }
 
+type BallTrailOptions = {
+  maxPoints?: number;
+  lineWidth?: number;
+  fadeLength?: number;
+  resampleSpacing?: number;
+  cameraFadeNear?: number;
+  cameraFadeFar?: number;
+  color?: THREE.Color | number;
+};
+
 export class BallTrail {
-  constructor(scene, golfBall, options = {}) {
+  scene: THREE.Scene;
+  golfBall: THREE.Object3D;
+  maxPoints: number;
+  lineWidth: number;
+  fadeLength: number;
+  resampleSpacing: number;
+  color: THREE.Color | number;
+  uCamFadeNear: { value: number };
+  uCamFadeFar: { value: number };
+  material: MeshLineMaterial;
+
+  points: THREE.Vector3[];
+  frameNum: number;
+  trail: THREE.Mesh | null;
+  geom: MeshLineGeometry | null;
+  #alphaCanvas: HTMLCanvasElement;
+  #alphaCtx: CanvasRenderingContext2D | null;
+  #alphaTex: THREE.CanvasTexture;
+
+  constructor(scene: THREE.Scene, golfBall: THREE.Object3D, options: BallTrailOptions = {}) {
     this.scene = scene;
     this.golfBall = golfBall;
     this.maxPoints = options.maxPoints ?? MAX_POINTS;
@@ -64,10 +96,8 @@ export class BallTrail {
     this.fadeLength = options.fadeLength ?? 10.0;        // world units
     this.resampleSpacing = options.resampleSpacing ?? 0.15;
     // Camera-distance fade controls (in world units)
-    this._camFade = {
-      uCamFadeNear: { value: options.cameraFadeNear ?? 2.0 }, // fully transparent here
-      uCamFadeFar:  { value: options.cameraFadeFar  ?? 4.5 }, // fully opaque past here
-    };
+    this.uCamFadeNear = { value: options.cameraFadeNear ?? 2.0 }; // fully transparent here
+    this.uCamFadeFar = { value: options.cameraFadeFar  ?? 4.5 }; // fully opaque past here
 
     this.points = [];
     this.frameNum = 0;
@@ -75,29 +105,30 @@ export class BallTrail {
     this.geom = null;
 
     // Reusable alpha-map canvas; we redraw the gradient each frame
-    this._alphaCanvas = document.createElement('canvas');
-    this._alphaCanvas.width = 256;
-    this._alphaCanvas.height = 1;
-    this._alphaCtx = this._alphaCanvas.getContext('2d');
-    this._alphaTex = new THREE.CanvasTexture(this._alphaCanvas);
-    this._alphaTex.minFilter = THREE.LinearFilter;
-    this._alphaTex.magFilter = THREE.LinearFilter;
-    this._alphaTex.generateMipmaps = false;
+    this.#alphaCanvas = document.createElement('canvas');
+    this.#alphaCanvas.width = 256;
+    this.#alphaCanvas.height = 1;
+    this.#alphaCtx = this.#alphaCanvas.getContext('2d');
+
+    this.#alphaTex = new THREE.CanvasTexture(this.#alphaCanvas);
+    this.#alphaTex.minFilter = THREE.LinearFilter;
+    this.#alphaTex.magFilter = THREE.LinearFilter;
+    this.#alphaTex.generateMipmaps = false;
 
     this.material = new MeshLineMaterial({
       color: this.color,
       lineWidth: this.lineWidth,
-      transparent: true,
-      depthWrite: true,
-      depthTest: true,
       resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
       sizeAttenuation: 1,
       useAlphaMap: 1,
-      alphaMap: this._alphaTex,
+      alphaMap: this.#alphaTex,
     });
 
-    this.material.uniforms.uCamFadeNear = this._camFade.uCamFadeNear;
-    this.material.uniforms.uCamFadeFar  = this._camFade.uCamFadeFar;
+    this.material.transparent = true;
+    this.material.depthWrite = true;
+    this.material.depthTest = true;
+    this.material.uniforms.uCamFadeNear = this.uCamFadeNear;
+    this.material.uniforms.uCamFadeFar  = this.uCamFadeFar;
 
     // Vertex shader: forward world position to fragment shader
     this.material.vertexShader = this.material.vertexShader
@@ -129,11 +160,13 @@ export class BallTrail {
 
   }
 
-  _updateAlphaMap(totalLength) {
-    const ctx = this._alphaCtx;
+  _updateAlphaMap(totalLength: number) {
+    const ctx = this.#alphaCtx;
+    if (!ctx) {
+      throw new Error('Invalid canvas context!');
+    }
     // Fraction of U that should be the fade region at each end
     const fade = Math.min(0.49, this.fadeLength / Math.max(totalLength, 0.0001));
-
     ctx.clearRect(0, 0, 256, 1);
     const g = ctx.createLinearGradient(0, 0, 256, 0);
     g.addColorStop(0.0,        'rgba(255,255,255,0)');
@@ -142,7 +175,7 @@ export class BallTrail {
     g.addColorStop(1.0,        'rgba(255,255,255,0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 256, 1);
-    this._alphaTex.needsUpdate = true;
+    this.#alphaTex.needsUpdate = true;
   }
   clear() {
     this.points = [];
@@ -169,7 +202,7 @@ export class BallTrail {
   _rebuild() {
     if (this.trail) {
       this.scene.remove(this.trail);
-      this.geom.dispose();
+      if (this.geom) this.geom.dispose()
       this.trail = null;
       this.geom = null;
     }
@@ -202,6 +235,7 @@ export class BallTrail {
     this.geom.setPoints(flat);
 
     this.trail = new THREE.Mesh(this.geom, this.material);
+    this.trail.layers.set(2);
     this.trail.frustumCulled = false;
     this.scene.add(this.trail);
   }

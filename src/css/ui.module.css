@@ -2,11 +2,20 @@
   --primary-color: rgb(33, 212, 141);
   --bg-color: rgba(17, 28, 28, 0.9);
   --text-color: #FFF;
-  --base-text-size: 1.5vh;
-  --large-text-size: 2.4vh;
-  --unit-text-size: 1.1vh;
-  --border-radius: 0.5vw;
+  --base-font-size: 10px;
+  --large-text-size: 12px;
+  --unit-text-size: 11px;
+  --border-radius: 0.5vh;
 }
+
+@media (min-width: 640px) {
+  :root {
+    --base-font-size: 1.5vh;
+    --large-text-size: 2.4vh;
+    --unit-text-size: 1.1vh;
+  }
+}
+
 .uiRoot {
   position: absolute;
   top: 0;
@@ -87,7 +96,8 @@
   /* height: 5vh; */
   position: fixed;
   top: 1vh;
-  justify-self: center;
+  left: 50%;
+  transform: translateX(-50%);
   padding: 0.5vh 1vw;
 }
 .rangeFinderContainer {
@@ -115,6 +125,52 @@
   font-size: var(--unit-text-size);
 }
 
+.playerMenu {
+  background-color: var(--bg-color);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  position: fixed;
+  left: 1vh;
+  top: 1vh;
+  min-width: 200px;
+  width: 15vw;
+}
+.playerMenuContainer {
+  height: 4vh;
+  padding: 0 1vh;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 1vh;
+}
+.playerMenuName {
+  flex: 1;
+  font-size: var(--base-font-size);
+  font-weight: bold;
+}
+/* .playerMenuClub {
+  padding: 0.6vw;
+  border: 2px solid #fff;
+  font-weight: bold;
+  font-size: 1.2vh;
+} */
+.playerMenuClub,
+.playerMenuScore {
+  height: 2.4vh;
+  width: 2.4vh;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;  
+  font-weight: bold;
+  font-size: 1.2vh;
+}
+.playerMenuClub {
+  /* background-color: rgba(255, 255, 255, 0.3); */
+  /* border-radius: 1.4vh;
+  border: 0.15vh solid #fff; */
+}
 .mapContainer {
   position: fixed;
   left: 10px;
@@ -122,11 +178,37 @@
   background-color: var(--bg-color);
   font-weight: 800;
   color: var(--text-color);
-  font-size: var(--base-text-size);
+  font-size: 0.85cqi;
+  /* font-size: var(--base-font-size); */
   border-radius: var(--border-radius);
   overflow: hidden;
 }
 .mapHeader {
   padding: 0.5vw;
+  display: flex;
+  flex-direction: row;
+  gap: 0.5vw;
 }
-.mapCanvas {}
+.mapHoleText {
+  flex: 1;
+}
+.mapParText {
+  flex: 0 0 auto;
+}
+.mapDistText {
+  flex: 0 0 auto;
+}
+.canvasContainer {
+  position: relative;
+}
+.mapCanvas {
+  position: relative;
+  top: 0;
+  left: 0;
+}
+.overlayCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: transparent;
+}

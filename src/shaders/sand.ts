@@ -1,15 +1,12 @@
 import * as THREE from 'three';
 
-const DEFAULTS = {
-  colorTint: new THREE.Color(0.9, 0.88, 0.749),
-};
-
 const VERT = /* glsl */ `
   varying float vTint;
 
   void main() {
     // Pull the red channel from the vertex color you painted
     vTint = color.r;
+
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
@@ -32,7 +29,7 @@ const FRAG = /* glsl */ `
 
 
 
-function buildVertex(base) {
+function buildVertex(base: string) {
   return base
     .replace(
       'void main() {',
@@ -49,7 +46,7 @@ function buildVertex(base) {
     );
 }
 
-function buildFragment(base) {
+function buildFragment(base: string) {
   return base
     .replace(
       'void main() {',
@@ -77,8 +74,15 @@ function buildFragment(base) {
     );
 }
 
-export class GrassShaderMaterial extends THREE.ShaderMaterial {
-  constructor(baseMaterial, options = {}) {
+type SandShaderMaterialOptions = {
+  edgeColor?: THREE.Color,
+  tintStrength?: number,
+  exposure?: number
+}
+
+export class SandShaderMaterial extends THREE.ShaderMaterial {
+  
+  constructor(baseMaterial: THREE.MeshStandardMaterial, options: SandShaderMaterialOptions = {}) {
     const map = baseMaterial.map;
     const normalMap = baseMaterial.normalMap;
 
@@ -92,6 +96,8 @@ export class GrassShaderMaterial extends THREE.ShaderMaterial {
     super({
       uniforms: THREE.UniformsUtils.merge([
         THREE.UniformsLib.lights,
+        // @ts-expect-error
+        THREE.UniformsLib.shadowmap,
         {
           uMap: { value: map },
           uNormalMap: { value: normalMap },
@@ -102,6 +108,14 @@ export class GrassShaderMaterial extends THREE.ShaderMaterial {
           uEdgeColor: { value: edgeColor },
           uTintStrength: { value: tintStrength },
           uExposure: { value: exposure },
+          directionalShadowMap: { value: [] },
+          directionalShadowMatrix: { value: [] },
+          pointShadowMap: { value: [] },
+          pointShadowMatrix: { value: [] },
+          spotShadowMap: { value: [] },
+          spotLightMatrix: { value: [] },
+          spotLightMap: { value: [] },
+
         }
       ]),
       vertexShader: `

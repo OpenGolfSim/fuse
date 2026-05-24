@@ -1,27 +1,44 @@
 import * as THREE from 'three';
+import { type World } from '@dimforge/rapier3d-compat';
+import { seededRandom } from '@/utils/random';
 
-function seededRandom(seed) {
-  return function() {
-    seed = (seed * 16807 + 0) % 2147483647;
-    return seed / 2147483647;
-  };
-}
+export type TreePlanterOptions = {
+  groundMeshes?: THREE.Group | THREE.Group[];
+  scene: THREE.Group;
+  worldSize: number;
+  world: World;
+  rapier: RapierInstance;
+};
+
+type TreeGroup = {
+  meshGroup: THREE.Group;
+  scaleRange: {
+    min: number,
+    max: number
+  },
+  density: number,
+  colors: number[],
+  collider?: boolean
+};
 
 export class TreePlanter {
-  /**
-   * @param {THREE.Scene} scene
-   * @param {number} worldSize
-   * @param {object} [options]
-   * @param {THREE.Mesh|THREE.Mesh[]} options.groundMeshes - mesh(es) to raycast against for Y placement
-   * @param {object} [options.world] - RAPIER physics world (optional, enables colliders)
-   * @param {object} [options.RAPIER] - RAPIER module (optional, enables colliders)
-   */
-  constructor(scene, worldSize, { groundMeshes, world, RAPIER } = {}) {
+  scene: THREE.Group;
+  worldSize: number;
+  world: World;
+  rapier: RapierInstance;
+  physicsEnabled: boolean;
+  groundMeshes: THREE.Group | THREE.Group[];
+
+  treeGroup: THREE.Group;
+  #raycaster: THREE.Raycaster;
+
+  constructor(options: TreePlanterOptions) {
+    const { scene, worldSize, groundMeshes, world, rapier } = options;
     this.scene = scene;
     this.worldSize = worldSize;
     this.world = world ?? null;
-    this.RAPIER = RAPIER ?? null;
-    this.physicsEnabled = !!(this.world && this.RAPIER);
+    this.rapier = rapier ?? null;
+    this.physicsEnabled = !!(this.world && this.rapier);
 
     // Normalise groundMeshes to an array
     this.groundMeshes = groundMeshes
@@ -29,8 +46,8 @@ export class TreePlanter {
       : [];
 
     // Three.js raycaster used when RAPIER isn't available (or always for Y)
-    this._raycaster = new THREE.Raycaster();
-    this._raycaster.firstHitOnly = true; // requires three-mesh-bvh or r152+
+    this.#raycaster = new THREE.Raycaster();
+    // this.#raycaster.firstHitOnly = true; // requires three-mesh-bvh or r152+
 
     this.treeGroup = new THREE.Group();
     this.scene.add(this.treeGroup);
@@ -43,20 +60,15 @@ export class TreePlanter {
   clear() {
     this.scene.remove(this.treeGroup);
     this.treeGroup = new THREE.Group();
-    this.lods = [];
+    // this.lods = [];
     this.scene.add(this.treeGroup);
   }
 
-  /**
-   * Raycast downward to find the ground Y at (x, z).
-   * Uses RAPIER if available, otherwise falls back to THREE.Raycaster.
-   * @returns {number|null} ground Y, or null if no hit
-   */
-  _getGroundY(x, z) {
+  #getGroundY(x: number, z: number) {
     const originY = 200;
 
     if (this.physicsEnabled) {
-      const ray = new this.RAPIER.Ray(
+      const ray = new this.rapier.Ray(
         { x, y: originY, z },
         { x: 0, y: -1, z: 0 }
       );
@@ -69,13 +81,13 @@ export class TreePlanter {
     }
 
     // Three.js fallback
-    if (this.groundMeshes.length === 0) return 0; // no ground info, plant at y=0
+    if (!this.groundMeshes || Array.isArray(this.groundMeshes) && this.groundMeshes?.length === 0) return 0; // no ground info, plant at y=0
 
-    this._raycaster.set(
+    this.#raycaster.set(
       new THREE.Vector3(x, originY, z),
       new THREE.Vector3(0, -1, 0)
     );
-    const hits = this._raycaster.intersectObjects(this.groundMeshes, true);
+    const hits = this.#raycaster.intersectObjects(this.groundMeshes as THREE.Object3D[], true);
     if (hits.length === 0) return null;
     return hits[0].point.y;
   }
@@ -84,84 +96,79 @@ export class TreePlanter {
    * Optionally create a physics collider for a planted tree.
    * No-ops when physics aren't available.
    */
-  _addCollider(pos, scale, baseHeight, baseRadius, userData) {
+  _addCollider(pos: THREE.Vector3, scale: number, baseHeight: number, baseRadius: number, userData: any) {
     if (!this.physicsEnabled) return;
 
-    const RAPIER = this.RAPIER;
+    // const RAPIER = this.RAPIER;
     const s = scale;
-    const bodyDesc = RAPIER.RigidBodyDesc.fixed()
+    const bodyDesc = this.rapier.RigidBodyDesc.fixed()
       .setTranslation(pos.x, pos.y + (baseHeight * s) / 2, pos.z);
     const body = this.world.createRigidBody(bodyDesc);
-    const colliderDesc = RAPIER.ColliderDesc.cylinder(
+    const colliderDesc = this.rapier.ColliderDesc.cylinder(
       (baseHeight * s) / 2,
       baseRadius * s
     );
     const collider = this.world.createCollider(colliderDesc, body);
+    // @ts-expect-error
     collider.userData = userData;
   }
 
-  extractLODs(gltfScene) {
-    this.lods = [];
-    gltfScene.traverse((child) => {
-      if (!child.isMesh) return;
-      const name = (child.name || child.parent?.name || '').toUpperCase();
-      const match = name.match(/LOD(\d+)/);
-      if (match) {
-        const level = parseInt(match[1]);
-        if (!this.lods[level]) this.lods[level] = { meshes: [], level };
-        this.lods[level].meshes.push(child);
-      } else if (name.includes('BILLBOARD')) {
-        this.lods.push({ meshes: [child], level: 999, isBillboard: true });
-      }
-    });
-    return this.lods.filter(Boolean).sort((a, b) => a.level - b.level);
-  }
+  // extractLODs(gltfScene) {
+  //   this.lods = [];
+  //   gltfScene.traverse((child) => {
+  //     if (!child.isMesh) return;
+  //     const name = (child.name || child.parent?.name || '').toUpperCase();
+  //     const match = name.match(/LOD(\d+)/);
+  //     if (match) {
+  //       const level = parseInt(match[1]);
+  //       if (!this.lods[level]) this.lods[level] = { meshes: [], level };
+  //       this.lods[level].meshes.push(child);
+  //     } else if (name.includes('BILLBOARD')) {
+  //       this.lods.push({ meshes: [child], level: 999, isBillboard: true });
+  //     }
+  //   });
+  //   return this.lods.filter(Boolean).sort((a, b) => a.level - b.level);
+  // }
 
   /**
    * Simple rectangular planting (unchanged API).
    */
-  plant(mesh, count, area, scaleRange) {
-    const instanced = new THREE.InstancedMesh(mesh.geometry, mesh.material, count);
-    const dummy = new THREE.Object3D();
+  // plant(mesh: THREE.Mesh, count: number, area, scaleRange) {
+  //   const instanced = new THREE.InstancedMesh(mesh.geometry, mesh.material, count);
+  //   const dummy = new THREE.Object3D();
 
-    for (let i = 0; i < count; i++) {
-      const x = ((Math.random() - 0.5) * area.width) + area.xOffset;
-      const z = area.zMin + Math.random() * (area.zMax - area.zMin);
-      const y = this._getGroundY(x, z) ?? -0.1;
+  //   for (let i = 0; i < count; i++) {
+  //     const x = ((Math.random() - 0.5) * area.width) + area.xOffset;
+  //     const z = area.zMin + Math.random() * (area.zMax - area.zMin);
+  //     const y = this.#getGroundY(x, z) ?? -0.1;
 
-      dummy.position.set(x, y, z);
-      dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
-      const s = scaleRange.min + Math.random() * (scaleRange.max - scaleRange.min);
-      dummy.scale.set(s, s, s);
-      dummy.updateMatrix();
-      instanced.setMatrixAt(i, dummy.matrix);
-    }
+  //     dummy.position.set(x, y, z);
+  //     dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+  //     const s = scaleRange.min + Math.random() * (scaleRange.max - scaleRange.min);
+  //     dummy.scale.set(s, s, s);
+  //     dummy.updateMatrix();
+  //     instanced.setMatrixAt(i, dummy.matrix);
+  //   }
 
-    instanced.instanceMatrix.needsUpdate = true;
-    instanced.castShadow = true;
-    instanced.receiveShadow = true;
-    this.treeGroup.add(instanced);
-    return instanced;
-  }
+  //   instanced.instanceMatrix.needsUpdate = true;
+  //   instanced.castShadow = true;
+  //   instanced.receiveShadow = true;
+  //   this.treeGroup.add(instanced);
+  //   return instanced;
+  // }
 
   /**
    * @param {Array<{meshGroup: THREE.Group, scaleRange: {min:number,max:number}, density: number, colors: number[], collider?: boolean}>} trees
    * @param {object} maskData - { data, width, height } from getImageData
    * @param {number} [seed=12345]
    */
-  plantFromMask(trees, maskData, seed = 12345) {
+  plantFromMask(trees: TreeGroup[], maskData: { data: ImageDataArray, width: number, height: number }, seed = 12345) {
     const { data, width, height } = maskData;
     const cellW = this.worldSize / width;
     const cellH = this.worldSize / height;
     const random = seededRandom(seed);
 
     const totalDensity = trees.reduce((sum, t) => sum + t.density, 0);
-  console.log('tree configs:', trees.map(t => ({
-    density: t.density,
-    scaleRange: t.scaleRange,
-    childCount: t.meshGroup?.children?.length,
-  })));
-  console.log('totalDensity:', totalDensity);
 
     const cumulativeWeights = [];
     let cumSum = 0;
@@ -172,7 +179,7 @@ export class TreePlanter {
     cumulativeWeights[cumulativeWeights.length - 1] = 1.0;
 
     // Phase 1: scatter XZ from mask
-    const scattered = trees.map(() => []);
+    const scattered: { x: number, z: number }[][] = trees.map(() => []);
 
     for (let py = 0; py < height; py++) {
       for (let px = 0; px < width; px++) {
@@ -196,7 +203,6 @@ export class TreePlanter {
         }
       }
     }
-    console.log('scattered counts:', scattered.map(s => s.length));
 
     // Phase 2: raycast for Y + build matrices per tree type
     const dummy = new THREE.Object3D();
@@ -212,11 +218,10 @@ export class TreePlanter {
 
       const points = scattered[treeIdx];
       if (points.length === 0) { allResults.push(null); continue; }
-      console.log('scaleRange:', scaleRange);
 
-      const matrices = [];
+      const matrices: THREE.Matrix4[] = [];
       for (const { x, z } of points) {
-        const y = this._getGroundY(x, z);
+        const y = this.#getGroundY(x, z);
         if (y == null) continue;
 
         dummy.position.set(x, y, z);
@@ -227,8 +232,6 @@ export class TreePlanter {
         matrices.push(dummy.matrix.clone());
       }
 
-  
-      console.log('matrix counts:', matrices.length);
       if (matrices.length === 0) { allResults.push(null); continue; }
 
       // Colliders (only when physics available AND tree config opts in)
@@ -253,7 +256,7 @@ export class TreePlanter {
         ? Array.from({ length: count }, () => colors[Math.floor(random() * colors.length)])
         : [];
 
-      const instancedMeshes = [];
+      const instancedMeshes: THREE.InstancedMesh<any, any, THREE.InstancedMeshEventMap>[] = [];
       // const meshChildren = [];
       // meshGroup.traverse((child) => {
       //   if (child.isMesh) meshChildren.push(child);
@@ -261,7 +264,7 @@ export class TreePlanter {
       // meshChildren.forEach((child) => {
 
       meshGroup.children.forEach((child) => {
-        if (!child.isMesh) return;
+        if (!(child instanceof THREE.Mesh) || !child.isMesh) return;
 
         const geo = child.geometry.clone();
         child.updateWorldMatrix(true, false);
@@ -289,7 +292,6 @@ export class TreePlanter {
         this.treeGroup.add(instanced);
         instancedMeshes.push(instanced);
       });
-      console.log('meshes found for instancing:', instancedMeshes.length);
 
       allResults.push(instancedMeshes);
     }

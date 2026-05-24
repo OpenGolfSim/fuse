@@ -1,5 +1,5 @@
 {
-  "name": "ogs-webgl-core",
+  "name": "@opengolfsim/simulator",
   "version": "1.0.0",
   "description": "",
   "type": "module",
@@ -7,19 +7,15 @@
   "module": "dist/module.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "node scripts/builds.js",
-    "build-vite": "vite build",
-    "build-watch": "vite build --watch",
-    "project": "node scripts/project.js",
-    "server": "concurrently 'vite build --watch' 'node scripts/server.js'",
-    "server2": "concurrently 'vite build --watch' 'serve . -l 3112'",
-    "dev": "vite"
+    "build": "node scripts/build.js",
+    "start": "node scripts/server.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
+    "eventemitter3": "^5.0.4",
     "meshline": "^3.3.1"
   },
   "peerDependencies": {
