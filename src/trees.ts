@@ -1,13 +1,14 @@
 import * as THREE from 'three';
 import { type World } from '@dimforge/rapier3d-compat';
 import { seededRandom } from '@/utils/random';
+import { isMeshObject } from '@/utils/mesh';
 
 export type TreePlanterOptions = {
   groundMeshes?: THREE.Group | THREE.Group[];
   scene: THREE.Group;
   worldSize: number;
-  world: World;
-  rapier: RapierInstance;
+  world?: World;
+  rapier?: RapierInstance;
 };
 
 type TreeGroup = {
@@ -24,8 +25,8 @@ type TreeGroup = {
 export class TreePlanter {
   scene: THREE.Group;
   worldSize: number;
-  world: World;
-  rapier: RapierInstance;
+  world?: World;
+  rapier?: RapierInstance;
   physicsEnabled: boolean;
   groundMeshes: THREE.Group | THREE.Group[];
 
@@ -36,8 +37,8 @@ export class TreePlanter {
     const { scene, worldSize, groundMeshes, world, rapier } = options;
     this.scene = scene;
     this.worldSize = worldSize;
-    this.world = world ?? null;
-    this.rapier = rapier ?? null;
+    this.world = world ?? undefined;
+    this.rapier = rapier ?? undefined;
     this.physicsEnabled = !!(this.world && this.rapier);
 
     // Normalise groundMeshes to an array
@@ -68,11 +69,11 @@ export class TreePlanter {
     const originY = 200;
 
     if (this.physicsEnabled) {
-      const ray = new this.rapier.Ray(
+      const ray = new this.rapier!.Ray(
         { x, y: originY, z },
         { x: 0, y: -1, z: 0 }
       );
-      const hit = this.world.castRay(ray, 500, true);
+      const hit = this.world!.castRay(ray, 500, true);
       if (hit == null) {
         console.log('No ground hit...');
         return null;
@@ -101,14 +102,14 @@ export class TreePlanter {
 
     // const RAPIER = this.RAPIER;
     const s = scale;
-    const bodyDesc = this.rapier.RigidBodyDesc.fixed()
+    const bodyDesc = this.rapier!.RigidBodyDesc.fixed()
       .setTranslation(pos.x, pos.y + (baseHeight * s) / 2, pos.z);
-    const body = this.world.createRigidBody(bodyDesc);
-    const colliderDesc = this.rapier.ColliderDesc.cylinder(
+    const body = this.world!.createRigidBody(bodyDesc);
+    const colliderDesc = this.rapier!.ColliderDesc.cylinder(
       (baseHeight * s) / 2,
       baseRadius * s
     );
-    const collider = this.world.createCollider(colliderDesc, body);
+    const collider = this.world!.createCollider(colliderDesc, body);
     // @ts-expect-error
     collider.userData = userData;
   }
@@ -257,21 +258,20 @@ export class TreePlanter {
         : [];
 
       const instancedMeshes: THREE.InstancedMesh<any, any, THREE.InstancedMeshEventMap>[] = [];
-      // const meshChildren = [];
-      // meshGroup.traverse((child) => {
-      //   if (child.isMesh) meshChildren.push(child);
-      // });
-      // meshChildren.forEach((child) => {
-
+      
       meshGroup.children.forEach((child) => {
-        if (!(child instanceof THREE.Mesh) || !child.isMesh) return;
-
+        if (!isMeshObject(child)) {
+          console.warn(`Object (${child.name}:${child.id}) not a THREE.Mesh`);
+          return;
+        }
+        
         const geo = child.geometry.clone();
         child.updateWorldMatrix(true, false);
         const localMatrix = new THREE.Matrix4();
         localMatrix.copy(meshGroup.matrixWorld).invert().multiply(child.matrixWorld);
         geo.applyMatrix4(localMatrix);
 
+        // @ts-expect-error
         const instanced = new THREE.InstancedMesh(geo, child.material.clone(), count);
         const isLeaf = child.name.toLowerCase().includes('leaf');
 
@@ -295,7 +295,6 @@ export class TreePlanter {
 
       allResults.push(instancedMeshes);
     }
-
     return allResults;
   }
 }

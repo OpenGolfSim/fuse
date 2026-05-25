@@ -4,25 +4,25 @@ import normals from '@/images/waternormals.jpg';
 
 
 type WaterSurfaceOptions = {
-  speed: number,
-  textureScale: number,
-  water: {
-    textureWidth: number,
-    textureHeight: number,
-    alpha: number,
-    fog: boolean,
-    sunColor: THREE.Color,
-    waterColor: THREE.Color,
-    distortionScale: number,
+  speed?: number,
+  textureScale?: number,
+  water?: {
+    textureWidth?: number,
+    textureHeight?: number,
+    alpha?: number,
+    fog?: boolean,
+    sunColor?: THREE.Color,
+    waterColor?: THREE.Color,
+    distortionScale?: number,
   },
-  shader: {
-    scatterFloor: number,
-    normalStrength: number,
-    reflectAmount: number,
-    reflectMax: number,
-    skyTint: number[],
-    skyTintBlend: number,
-    glintStrength: number,
+  shader?: {
+    scatterFloor?: number,
+    normalStrength?: number,
+    reflectAmount?: number,
+    reflectMax?: number,
+    skyTint?: number[],
+    skyTintBlend?: number,
+    glintStrength?: number,
   }
 }
 export class WaterSurface {

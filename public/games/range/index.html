@@ -1,8 +1,16 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/three/three.module.js",
+          "@opengolfsim/fuse": "/dist/fuse.js"
+        }
+      }
+    </script>
     <title>Practice Range</title>
-    <!-- <link rel="stylesheet" type="text/css" href="/dist/fuse.css" /> -->
+    <link rel="stylesheet" type="text/css" href="/dist/fuse.css" />
     <style>
       * {
         margin: 0;
@@ -35,7 +43,7 @@
 
     <div id="shot-data"></div>
 
-    <!-- <script type="module" src="./range.js"></script> -->
-    <script src="./range.js"></script>
+    <script type="module" src="./range.js"></script>
+    <!-- <script src="./range.js"></script> -->
   </body>
 </html>

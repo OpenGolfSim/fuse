@@ -15,6 +15,7 @@ import { type ShotPerspectiveCamera } from '@/camera';
 import { GroundPhysics } from '@/physics/groundPhysics';
 import { CourseSurfaces, isCourseSurfaceType } from '@/courses/surfaces';
 import perlinNoise from '@/images/perlinnoise.webp';
+import { isMeshObject } from '@/utils/mesh';
 
 export interface SceneSettings {
   sky?: {
@@ -318,6 +319,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     toReplace.forEach(child => {
       let surface;
       let offsetY = 0;
+      if (!isMeshObject(child)) return;
       if (child.userData?.surface === 'plane_river') {
         offsetY = 0;
         surface = new WaterSurface(child, {
@@ -333,14 +335,11 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       } else if (child.userData?.surface === 'plane_lake') {
         offsetY = 0;
         surface = new WaterSurface(child, {
-          // shader: 'lake',
           speed: 0.25,
           textureScale: 4,
           water: {
             alpha: 0.8,
-            waterColor: new THREE.Color('#0b4753'),
-            // sunColor: new THREE.Color('#7ab4bc'),
-            // distortionScale: 0.1,
+            waterColor: new THREE.Color('#0b4753')
           },
         });
       }

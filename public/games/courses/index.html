@@ -1,8 +1,16 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/three/three.module.js",
+          "@opengolfsim/fuse": "/dist/fuse.js"
+        }
+      }
+    </script>
     <title>Course Loader</title>
-    <!-- <link rel="stylesheet" type="text/css" href="/dist/fuse.css" /> -->
+    <link rel="stylesheet" type="text/css" href="/dist/fuse.css" />
     <style>
       #splash {
         display: flex;
@@ -87,7 +95,7 @@
       </div>
     </div>
 
-    <!-- <script type="module" src="courses.js"></script> -->
-    <script src="courses.js"></script>
+    <script type="module" src="courses.js"></script>
+    <!-- <script src="courses.js"></script> -->
   </body>
 </html>

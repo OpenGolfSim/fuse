@@ -1,4 +1,4 @@
-export * as THREE from 'three';
+// export * as THREE from 'three';
 
 import { AppBridge } from '@/app';
 

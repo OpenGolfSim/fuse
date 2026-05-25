@@ -1,16 +1,16 @@
-// import {
-//   THREE,
-//   app,
-//   CourseLight,
-//   CourseKeyboardControls,
-//   GolfBall,
-//   GroundPhysics,
-//   ShotPerspectiveCamera,
-//   UIShotData,
-//   UIRangeFinder,
-//   UnitConversions,
-//   VolumetricClouds,
-//  } from '/dist/fuse.js';
+import * as THREE from 'three';
+import {
+  app,
+  CourseLight,
+  CourseKeyboardControls,
+  GolfBall,
+  GroundPhysics,
+  ShotPerspectiveCamera,
+  UIShotData,
+  UIRangeFinder,
+  UnitConversions,
+  VolumetricClouds,
+ } from '@opengolfsim/fuse';
 
 console.log('THREE', THREE);
 
@@ -130,7 +130,7 @@ function setupRange(setupData) {
 
   createGroundPlane();
 
-  gameContext.camera = new ShotPerspectiveCamera(35, 0.5, 1000, gameContext.renderer, gameContext.ground);
+  gameContext.camera = new ShotPerspectiveCamera(30, 0.5, 1000, gameContext.renderer, gameContext.ground);
 
   gameContext.controls = new CourseKeyboardControls({ testShots: true });
   gameContext.controls.on('aim', aimKeys => {

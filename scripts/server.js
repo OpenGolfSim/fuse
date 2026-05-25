@@ -6,6 +6,7 @@ import * as cheerio from 'cheerio';
 
 const PORT = process.env.PORT || 3112;
 const DIST_DIR = path.join(import.meta.dirname, '../dist');
+const THREE_DIR = path.join(import.meta.dirname, '../node_modules/three/build');
 const STATIC_DIR = path.join(import.meta.dirname, '../public');
 const viteConfigFile = 'vite.config.js';
 
@@ -47,22 +48,25 @@ function createServer() {
 
   // Inject runtime scripts into example games
   // this emulates how we inject the runtime into games within the OpenGolfSim app
-  app.get('/games/:gameFolder/', async (req, res) => {
-    const pagePath = path.join(STATIC_DIR, 'games', req.params.gameFolder, 'index.html');
-    if (!fs.existsSync(pagePath)) {
-      return res.sendStatus(404);
-    }
-    const data = await fs.promises.readFile(pagePath);
-    const $ = cheerio.load(data.toString('utf-8'));
-    $('head').prepend([
-      `<link rel="stylesheet" type="text/css" href="/dist/runtime.css" />`,
-      `<script src="/dist/runtime.iife.js"></script>`
-    ].join(''));
-    res.send($.html());  
-  });
+
+  // app.get('/games/:gameFolder/', async (req, res) => {
+  //   const pagePath = path.join(STATIC_DIR, 'games', req.params.gameFolder, 'index.html');
+  //   if (!fs.existsSync(pagePath)) {
+  //     return res.sendStatus(404);
+  //   }
+  //   const data = await fs.promises.readFile(pagePath);
+  //   const $ = cheerio.load(data.toString('utf-8'));
+  //   $('head').prepend([
+  //     `<link rel="stylesheet" type="text/css" href="/dist/runtime.css" />`,
+  //     `<script src="/dist/runtime.iife.js"></script>`
+  //   ].join(''));
+  //   res.send($.html());  
+  // });
+  
+  app.use('/three', express.static(THREE_DIR));
   app.use('/dist', express.static(DIST_DIR));
   app.use(express.static(STATIC_DIR));
-  app.use('/static', express.static(STATIC_DIR));
+  // app.use('/static', express.static(STATIC_DIR));
   
   app.get('/list', async (req, res) => {
     res.json({

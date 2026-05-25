@@ -1,22 +1,22 @@
-// import {
-//   THREE,
-//   app,
-//   AimPoint,
-//   CourseLight,
-//   CourseLoader,
-//   CourseMap,
-//   CourseGame,
-//   CourseKeyboardControls,
-//   GolfBall,
-//   GroundPhysics,
-//   ShotPerspectiveCamera,
-//   Stats,
-//   UIShotData,
-//   UIRangeFinder,
-//   UIPlayerMenu,
-//   UnitConversions,
-//   VolumetricClouds,
-//  } from '/dist/fuse.js';
+import * as THREE from 'three';
+import {
+  app,
+  AimPoint,
+  CourseLight,
+  CourseLoader,
+  CourseMap,
+  CourseGame,
+  CourseKeyboardControls,
+  GolfBall,
+  GroundPhysics,
+  ShotPerspectiveCamera,
+  Stats,
+  UIShotData,
+  UIRangeFinder,
+  UIPlayerMenu,
+  UnitConversions,
+  VolumetricClouds,
+ } from '@opengolfsim/fuse';
 
 const gameContext = {
   world: null,
