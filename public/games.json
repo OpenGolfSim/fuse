@@ -4,7 +4,7 @@
       "title": "Practice Range (fuse)",
       "description": "A basic driving range set in the mountains",
       "gameMode": 0,
-      "url": "/games/range/",
+      "url": "examples/range/index.html",
       "posterUrl": "https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mountain-vista.jpg",
       "slug": "webgl-range"
     },
@@ -12,7 +12,7 @@
       "title": "Mountain Vista (fuse)",
       "description": "An easy but fun 9-hole course",
       "gameMode": 2,
-      "url": "/games/courses/",
+      "url": "examples/courses/index.html",
       "courseUrl": "https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mountain-vista-v1.1.glb",
       "posterUrl": "https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mountain-vista-poster.jpg",
       "slug": "webgl-mtnvista"
