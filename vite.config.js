@@ -17,10 +17,11 @@ export default defineConfig({
       fileName: 'fuse',
       formats: ['es'],  // self-executing — sets globals immediately on load
     },
-    sourcemap: true,
+    // sourcemap: true,
     outDir: 'dist',
     emptyOutDir: true,
     target: 'es2020',
+    minify: 'esbuild',
     rollupOptions: {
       output: {
         inlineDynamicImports: true,

@@ -2,9 +2,9 @@
 
 ---
 
-FUSE (Fast Universal Simulator Engine) is [OpenGolfSim](https://opengolfsim.com/)'s lightweight 3D golf simulation and physics engine. Providing components and utilities for golf physics, rendering, and camera systems golf simulator in any WebGL-capable browser or device.
+FUSE (Fast Universal Simulator Engine) is [OpenGolfSim](https://opengolfsim.com/)'s lightweight 3D golf simulation and physics engine. Providing components and utilities for building fully featured golf simulator experiences in any WebGL-capable browser or device.
 
-Download and install OpenGolfSim Desktop or Mobile, to see the engine in action, connect, and send shots your launch monitor.
+Download and install [OpenGolfSim](https://opengolfsim.com) Desktop or Mobile, to see the engine in action, connect, and send shots your launch monitor.
 
 > <small>This software is licensed under the PolyForm Noncommercial License 1.0.0. For commercial use, please contact us at help@opengolfsim.com.</small>
 
@@ -27,17 +27,27 @@ Powered by [Three.js](https://threejs.org/) + [Rapier](https://rapier.rs/).
 
 ---
 
-## Custom Courses
+## Development
 
-We have an all-in-one tool called **CourseStudio** for building courses that work with the built-in course player. If you are just getting started or want to build your own custom course, that's the best place to start.
+- [Building Courses](#custom-courses)
+- [Building Games](#custom-games)
+    - [Run in OpenGolfSim Desktop](#option-a-run-in-opengolfsim-desktop)
+    - [Build & Run From Source](#option-b-build--run-from-source)
 
-### Custom Games
+
+### Building Courses
+
+We have an all-in-one course building tool called **Meshery** for building courses that work with the FUSE course player. If you are just getting started or want to build your a custom course, that's the best place to start.
+
+---
+
+### Building Games
 
 You can also build fully custom games or simulator environments for FUSE using it as an SDK.
 
 There are a couple ways to develop your own games locally.
 
-### Option A: Run in OpenGolfSim Desktop
+#### Option A: Run in OpenGolfSim Desktop
 
 You can build and test games that live on your local filesystem and run inside OpenGolfSim Desktop, with just a few simple steps.
 
@@ -78,7 +88,7 @@ You can build and test games that live on your local filesystem and run inside O
   From here, you'll want to review our SDK documentation to learn how to initialize the game and receive shots from OpenGolfSim.
 
 ---
-### Option B: Build & Run From Source
+#### Option B: Build & Run From Source
 
 You can checkout this repo to build and run our examples or develop your game against the source code, right in the browser.
 

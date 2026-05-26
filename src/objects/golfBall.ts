@@ -16,7 +16,7 @@ export interface GolfBallEvents {
 
 export class GolfBall extends EventEmitter<GolfBallEvents> {
   radius: number;
-  options: { waitTime?: number };
+  options: { waitTime?: number, setupData?: Partial<OpenGolfSim.SetupData> };
   stats: {
     apex: number;
     lateral: number;
@@ -79,6 +79,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
 
     this.physics = new BallPhysics(this.object, this.#world, this.#rapier, this.radius);
     this.physics.on('shotEnded', surface => this._onShotEnded(surface));
+    this.physics.setElevation(this.options.setupData?.elevation);
     this.trail = new BallTrail(this.#scene, this.object);
   }
 
@@ -100,6 +101,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
   // }
 
   _onShotEnded(surface: CourseSurfaceProperties | undefined) {
+    console.log('SHOT END');
     this.isShotActive = false;
     clearTimeout(this.#timeout);
     this.#timeout = setTimeout(() => {

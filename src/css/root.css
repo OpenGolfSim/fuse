@@ -1,0 +1,23 @@
+:root {
+  --primary-color: #21d48d;
+  --bg-color-solid: rgba(17, 28, 28, 1);
+  --bg-color: rgba(17, 28, 28, 0.9);
+  --text-color: #FFF;
+  --text-disabled: #aaa;
+  --base-font-size: 10px;
+  --small-text-size: 10px;
+  --medium-text-size: 11px;
+  --large-text-size: 12px;
+  --unit-text-size: 11px;
+  --border-radius: 0.5vh;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --base-font-size: 1.3vh;
+    --small-text-size: 0.7vw;
+    --medium-text-size: 1.2vw;
+    --large-text-size: 2.4vh;
+    --unit-text-size: 0.9vh;
+  }
+}

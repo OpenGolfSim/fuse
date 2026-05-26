@@ -1,5 +1,5 @@
-import * as THREE from 'three';
 import {
+  THREE,
   app,
   AimPoint,
   CourseLight,
@@ -14,6 +14,7 @@ import {
   UIShotData,
   UIRangeFinder,
   UIPlayerMenu,
+  UILoadingScreen,
   UnitConversions,
   VolumetricClouds,
  } from '@opengolfsim/fuse';
@@ -29,8 +30,6 @@ const gameContext = {
 };
 
 let canvas;
-let loader;
-let splash;
 
 
 const lights = {};
@@ -120,11 +119,10 @@ function createStats() {
   gameContext.stats.dom.style.cssText = 'position: relative;';
   statsContainer.appendChild(gameContext.stats.dom);
   document.body.appendChild(statsContainer);
-
 }
 
 function setupWorld() {
-
+  canvas = document.getElementById('canvas');
   gameContext.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
   gameContext.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
@@ -194,10 +192,10 @@ function getObjectBounds(obj) {
 async function setupCourse(coursePath, setupData) {
   
   setupWorld();
-
+  
   // load course details and meshes
-  gameContext.course = new CourseLoader(app.world, app.rapier);
-  gameContext.course.on('progress', onProgress);
+  gameContext.course = new CourseLoader(app.world, app.rapier, setupData, gameContext.loadingScreen.manager);
+  // gameContext.course.on('progress', onProgress);
 
   gameContext.setupData = setupData;
 
@@ -281,32 +279,8 @@ function testSetupData() {
   }
 }
 
-async function handleCourseChange(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  const url = URL.createObjectURL(file);
-  
-  const setupData = testSetupData();
-  
-  await setupCourse(url, setupData);
-
-  URL.revokeObjectURL(url);
-  requestAnimationFrame(animate);
-}
-
-function setupFileLoader() {
-  const fileInput = document.createElement('input');
-  fileInput.type = 'file';
-  fileInput.addEventListener('change', handleCourseChange);
-  
-  const select = document.getElementById('select-btn');
-  select.addEventListener('click', (e) => fileInput.click());
-}
-
 
 async function initialize(payload) {
-  // setupFileLoader();
-  // MountainVista.glb
   preLoad();
   console.log('SETUP RECEIVED', payload);
   if (!payload?.setupData) {
@@ -315,22 +289,26 @@ async function initialize(payload) {
   if (!payload?.gameData?.courseUrl) {
     throw new Error('Missing courseUrl in gameData');
   }
+
   // test data
   // const courseUrl = './MountainVista.glb';
   // // pretend we're given a URL and setupData
   // const setupData = testSetupData();
   await setupCourse(payload.gameData.courseUrl, payload.setupData);
+  console.log('POST SETUP');
   postLoad();
 }
 
+let isLoaded = false;
+let isSetup = false;
+
 function preLoad() {
-  // loader = document.getElementById('loader');
-  splash = document.getElementById('splash');
-  canvas = document.getElementById('canvas');
-
-  splash.style.display = 'flex';
-  canvas.style.visibility = 'hidden';
-
+  gameContext.loadingScreen = new UILoadingScreen();
+  gameContext.loadingScreen.on('load', () => {
+    // requestAnimationFrame(animate);
+    console.log('POST LOAD');
+    isLoaded = true;
+  });
   createStats();
   gameContext.timer.connect(document);
 }
@@ -338,23 +316,15 @@ function preLoad() {
 function postLoad() {
   setupNextShot();
 
-  canvas.style.visibility = 'visible';
-  splash.addEventListener('transitionend', () => splash.style.display = 'none');
-  splash.style.opacity = 0;
+  // canvas.style.visibility = 'visible';
+  // splash.addEventListener('transitionend', () => splash.style.display = 'none');
+  // splash.style.opacity = 0;
 
-  requestAnimationFrame(animate);  
+  requestAnimationFrame(animate);
 }
 
-async function initializeDebug() {
-  const params = new URLSearchParams(window.location.search);
-  const courseUrl = params.get('courseUrl');
-  console.log('LOAD COURSE', courseUrl);
-  if (courseUrl) {
-    preLoad();
-    await setupCourse(courseUrl, testSetupData());
-    postLoad();
-  }
-}
+
+
 function updateAimPoint() {
   const dist = gameContext.aimPoint.distanceTo(gameContext.startPoint);
   const heightDiff = gameContext.startPoint.y - gameContext.aimPoint.y;
@@ -421,13 +391,27 @@ function animate(animDelta) {
   gameContext.timer.update(animDelta);
 }
 
+async function initializeDebug() {
+  const params = new URLSearchParams(window.location.search);
+  const courseUrl = params.get('courseUrl');
+  console.log('LOAD COURSE', courseUrl);
+  if (courseUrl) {
+    preLoad();
+    await setupCourse(courseUrl, testSetupData());
+    postLoad();
+  }
+}
 
-// listen for setup event from OpenGolfSim apps
+/**
+ * Required setup for OpenGolfSim FUSE
+ */
+// listen for setup event from OpenGolfSim app
 app.on('setup', initialize);
-app.initialize(initializeDebug);
-
-app.on('shot', (payload) => {
-  if (payload.shot) {
-    launchShot(payload.shot);
+// listen for shot event from OpenGolfSim app
+app.on('shot', launchShot);
+// initialize must be called before engaging physics/world
+app.initialize(() => {
+  if (window.location.search) {
+    initializeDebug();
   }
 });

@@ -2,23 +2,43 @@
 <html>
   <head>
     <title>OpenGolfSim FUSE (Fast Universal Simulator Engine)</title>
-    <meta name="color-scheme" content="light dark">
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
-    />
+    <link rel="stylesheet" type="text/css" href="/fuse.css" />
+    <style>
+      header {
+        display: block;
+        background-color: var(--bg-color-solid);
+        padding: 20px 40px;
+      }
+      main {
+        display: block;
+        padding: 20px 40px;
+      }
+      .container {
+        max-width: 1000px;
+        margin: auto;
+        text-align: center;
+      }
+    </style>
   </head>
   <body>
-    <main class="container">    
-      <h3>Examples</h3>
-      <ul>
-        <li>
-          <a href="/games/range/">Basic Driving Range</a>
-        </li>
-        <li>
-          <a href="/games/courses/?courseUrl=https%3A%2F%2Fcoursedata.opengolfsim.com%2Fwebgl%2Fcourses%2Fmountain-vista%2Fv1%2Fmountain-vista.glb">Mountain Vista 9-hole Course</a>
-        </li>
-      </ul>
+    <header>
+      <div class="container">
+        <img src="images/fuse.png" style="width: 200px;" />
+      </div>
+    </header>
+    <main>
+      <div class="container">
+
+        <h3>Examples</h3>
+        <ul>
+          <li>
+            <a href="/games/range/">Basic Driving Range</a>
+          </li>
+          <li>
+            <a href="/games/courses/?courseUrl=https%3A%2F%2Fcoursedata.opengolfsim.com%2Fwebgl%2Fcourses%2Fmountain-vista%2Fv1%2Fmountain-vista.glb">Mountain Vista 9-hole Course</a>
+          </li>
+        </ul>
+      </div>
     </main>
   </body>
 </html>

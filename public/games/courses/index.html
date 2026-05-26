@@ -4,98 +4,20 @@
     <script type="importmap">
       {
         "imports": {
-          "three": "/three/three.module.js",
-          "@opengolfsim/fuse": "/dist/fuse.js"
+          "@opengolfsim/fuse": "/fuse.js"
         }
       }
     </script>
     <title>Course Loader</title>
-    <link rel="stylesheet" type="text/css" href="/dist/fuse.css" />
-    <style>
-      #splash {
-        display: flex;
-        opacity: 1;
-        transition: opacity 200ms ease-in;
-        width: 100vw;
-        height: 100vh;
-        justify-content: center;
-        align-items: center;
-        position: absolute;
-        z-index: 3;
-        background-color: #121616;
-        border-radius: 7px;
-      }
-      .panel {
-        flex-grow: 0;
-        width: 400px;
-        background-color: rgba(255, 255, 255, 0.02);
-      }
-      .panel-header {
-        padding: 20px;
-      }
-      .panel-header h5 {
-        margin: 0;
-        padding: 0;
-      }
-      .panel-content {
-        padding: 20px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        text-align: center;
-      }
-      .panel-content p {
-        font-size: 0.8rem;
-        margin: 0;
-        padding: 0;
-      }
-      #canvas {
-        display: block;
-        width: 100vw;
-        height: 100vh;
-        position: absolute;
-        top: 0;
-        left: 0;
-        visibility: hidden;
-      }
-      #progress-bar {
-        background-color: #000;
-        height: 13px;
-        width: 100%;
-        margin-top: 10px;
-        border-radius: 4px;
-        overflow: hidden;
-      }
-      #progress-bar-fill {
-        background-color: #1bd99a;
-        transition: width 400ms ease-in-out;
-        height: 13px;
-        width: 0%;
-      }
-    </style>
+    <link rel="stylesheet" type="text/css" href="/fuse.css" />
   </head>
   <body>
-
-  
     <canvas id="canvas"></canvas>
 
     <div id="top-left"></div>
     <div id="top-center"></div>
     <div id="shot-data"></div>
 
-    <div id="splash">
-      <div class="panel">
-        <div class="panel-content">
-          <div>Loading Course...</div>
-          <div id="progress-bar">
-            <div id="progress-bar-fill"></div>
-          </div>
-          <div id="progress-text">0%</h5>
-        </div>
-      </div>
-    </div>
-
     <script type="module" src="courses.js"></script>
-    <!-- <script src="courses.js"></script> -->
   </body>
 </html>

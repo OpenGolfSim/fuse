@@ -6,28 +6,9 @@ import * as cheerio from 'cheerio';
 
 const PORT = process.env.PORT || 3112;
 const DIST_DIR = path.join(import.meta.dirname, '../dist');
+const PUBLIC_DIR = path.join(import.meta.dirname, '../public');
 const THREE_DIR = path.join(import.meta.dirname, '../node_modules/three/build');
-const STATIC_DIR = path.join(import.meta.dirname, '../public');
 const viteConfigFile = 'vite.config.js';
-
-// const staticDirs = {
-//   // games: {
-//   //   prefix: '/games',
-//   //   path: path.join(import.meta.dirname, '../games')
-//   // },
-//   // examples: {
-//   //   prefix: '/examples',
-//   //   path: path.join(import.meta.dirname, '../examples')
-//   // },
-//   dist: {
-//     prefix: '/dist',
-//     path: path.join(import.meta.dirname, '../dist')
-//   },
-//   public: {
-//     prefix: '/',
-//     path: path.join(import.meta.dirname, '../public')
-//   },
-// };
 
 const app = express();
 
@@ -50,7 +31,7 @@ function createServer() {
   // this emulates how we inject the runtime into games within the OpenGolfSim app
 
   // app.get('/games/:gameFolder/', async (req, res) => {
-  //   const pagePath = path.join(STATIC_DIR, 'games', req.params.gameFolder, 'index.html');
+  //   const pagePath = path.join(PUBLIC_DIR, 'games', req.params.gameFolder, 'index.html');
   //   if (!fs.existsSync(pagePath)) {
   //     return res.sendStatus(404);
   //   }
@@ -64,61 +45,10 @@ function createServer() {
   // });
   
   app.use('/three', express.static(THREE_DIR));
-  app.use('/dist', express.static(DIST_DIR));
-  app.use(express.static(STATIC_DIR));
-  // app.use('/static', express.static(STATIC_DIR));
-  
-  app.get('/list', async (req, res) => {
-    res.json({
-      items: [
-        // {
-        //   title: 'Corn Hole',
-        //   url: 'cornhole/index.html',
-        //   slug: 'webgl-cornhole'
-        // },
-        {
-          title: 'FUSE: Range',
-          gameMode: 0,
-          url: '/static/games/range/',
-          posterUrl: 'https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mountain-vista.jpg',
-          slug: 'webgl-range'
-        },
-        {
-          title: 'FUSE: Mountain Vista',
-          gameMode: 2,
-          url: '/static/games/courses/',
-          courseUrl: 'https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mountain-vista.glb',
-          posterUrl: 'https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mountain-vista.jpg',
-          slug: 'webgl-mtnvista'
-        },
-        // {
-        //   "title": "Cornhole - WEBGL",
-        //   "url": "ogs-webgl-cornhole/index.html",
-        //   "slug": "webgl-cornhole",
-        //   "posterUrl": "ogs-webgl-cornhole/poster.jpg"
-        // },
-        // {
-        //   "title": "Football Game - WEBGL",
-        //   "url": "field-goal/index.html",
-        //   "slug": "field-goal",
-        //   "posterUrl": "field-goal/poster.jpg"
-        // },
-        // {
-        //   "title": "High Striker - WEBGL",
-        //   "url": "strength-test/index.html",
-        //   "slug": "strength-test",
-        //   "posterUrl": "strength-test/poster.jpg"
-        // },
-        // {
-        //   "title": "Range - WEBGL",
-        //   "url": "ogs-webgl-range/index.html",
-        //   "slug": "ogs-webgl-range",
-        //   "posterUrl": "ogs-webgl-range/poster.jpg"
-        // }
-      ]
-    });
-  
-  });
+  // check public first to serve live changes
+  app.use(express.static(PUBLIC_DIR));
+  // fallback to dist, like production would use
+  app.use(express.static(DIST_DIR));
 
   return new Promise((resolve) => {
     app.listen(PORT, () => {

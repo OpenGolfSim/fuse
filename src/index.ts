@@ -1,4 +1,4 @@
-// export * as THREE from 'three';
+export * as THREE from 'three';
 
 import { AppBridge } from '@/app';
 
@@ -16,12 +16,7 @@ export * from '@/objects/flagStick';
 export * from '@/objects/golfBall';
 
 // Shaders
-export * from '@/shaders/water';
-export * from '@/shaders/grass';
-export * from '@/shaders/grassFlat';
-export * from '@/shaders/sand';
-export * from '@/shaders/target';
-export * from '@/shaders/water';
+export * from '@/shaders';
 
 // Courses
 export * from '@/courses/game';
@@ -32,10 +27,7 @@ export * from '@/physics/ballPhysics';
 export * from '@/physics/groundPhysics';
 
 // UI
-export * from '@/ui/UIPlayerMenu';
-export * from '@/ui/UIRangeFinder';
-export * from '@/ui/UIShotData';
-export * from '@/ui/Stats';
+export * from '@/ui';
 
 // Utils
 export * from '@/utils/units';

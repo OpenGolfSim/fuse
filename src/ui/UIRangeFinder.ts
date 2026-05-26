@@ -75,7 +75,8 @@ export class UIRangeFinder {
       this.heightUnit.textContent = 'ft';
     } else {
       this.distanceValue.textContent = distanceMeters.toFixed(0);
-      this.heightValue.textContent = heightMeters.toFixed(1);
+      const heightString = heightMeters.toFixed(1);
+      this.heightValue.textContent = heightMeters > 0 ? `+${heightString}` : heightString;
       this.distanceUnit.textContent = 'm';
       this.heightUnit.textContent = 'm';
     }

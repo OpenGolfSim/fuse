@@ -34,8 +34,8 @@ export class UIShotData {
       {
         id: 'ballSpeed',
         precision: 0,
-        label: 'Ball Speed',
-        units: { imperial: 'MPH', metric: 'm/s' }
+        label: 'Speed',
+        units: { imperial: 'MPH', metric: 'M/S' }
       },
       {
         id: 'verticalLaunchAngle',
@@ -51,7 +51,7 @@ export class UIShotData {
       },
       {
         id: 'spinSpeed',
-        label: 'Total Spin',
+        label: 'Spin Rate',
         precision: 0,
         units: 'RPM'
       },
@@ -65,26 +65,26 @@ export class UIShotData {
         id: 'total',
         precision: 0,
         label: 'Total',
-        units: { imperial: 'yd', metric: 'm' }
+        units: { imperial: 'YD', metric: 'm' }
       },
       {
         id: 'carry',
         precision: 0,
         label: 'Carry',
-        units: { imperial: 'yd', metric: 'm' }
+        units: { imperial: 'YD', metric: 'm' }
       },
       {
         id: 'roll',
         precision: 0,
         label: 'Roll',
-        units: { imperial: 'yd', metric: 'm' }
+        units: { imperial: 'YD', metric: 'm' }
       },
 
       {
         id: 'apex',
         label: 'Apex',
         precision: 0,
-        units: { imperial: 'ft', metric: 'm' }
+        units: { imperial: 'FT', metric: 'm' }
       },
       {
         id: 'lateral',
@@ -148,12 +148,12 @@ export class UIShotData {
       dataValue.classList.add(styles.shotDataItemValue);
       // dataValue.className = styles.shotDataItemValue;
     
-      const digit = document.createElement('span');
+      const digit = document.createElement('div');
       digit.classList.add(styles.shotDataItemDigit, 'grid-digit');
       // digit.className = styles.shotDataItemDigit;
       digit.textContent = '0';
     
-      const unit = document.createElement('span');
+      const unit = document.createElement('div');
       unit.classList.add(styles.shotDataItemUnit, 'grid-unit');
       // unit.className = styles.shotDataItemUnit;
       // TODO: change to metric based on user pref!

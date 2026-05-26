@@ -1,20 +1,4 @@
-:root {
-  --primary-color: rgb(33, 212, 141);
-  --bg-color: rgba(17, 28, 28, 0.9);
-  --text-color: #FFF;
-  --base-font-size: 10px;
-  --large-text-size: 12px;
-  --unit-text-size: 11px;
-  --border-radius: 0.5vh;
-}
-
-@media (min-width: 640px) {
-  :root {
-    --base-font-size: 1.5vh;
-    --large-text-size: 2.4vh;
-    --unit-text-size: 1.1vh;
-  }
-}
+@import url('./root.css');
 
 .uiRoot {
   position: absolute;
@@ -35,53 +19,55 @@
 
 .shotData {
   position: absolute;
-  top: 1vh;
-  right: 1vh;
-  width: 15vh;
+  top: 0.5vw;
+  right: 0.5vw;
+  width: 7vw;
+  /* aspect-ratio: 16 / 9; */
 }
 .shotDataContainer {
   display: flex;
   flex-direction: column;
-  gap: 1vh;
+  gap: 0.4vw;
 }
 .shotDataItem {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  /* align-items: center;
+  justify-content: center; */
   background-color: var(--bg-color);
   border-radius: var(--border-radius);
   /* height: 8vh; */
   font-size: 1.5vw;
-  padding: 1vh 0.5vw;
+  padding: 0.5vw 0;
   /* text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5); */
 }
 .shotDataItemLabel {
   color: #aaa;
-  font-size: 1.25vh;
+  font-size: var(--small-text-size);
   letter-spacing: 1px;
-  font-weight: 500;
+  font-weight: 800;
   text-transform: uppercase;
+  text-align: center;
 }
 .shotDataItemValue {
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 0.2vw;
   margin-top: 5px;
+  flex: 1;
 }
 .shotDataItemDigit {
-  display: inline-block;
-  flex: 0;
+  /* display: block; */
   color: #fff;
   font-weight: 800;
-  font-size: var(--large-text-size);
+  font-size: var(--medium-text-size);
   /* line-height: var(--large-text-size); */
   flex: 0;
 }
 .shotDataItemUnit {
-  display: inline-block;
+  /* display: inline-block; */
   color: var(--primary-color);
   font-size: var(--unit-text-size);
   font-weight: 800;
@@ -211,4 +197,48 @@
   top: 0;
   left: 0;
   background: transparent;
+}
+
+.loadingScreen {
+  position: absolute;
+  z-index: 99999;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--bg-color-solid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 500ms linear;
+}
+.progressCard {
+  max-width: 500px;
+  width: 33vw;
+  /* height: 10vw; */
+  /* aspect-ratio: 16 / 7; */
+  /* background-color: rgba(255, 255, 255, 0.1); */
+  border-radius: var(--border-radius);
+  padding: 1vw;
+  display: flex;
+  flex-direction: column;
+  gap: 2vw;
+}
+.progressBar {
+  height: 20px;
+  width: 100%;
+  background-color: rgba(0, 0, 0, 0.25);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+.progressBarFill {
+  height: 20px;
+  width: 0%;
+  background-color: var(--primary-color);
+  transition: width 300ms linear;
+}
+.progressText {
+  text-align: center;
+  color: var(--text-disabled);
+  font-size: var(--base-font-size);
 }

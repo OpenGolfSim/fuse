@@ -28,6 +28,7 @@ export type CourseSurfaceProperties = {
   rollResistance: number,
   stopSpeed?: number,
   stopAngular?: number
+  rollResistanceSpeedThreshold?: number
   type?: CourseColliderType,
   hasCollider?: boolean,
 }
@@ -37,9 +38,10 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
     hasCollider: true,
     friction: 0.3,
     restitution: 0.5,
-    rollResistance: 0.08,
-    stopSpeed: 0.05,
-    stopAngular: 5.0
+    rollResistance: 0.05,
+    // rollResistanceSpeedThreshold: 0.0001,
+    stopSpeed: 0.15,
+    stopAngular: 8.0,
   },
   [CourseSurfaceType.Fringe]: {
     hasCollider: true,
@@ -68,7 +70,7 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
   [CourseSurfaceType.Rough]: {
     hasCollider: true,
     friction: 0.5,
-    restitution: 0.2,
+    restitution: 0.3,
     rollResistance: 0.40
   },
   [CourseSurfaceType.Base]: {

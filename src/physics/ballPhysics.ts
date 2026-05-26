@@ -108,7 +108,8 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   }
 
   /** Set elevation and air density */
-  setElevation(meters: number) {
+  setElevation(meters = 0) {
+    console.log(`Playing with elevation: ${meters}`);
     if (meters === 0) {
       this.airDensity = this.airDensityMin;
       return;
@@ -235,7 +236,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
 
     // Spin
     const spinRad = spinRPM * 2 * Math.PI / 60;
-    const axisRad = THREE.MathUtils.degToRad(spinAxisDeg);
+    const axisRad = THREE.MathUtils.degToRad(spinAxisDeg * -1);
     const localLeft = right.clone().multiplyScalar(-1);
 
     const spinVec = new THREE.Vector3()
@@ -578,8 +579,9 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
         // Rolling resistance
         // const resistance = this._getRollingResistance();
         const resistance = this.currentSurface?.rollResistance ?? this._getRollingResistance();
+        const horizontalSpeedThreshold = this.currentSurface?.rollResistanceSpeedThreshold ?? 0.001;
         const horizontalSpeed = vel.length();
-        if (horizontalSpeed > 0.001) {
+        // if (horizontalSpeed > horizontalSpeedThreshold) {
           // const friction = Math.min(resistance * GRAVITY * dt, horizontalSpeed);
           // vel.addScaledVector(vel.clone().normalize(), -friction);
           // Coulomb friction (constant deceleration) — dominates at high speed
@@ -590,7 +592,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
           const dampingFactor = Math.exp(-resistance * 8.0 * dt);
           vel.multiplyScalar(dampingFactor);
 
-        }
+        // }
         // Hard cutoff — anything below this is just numerical noise
         if (vel.length() < 0.02) {
           vel.set(0, 0, 0);

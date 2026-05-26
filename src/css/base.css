@@ -1,3 +1,5 @@
+@import url('./root.css');
+
 body {
   margin: 0;
   overflow: hidden;
@@ -5,7 +7,19 @@ body {
   background: #131414;
   color: #fff;
 }
-
+a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+ol, ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+ol li,
+ul li {
+  margin: 1.5rem 0;
+}
 canvas {
   display: block;
   background-color: #111;

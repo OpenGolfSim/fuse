@@ -69,6 +69,7 @@ namespace OpenGolfSim {
   type SetupData = {
     players: OpenGolfSim.Player[],
     practiceMode: boolean;
+    elevation?: number;
     units: 'imperial' | 'metric';
   }
 }

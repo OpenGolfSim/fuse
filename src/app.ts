@@ -21,10 +21,16 @@ export type PlayerUpdateMessage = {
   player: OpenGolfSim.Player
 };
 
+interface EventMap {
+  ready: () => void;
+  shot: (shotData: OpenGolfSim.Shot) => void;
+  setup: (setupData: OpenGolfSim.SetupData) => void;
+}
+
 /**
  * Sets up physics and communication with external apps.
  */
-export class AppBridge extends EventEmitter {
+export class AppBridge extends EventEmitter<EventMap> {
   isReady: boolean;
   rapier: RapierInstance;
   world?: RAPIER.World;
@@ -54,10 +60,14 @@ export class AppBridge extends EventEmitter {
     this.#handleEvent(data);
   }
 
-  #handleEvent(data: any) {
-    const { type: eventType, ...payload } = data;
-    if (eventType) {
-      this.emit(eventType, payload);
+  #handleEvent(data: ShotMessage | SetupMessage) {
+    switch (data.type) {
+      case 'shot':
+        this.emit('shot', data.shot);
+        break;
+      case 'setup':
+        this.emit('setup', data.setupData);
+        break;
     }
   }
 
@@ -75,17 +85,17 @@ export class AppBridge extends EventEmitter {
   }
 
   sendMessage(payload: ReadyMessage | PlayerUpdateMessage) {
-    // handle mobile apps
     if (typeof window.ReactNativeWebView !== 'undefined') {
+      console.log('Sending to react native: ', payload);
       window.ReactNativeWebView.postMessage(JSON.stringify(payload));
     } else if (typeof window.ogsElectron !== 'undefined') {
       console.log('Sending to electron: ', payload);
       window.ogsElectron.postMessage(payload);
+    } else if (payload.type === 'ready') {
+      this.emit('ready');
     } else {
-      const { type, ...detail } = payload;
-      this.emit(type, detail);
+      console.warn('No parent app to to send message!', payload);
+      // TODO: use a cloud-based websocket here to sync for web play?
     }
   }
 }
-
-// export const app = new AppBridge();

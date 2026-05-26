@@ -41,15 +41,38 @@ interface CourseLoaderEvents {
   progress: (progress: CourseLoaderProgressEvent) => void
 }
 
+export class MeshLoader extends EventEmitter<CourseLoaderEvents> {
+  gltfLoader: GLTFLoader;
+  
+  constructor(meshUri: string, manager: THREE.LoadingManager) {
+    super();
+    this.gltfLoader = new GLTFLoader(manager);
+  }
+  
+  async load(meshUri: string, firstMeshOnly = false) {
+    const model = await this.gltfLoader.loadAsync(meshUri);
+    if (!firstMeshOnly) {
+      return model.scene;
+    }
+    let mesh: THREE.Mesh | undefined;
+    model.scene.traverse((child) => {
+      if (isMeshObject(child) && !mesh) mesh = child;
+    });
+    if (!mesh) {
+      return;
+    }
+    return mesh;
+  }  
+}
 export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   world: World;
   rapier: RapierInstance;
-  loadingManager: THREE.LoadingManager;
   gltfLoader: GLTFLoader;
   holes: Map<string, any>;
   waterSurfaces: Map<string, any>;
   surfaces: Map<string, any>;
   grasses: Map<string, any>;
+  greenGrids: Map<string, any>;
 
   
   gltf?: GLTF;
@@ -61,24 +84,21 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   #raycaster: THREE.Raycaster;
   #origin: THREE.Vector3;
   #direction: THREE.Vector3;
+  setupData?: Partial<OpenGolfSim.SetupData>;
 
-  constructor(world: World, rapier: RapierInstance) {
+  constructor(world: World, rapier: RapierInstance, setupData: OpenGolfSim.SetupData | undefined, manager: THREE.LoadingManager) {
     super();
     this.world = world;
     this.rapier = rapier;
-    this.loadingManager = new THREE.LoadingManager();
-    this.gltfLoader = new GLTFLoader(this.loadingManager);
-
-    this.loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
-        const percent = (itemsLoaded / itemsTotal) * 100;
-        this.emit('progress', { percent, itemsLoaded, itemsTotal })
-    };
+    this.gltfLoader = new GLTFLoader(manager);
+    this.setupData = setupData || {};
 
     this.holes = new Map();
     this.waterSurfaces = new Map();
     // this.surfaceByCollider = new Map();
     this.surfaces = new Map();
     this.grasses = new Map();
+    this.greenGrids = new Map();
     
     this.#raycaster = new THREE.Raycaster();
     this.#origin = new THREE.Vector3();
@@ -127,6 +147,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     // update water and other animations
     this.waterSurfaces.forEach(water => water.update(dt));
     this.grasses.forEach(grass => grass.update(dt, camera));
+    this.greenGrids.forEach(grid => grid.update(camera));
   }
 
   _addCourseColliders() {
@@ -137,6 +158,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     this.scene.updateMatrixWorld(true); // critical — bakes the position.set applied when loaded
     this.surfaces.clear();
     this.grasses.clear();
+    this.greenGrids.clear();
         
 
     this.scene.traverse((child) => {
