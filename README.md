@@ -1,8 +1,17 @@
-# FUSE - Fast Universal Simulator Engine
+<img src="https://coursedata.opengolfsim.com/webgl/assets/fuse.png" width="300" />
 
-FUSE is [OpenGolfSim](https://opengolfsim.com/)'s lightweight 3D golf simulation and physics engine. Providing components and utilities for golf physics, rendering, and camera systems golf simulator in any WebGL-capable browser or device.
+---
 
-Powered by [Three.js](https://threejs.org/) + [Rapier](https://rapier.rs/).
+FUSE (Fast Universal Simulator Engine) is [OpenGolfSim](https://opengolfsim.com/)'s lightweight 3D golf simulation and physics engine. Providing components and utilities for golf physics, rendering, and camera systems golf simulator in any WebGL-capable browser or device.
+
+Download and install OpenGolfSim Desktop or Mobile, to see the engine in action, connect, and send shots your launch monitor.
+
+> <small>This software is licensed under the PolyForm Noncommercial License 1.0.0. For commercial use, please contact us at help@opengolfsim.com.</small>
+
+---
+### 🚀 [Examples](https://github.com/OpenGolfSim/fuse/tree/main/public/games) - 📖 [Docs](https://help.opengolfsim.com) - 🛟 [Support](https://help.opengolfsim.com/connect-with-us)
+
+<img src="https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mountain-vista-poster.jpg" />
 
 #### Features:
 
@@ -14,25 +23,21 @@ Powered by [Three.js](https://threejs.org/) + [Rapier](https://rapier.rs/).
 - Custom courses built via CourseStudio
 - SDK for fully custom games
 
-
-> <small>This software is licensed under the PolyForm Noncommercial License 1.0.0. For commercial use, please contact help@opengolfsim.com.</small>
+Powered by [Three.js](https://threejs.org/) + [Rapier](https://rapier.rs/).
 
 ---
 
+## Custom Courses
 
-## Course Building
+We have an all-in-one tool called **CourseStudio** for building courses that work with the built-in course player. If you are just getting started or want to build your own custom course, that's the best place to start.
 
-We have an all-in-one tool called CourseStudio for building courses that work with our built-in course player. If you are just getting started or want to build your own custom course, that's the best place to start.
+### Custom Games
 
-### SDK
-
-You can build your own custom games or simulator environments for FUSE using this SDK. 
+You can also build fully custom games or simulator environments for FUSE using it as an SDK.
 
 There are a couple ways to develop your own games locally.
 
-## Developing Games
-
-### Run in OpenGolfSim Desktop
+### Option A: Run in OpenGolfSim Desktop
 
 You can build and test games that live on your local filesystem and run inside OpenGolfSim Desktop, with just a few simple steps.
 
@@ -73,15 +78,15 @@ You can build and test games that live on your local filesystem and run inside O
   From here, you'll want to review our SDK documentation to learn how to initialize the game and receive shots from OpenGolfSim.
 
 ---
-### Compile & Run from Source
+### Option B: Build & Run From Source
 
-You can also checkout this repo, then build and run our examples or develop your game against the source code, right in the browser.
+You can checkout this repo to build and run our examples or develop your game against the source code, right in the browser.
 
 1. Checkout this repo:
 
     ```bash
-    git checkout https://github.com/OpenGolfSim/webgl-ogs-core.git
-    cd webgl-ogs-core
+    git checkout https://github.com/OpenGolfSim/fuse.git
+    cd fuse
     ```
 
 1. Install the dependencies
@@ -97,7 +102,7 @@ You can also checkout this repo, then build and run our examples or develop your
     npm start
     ```
 
-    You should now be able to see the examples at: `http://localhost:3112`
+    You should now be able to see and run the examples in your browser at: `http://localhost:3112`
 
 
 
