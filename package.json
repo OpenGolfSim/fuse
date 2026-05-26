@@ -3,8 +3,8 @@
   "version": "1.0.1",
   "description": "",
   "type": "module",
-  "main": "dist/module.js",
-  "module": "dist/module.js",
+  "main": "dist/fuse.js",
+  "module": "dist/fuse.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepare": "vite build",
