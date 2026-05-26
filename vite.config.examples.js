@@ -3,6 +3,7 @@ import path from 'path';
 
 export default defineConfig({
   root: 'examples',
+  base: './',
   publicDir: path.resolve(import.meta.dirname, 'public'),
   resolve: {
     alias: {
