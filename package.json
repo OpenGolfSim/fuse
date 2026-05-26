@@ -7,9 +7,11 @@
   "module": "dist/fuse.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prepare": "vite build",
-    "build": "vite build",
-    "start": "node scripts/server.js"
+    "prepare": "npm run build:lib && npm run build:examples",
+    "build": "npm run build:lib && npm run build:examples",
+    "build:lib": "vite build --config vite.config.js",
+    "build:examples": "vite build --config vite.config.examples.js",
+    "dev": "vite --config vite.config.examples.js"
   },
   "keywords": [],
   "author": "",

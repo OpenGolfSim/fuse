@@ -53,16 +53,16 @@ You can build and test games that live on your local filesystem and run inside O
 
   <!-- - First you'll need to register for a developer account (reach out on our [Discord](https://help.opengolfsim.com/connect-with-us/)) -->
 
-  1. First, create a new folder for your project in the OpenGolfSim `developer` directory
+  1. First, create a new folder for your project in the OpenGolfSim `fuse` directory
 
       **Windows**
       ```
-      %USERPROFILE%\AppData\Roaming\opengolfsim-desktop\developer\MyAwesomeGame
+      %USERPROFILE%\AppData\Roaming\opengolfsim-desktop\fuse\MyAwesomeGame
       ```
       
       **Mac**
       ```
-      ~/Library/Application Support/opengolfsim-desktop/developer/MyAwesomeGame
+      ~/Library/Application Support/opengolfsim-desktop/fuse/MyAwesomeGame
       ```
 
   1. Add a `game.json` file to your project folder. This will act as the manifest for your game.
@@ -76,7 +76,7 @@ You can build and test games that live on your local filesystem and run inside O
       }
       ```
 
-      - `name`: Create a unique name to use as your game ID
+      - `name`: Create a unique slug to use as your game ID
       - `version`: The current version of your game
       - `title`: The formatted title that will be displayed to users
       - `description`: A brief description of your game that will be displayed to users
@@ -109,10 +109,10 @@ You can checkout this repo to build and run our examples or develop your game ag
 1. Then run the development server:
 
     ```bash
-    npm start
+    npm run dev
     ```
 
-    You should now be able to see and run the examples in your browser at: `http://localhost:3112`
+1. You should now be able to see and run the examples in your browser.
 
 
 

@@ -14,8 +14,9 @@
     "declarationDir": "dist/types",
     "outDir": "dist",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@opengolfsim/fuse": ["./src/index.ts"],
     }
   },
-  "include": ["src"]
+  "include": ["src", "examples"]
 }
