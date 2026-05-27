@@ -16,7 +16,8 @@ import {
   YardageLinesMaterial
 } from '@opengolfsim/fuse';
 import rangeMtnsModel from './models/rangeMtns.glb?url';
-
+import fairwayTexture from './textures/gen_fairway_tex.png?url';
+import fairwayMap from './textures/gen_fairway_map.png?url';
 
 const skyColor = new THREE.Color('#c4daed');
 const fogColor = new THREE.Color('#f2f8f8');
@@ -94,7 +95,7 @@ const shotButtons = document.querySelectorAll(".test-shot");
 
 async function createGroundPlane() {
   const textureLoader = new THREE.TextureLoader(gameContext.loadingScreen?.manager);
-  const grassTexture = textureLoader.load('https://coursedata.opengolfsim.com/webgl/assets/textures/gen_fairway_tex.png');
+  const grassTexture = textureLoader.load(fairwayTexture);
   
   grassTexture.wrapS = THREE.RepeatWrapping;
   grassTexture.wrapT = THREE.RepeatWrapping;
@@ -102,7 +103,7 @@ async function createGroundPlane() {
   grassTexture.colorSpace = THREE.SRGBColorSpace; // correct color rendering
   grassTexture.anisotropy = gameContext.renderer.capabilities.getMaxAnisotropy();
   
-  const grassNormalMap = textureLoader.load('https://coursedata.opengolfsim.com/webgl/assets/textures/gen_fairway_map.png');
+  const grassNormalMap = textureLoader.load(fairwayMap);
   grassNormalMap.wrapS = THREE.RepeatWrapping;
   grassNormalMap.wrapT = THREE.RepeatWrapping;
   grassNormalMap.repeat.set(50, 100); // tile 50x across, 100x down the 100x200 plane
