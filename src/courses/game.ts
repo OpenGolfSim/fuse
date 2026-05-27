@@ -100,7 +100,7 @@ export class CourseGame extends EventTarget {
   }
   
   aimPoint() {
-    return this.#playerData.get(this.activePlayer.id)?.aim;
+    return this.#playerData.get(this.activePlayer.id)?.aim || this.#playerData.get(this.activePlayer.id)?.pin;
     // const playerState = this._playerData.get(this.activePlayer.id);
     // if (!playerState) {
     //   throw new Error('No active player');

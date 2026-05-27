@@ -175,8 +175,8 @@ function setupScene() {
   gameContext.scene.add(gameContext.clouds.object);
   
   // gameContext.playerMenu = new UIPlayerMenu('#top-left');
-  gameContext.shotData = new UIShotData('#shot-data');
-  gameContext.rangeFinder = new UIRangeFinder('#top-center');
+  gameContext.shotData = new UIShotData('#shot-data', { units: gameContext.setupData?.units });
+  gameContext.rangeFinder = new UIRangeFinder('#top-center', { units: gameContext.setupData?.units });
   gameContext.playerMenu = new UIPlayerMenu('#top-left');
 }
 

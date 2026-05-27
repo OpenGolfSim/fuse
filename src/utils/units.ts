@@ -11,4 +11,7 @@ export class UnitConversions {
   static milesPerHourToMetersPerSecond(mph: number) {
     return mph * 0.44704;
   }
+  static metersPerSecondToMilesPerHour(metersPerSecond: number) {
+    return metersPerSecond * 2.23694;
+  }
 }

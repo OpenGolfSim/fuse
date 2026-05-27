@@ -1,21 +1,28 @@
 import styles from '@/css/ui.module.css';
+import { UnitConversions } from '@/utils/units';
 
 type ShotDataGridOption = {
   id: keyof OpenGolfSim.Shot | keyof OpenGolfSim.ShotResult;
   precision: number;
   label: string;
-  units: string | Record<'metric' | 'imperial', string>;
+  units: string;
   _element?: HTMLElement;
+  conversion?: (val: number) => number;
 }
 
 export type UIShotDataOptions = {
   gridOptionsEnabled?: (keyof OpenGolfSim.Shot | keyof OpenGolfSim.ShotResult)[];
+  units?: OpenGolfSim.SetupData['units'];
 }
 
 export class UIShotData {
   element: Element;
   wrapper: HTMLElement;
   gridOptions: ShotDataGridOption[];
+  units: OpenGolfSim.SetupData['units'];
+  #speedUnit: string;
+  #distanceUnit: string;
+  #heightUnit: string;
 
   constructor(element: string | Element, options: UIShotDataOptions = {}) {
     if (typeof element === 'string') {
@@ -30,12 +37,21 @@ export class UIShotData {
     if (!this.element) {
       throw new Error('Unable to find UIShotData root element');
     }
+
+    this.units = options.units ?? 'metric';
+
+    this.#speedUnit = this.units === 'imperial' ? 'MPH' : 'm/s';
+    this.#distanceUnit = this.units === 'imperial' ? 'YD' : 'm';
+    this.#heightUnit = this.units === 'imperial' ? 'FT' : 'm';
+
     this.gridOptions = [
       {
         id: 'ballSpeed',
         precision: 0,
         label: 'Speed',
-        units: { imperial: 'MPH', metric: 'M/S' }
+        // default value is in MPH
+        conversion: (val) => this.units === 'metric' ? UnitConversions.milesPerHourToMetersPerSecond(val) : val,
+        units: this.#speedUnit
       },
       {
         id: 'verticalLaunchAngle',
@@ -65,32 +81,37 @@ export class UIShotData {
         id: 'total',
         precision: 0,
         label: 'Total',
-        units: { imperial: 'YD', metric: 'm' }
+        units: this.#distanceUnit,
+        conversion: (val) => this.units === 'imperial' ? UnitConversions.metersToYards(val) : val,
       },
       {
         id: 'carry',
         precision: 0,
         label: 'Carry',
-        units: { imperial: 'YD', metric: 'm' }
+        units: this.#distanceUnit,
+        conversion: (val) => this.units === 'imperial' ? UnitConversions.metersToYards(val) : val,
       },
       {
         id: 'roll',
         precision: 0,
         label: 'Roll',
-        units: { imperial: 'YD', metric: 'm' }
+        units: this.#distanceUnit,
+        conversion: (val) => this.units === 'imperial' ? UnitConversions.metersToYards(val) : val,
       },
 
       {
         id: 'apex',
         label: 'Apex',
         precision: 0,
-        units: { imperial: 'FT', metric: 'm' }
+        units: this.#heightUnit,
+        conversion: (val) => this.units === 'imperial' ? UnitConversions.metersToFeet(val) : val,
       },
       {
         id: 'lateral',
         label: 'Lateral',
         precision: 0,
-        units: { imperial: 'yd', metric: 'm' }
+        units: this.#distanceUnit,
+        conversion: (val) => this.units === 'imperial' ? UnitConversions.metersToYards(val) : val,
       },
     ];
     
@@ -115,12 +136,15 @@ export class UIShotData {
   #updateGrid(data: Partial<OpenGolfSim.Shot & OpenGolfSim.ShotResult>) {
     this.gridOptions.forEach(option => {
       if (option._element) {
-        const value = data[option.id];
+        let value = data[option.id];
         if (typeof value === 'undefined') return;
         const digit = option._element.querySelector('.grid-digit');
+        if (typeof option.conversion === 'function') {
+          value = option.conversion(value);
+        }
         if (digit) digit.textContent = value.toFixed(option.precision ?? 0);
         const unit = option._element.querySelector('.grid-unit');
-        if (unit) unit.textContent = typeof option.units === 'string' ? option.units : option.units.imperial;
+        if (unit) unit.textContent = option.units;
       }
     });
   }
@@ -157,7 +181,7 @@ export class UIShotData {
       unit.classList.add(styles.shotDataItemUnit, 'grid-unit');
       // unit.className = styles.shotDataItemUnit;
       // TODO: change to metric based on user pref!
-      unit.textContent = typeof option.units === 'string' ? option.units : option.units.imperial;
+      unit.textContent = option.units;
       dataValue.append(digit, unit);
 
       option._element.append(dataLabel, dataValue);

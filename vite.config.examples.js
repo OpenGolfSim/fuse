@@ -24,4 +24,16 @@ export default defineConfig({
       },
     },
   },
+  plugins: [
+    {
+      name: 'custom-cli-message',
+      configureServer(server) {
+        const _print = server.printUrls;
+        server.printUrls = () => {
+          console.log('\n    FUSE Examples running\n');
+          _print();
+        };
+      },
+    },
+  ],
 });

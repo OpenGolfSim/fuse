@@ -1,6 +1,10 @@
 import styles from '@/css/ui.module.css';
 import { UnitConversions } from '@/utils/units';
 
+type UIRangeFinderOptions = {
+  units?: OpenGolfSim.SetupData['units'];
+}
+
 export class UIRangeFinder {
   element: Element | null;
   wrapper: HTMLElement;
@@ -8,9 +12,9 @@ export class UIRangeFinder {
   distanceUnit: HTMLElement;
   heightValue: HTMLElement;
   heightUnit: HTMLElement;
+  units: OpenGolfSim.SetupData['units'];
 
-
-  constructor(element: string | Element) {
+  constructor(element: string | Element, options: UIRangeFinderOptions = {}) {
     if (typeof element === 'string') {
       this.element = document.querySelector(element);
     } else {
@@ -21,6 +25,7 @@ export class UIRangeFinder {
     }    
     this.element.className = styles.rangeFinder;
 
+    this.units = options.units ?? 'metric';
     this.wrapper = document.createElement('div');
     this.heightValue = document.createElement('div');
     this.heightUnit = document.createElement('div');
@@ -50,7 +55,7 @@ export class UIRangeFinder {
     this.distanceValue.textContent = '120';
     
     this.distanceUnit.className = styles.rangeFinderDistanceUnit;
-    this.distanceUnit.textContent = 'yds';
+    this.distanceUnit.textContent = this.units === 'imperial' ? 'YD' : 'm';
 
     distanceLine.append(this.distanceValue, this.distanceUnit);
     const heightLine = document.createElement('div');
@@ -61,14 +66,14 @@ export class UIRangeFinder {
     this.heightValue.textContent = '5';
     
     this.heightUnit.className = styles.rangeFinderDistanceUnit;
-    this.heightUnit.textContent = 'ft';
+    this.heightUnit.textContent = this.units === 'imperial' ? 'ft' : 'm';
     
     heightLine.append(this.heightValue, this.heightUnit);
 
   }
 
-  update(distanceMeters: number, heightMeters: number, units = 'imperial') {
-    if (units === 'imperial') {
+  update(distanceMeters: number, heightMeters: number) {
+    if (this.units === 'imperial') {
       this.distanceValue.textContent = UnitConversions.metersToYards(distanceMeters).toFixed(0);
       this.heightValue.textContent = UnitConversions.metersToFeet(heightMeters).toFixed(1);
       this.distanceUnit.textContent = 'yd';

@@ -12,18 +12,22 @@ import {
   UnitConversions,
   VolumetricClouds,
   MeshLoader,
-  Stats
- } from '@opengolfsim/fuse';
+  Stats,
+  YardageLinesMaterial
+} from '@opengolfsim/fuse';
+
+
 
 const skyColor = new THREE.Color('#c4daed');
 const fogColor = new THREE.Color('#f2f8f8');
 
-const yardages = [50, 100, 150, 200, 250, 300];
+const hashMarks = [50, 100, 150, 200, 250, 300];
 
 const gameContext = {
   timer: new THREE.Timer(),
   startPoint: new THREE.Vector3(0, 0, 0),
-  aimPoint: new THREE.Vector3(0, 0, 200)
+  aimPoint: new THREE.Vector3(0, 0, 200),
+  setupData: null
 };
 
 
@@ -123,43 +127,62 @@ async function createGroundPlane() {
 
   gameContext.groundCollider = new GroundPhysics(gameContext.ground, app.world, app.rapier);  
 
-  // Assuming the plane is rotated to lie flat (rotation.x = -Math.PI / 2)
-  // and the tee is at the near edge (z = +250 if centered at origin)
-  const teeZ = 250; // half of the 500m plane length
 
-  yardages.forEach((yds) => {
-    const distMeters = UnitConversions.yardsToMeters(yds);
-    const marker = createYardageMarker(yds);
+  const downrange = new THREE.Vector3(0, 0, 1); // looking down -Z
 
-    marker.rotation.x = -Math.PI / 2;
-    marker.position.y = 0.01;           // slight hover above ground
-    marker.position.z = distMeters;
+  const distances = [...hashMarks].map(val => gameContext.setupData?.units === 'imperial' ? UnitConversions.yardsToMeters(val) : val);
 
-    gameContext.scene.add(marker);
-  });
+  const yardageLines = new YardageLinesMaterial(
+    gameContext.ground,
+    gameContext.startPoint,
+    downrange,
+    distances,
+    {
+      lineWidth:  0.2,
+      lineLength: 90,
+      labels: hashMarks,
+      lineColor:  [1, 1, 1, 0.55],
+      feather:    0.1,   // 10% soft fade at each end
+    }
+  );
 
-  gameContext.mountain = await gameContext.meshLoader.load('/models/rangeMtns.glb', true);
+  // // Assuming the plane is rotated to lie flat (rotation.x = -Math.PI / 2)
+  // // and the tee is at the near edge (z = +250 if centered at origin)
+  // const teeZ = 250; // half of the 500m plane length
 
-  const mountainMap = textureLoader.load('https://coursedata.opengolfsim.com/webgl/assets/textures/Ground081_4K-JPG_Color.jpg');
-  const mountainNormalMap = textureLoader.load('https://coursedata.opengolfsim.com/webgl/assets/textures/Ground081_4K-JPG_NormalGL.jpg');
-  const mountainDisplacementMap = textureLoader.load('https://coursedata.opengolfsim.com/webgl/assets/textures/Ground081_4K-JPG_Displacement.jpg');
-  const mountainRoughMap = textureLoader.load('https://coursedata.opengolfsim.com/webgl/assets/textures/Ground081_4K-JPG_Roughness.jpg');
+  // yardages.forEach((yds) => {
+  //   const distMeters = UnitConversions.yardsToMeters(yds);
+  //   const marker = createYardageMarker(yds);
 
-  [mountainMap, mountainNormalMap, mountainDisplacementMap, mountainRoughMap].forEach(map => {
-    map.wrapS = THREE.RepeatWrapping;
-    map.wrapT = THREE.RepeatWrapping;
-    map.repeat.set(10, 10); // tile 50x across, 100x down the 100x200 plane
-    map.colorSpace = THREE.SRGBColorSpace; // correct color rendering
-    // map.anisotropy = gameContext.renderer.capabilities.getMaxAnisotropy();
-  });
+  //   marker.rotation.x = -Math.PI / 2;
+  //   marker.position.y = 0.01;           // slight hover above ground
+  //   marker.position.z = distMeters;
+
+  //   gameContext.scene.add(marker);
+  // });
+
+  gameContext.mountain = await gameContext.meshLoader.load('./models/rangeMtns.glb', true);
+
+  // const mountainMap = textureLoader.load('https://coursedata.opengolfsim.com/webgl/assets/textures/Ground081_4K-JPG_Color.jpg');
+  // const mountainNormalMap = textureLoader.load('https://coursedata.opengolfsim.com/webgl/assets/textures/Ground081_4K-JPG_NormalGL.jpg');
+  // const mountainDisplacementMap = textureLoader.load('https://coursedata.opengolfsim.com/webgl/assets/textures/Ground081_4K-JPG_Displacement.jpg');
+  // const mountainRoughMap = textureLoader.load('https://coursedata.opengolfsim.com/webgl/assets/textures/Ground081_4K-JPG_Roughness.jpg');
+
+  // [mountainMap, mountainNormalMap, mountainDisplacementMap, mountainRoughMap].forEach(map => {
+  //   map.wrapS = THREE.RepeatWrapping;
+  //   map.wrapT = THREE.RepeatWrapping;
+  //   map.repeat.set(10, 10); // tile 50x across, 100x down the 100x200 plane
+  //   map.colorSpace = THREE.SRGBColorSpace; // correct color rendering
+  //   // map.anisotropy = gameContext.renderer.capabilities.getMaxAnisotropy();
+  // });
 
   const mountainMaterial = new THREE.MeshStandardMaterial({
-    color: skyColor,
-    map: mountainMap,
-    normalMap: mountainNormalMap,
-    displacementMap: mountainDisplacementMap,
+    color: new THREE.Color('#49473b'),
+    // map: mountainMap,
+    // normalMap: mountainNormalMap,
+    // displacementMap: mountainDisplacementMap,
+    // roughnessMap: mountainRoughMap,
     displacementScale: 0.5,
-    roughnessMap: mountainRoughMap,
     roughness: 1.9,
     normalScale: new THREE.Vector2(0, 0.5),
     metalness: 0,
@@ -174,7 +197,7 @@ async function createGroundPlane() {
 
 }
 
-async function setupRange(setupData) {
+async function setupRange() {
   gameContext.loadingScreen = new UILoadingScreen();
   gameContext.loadingScreen.on('load', () => {
     requestAnimationFrame(animate);
@@ -219,8 +242,8 @@ async function setupRange(setupData) {
   gameContext.golfBall = new GolfBall(gameContext.scene, app.world, app.rapier);
   gameContext.golfBall.on('shotEnded', onShotEnded);
 
-  gameContext.shotData = new UIShotData('#shot-data');
-  gameContext.rangeFinder = new UIRangeFinder('#top-center');
+  gameContext.shotData = new UIShotData('#shot-data', { units: gameContext.setupData?.units });
+  gameContext.rangeFinder = new UIRangeFinder('#top-center', { units: gameContext.setupData?.units });
 
   setupNextShot();
 }
@@ -232,12 +255,13 @@ function onShotEnded() {
 
 async function initializeSetup(payload) {
   console.log(`setup from within app:`, payload);
-  await setupRange(payload.setupData);
+  gameContext.setupData = payload.setupData;
+  await setupRange();
 }
 
 async function initializeDebug() {
-  const setupData = testSetupData();
-  await setupRange(setupData);
+  gameContext.setupData = testSetupData();
+  await setupRange();
   setupShotButtons();
   console.log('ready');
 }
@@ -271,59 +295,6 @@ function testSetupData() {
     elevation: 0,
     gameMode: 2,
   }
-}
-
-function createYardageMarker(yardage, planeWidth = 150) {
-  const group = new THREE.Group();
-  const stripeGeo = new THREE.PlaneGeometry(planeWidth * 0.6, 0.2);
-  const stripeMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 1,
-    metalness: 0,
-    blending: THREE.AdditiveBlending,
-    transparent: true,
-    opacity: 0.6,
-    depthWrite: false,
-    polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -1,
-  });
-  const stripe = new THREE.Mesh(stripeGeo, stripeMat);
-  group.add(stripe);
-
-
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = 'white';
-  ctx.font = 'bold 120px Arial';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(`${yardage}`, 512, 256);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  // texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-  const labelGeo = new THREE.PlaneGeometry(8, 4);
-  const labelMat = new THREE.MeshStandardMaterial({
-    map: texture,
-    transparent: true,
-    roughness: 1,
-    opacity: 0.6,
-    metalness: 0,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2,
-  });
-  const label = new THREE.Mesh(labelGeo, labelMat);
-  label.position.y = 1.5; // tiny extra offset above stripe
-  label.position.z = 0.001; // tiny extra offset above stripe
-  group.add(label);
-  group.rotation.z = Math.PI;
-
-  return group;
 }
 
 function setupNextShot(event) {

@@ -36,12 +36,12 @@ export type CourseSurfaceProperties = {
 export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> = {
   [CourseSurfaceType.Green]: {
     hasCollider: true,
-    friction: 0.3,
-    restitution: 0.5,
-    rollResistance: 0.05,
+    friction: 0.4,
+    restitution: 0.45,
+    rollResistance: 0.075,
     // rollResistanceSpeedThreshold: 0.0001,
-    stopSpeed: 0.15,
-    stopAngular: 8.0,
+    stopSpeed: 0.12,
+    stopAngular: 4.8,
   },
   [CourseSurfaceType.Fringe]: {
     hasCollider: true,
