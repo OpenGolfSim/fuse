@@ -1,13 +1,40 @@
 import * as THREE from 'three';
-import styles from './css/ui.module.css';
+import styles from '@/css/ui.module.css';
+import { Hole } from '@/courses/types';
+import { UnitConversions } from '@/utils/units';
+import { colors } from '@/utils/colors';
 
-export class CourseMap extends EventTarget {
-  constructor() {
+type UICourseMapOptions = {
+  mapWidthPercent?: number;
+  units?: OpenGolfSim.MeasurementUnits;
+}
+
+export class UICourseMap extends EventTarget {
+  mapWidthPercent: number;
+  camera: THREE.OrthographicCamera;
+  renderer: THREE.WebGLRenderer;
+  container: HTMLElement;
+  canvasContainer: HTMLElement;
+  header: HTMLElement;
+  holeText: HTMLElement;
+  parText: HTMLElement;
+  distText: HTMLElement;
+  units: OpenGolfSim.MeasurementUnits;
+  canvas: HTMLCanvasElement;
+  overlayCanvas: HTMLCanvasElement;
+
+  aspect: number;
+  width: number;
+  height: number;
+
+  constructor(options: UICourseMapOptions = {}) {
     super();
     // this.width = width;
     // this.height = height;
     // this.course = course;
-    this.mapWidthPercent = 0.15;
+    this.units = options.units ?? 'metric';
+    this.mapWidthPercent = options.mapWidthPercent ?? 0.25;
+
     const mapSize = 40;
     const nearField = 10;
     const farField = 1000;
@@ -19,6 +46,9 @@ export class CourseMap extends EventTarget {
     this.camera = new THREE.OrthographicCamera(-mapSize, mapSize, mapSize, -mapSize, nearField, farField);
     this.camera.position.set(0, 100, 0);
     this.camera.lookAt(0, 0, 0);
+    this.aspect = 3 / 2;
+    this.width = window.innerHeight * this.mapWidthPercent; // 10%
+    this.height = this.width * this.aspect; // 10%    
 
     this.container = document.createElement('div');
     this.container.className = styles.mapContainer;
@@ -50,9 +80,6 @@ export class CourseMap extends EventTarget {
     // this.canvas.style = 'position: absolute; left: 10px; bottom: 10px;'
     this.overlayCanvas.className = styles.overlayCanvas;
     
-    // this.canvas.width = this.overlayCanvas.width = this.width;
-    // this.canvas.height = this.overlayCanvas.height = this.height;
-    
     this.canvasContainer.append(this.canvas, this.overlayCanvas);
     this.container.append(this.header, this.canvasContainer);
 
@@ -68,8 +95,8 @@ export class CourseMap extends EventTarget {
   }
 
   _handleResize() {
-    this.aspect = 3 / 2;
-    this.width = window.innerWidth * this.mapWidthPercent; // 10%
+    
+    this.width = window.innerHeight * this.mapWidthPercent; // 10%
     this.height = this.width * this.aspect; // 10%    
 
     this.container.style.display = this.width < 120 ? 'none' : 'block';
@@ -84,20 +111,35 @@ export class CourseMap extends EventTarget {
   }
 
 
-  updateHole(currentHole) {
+  updateHole(currentHole: Hole) {
     this.holeText.textContent = `Hole ${currentHole.number}`;
     this.parText.textContent = `Par ${currentHole.par}`;
+    const tee = currentHole.waypoints.get('tee');
+    const pin = currentHole.waypoints.get('pin');
+
+    const unitText = this.units === 'imperial' ? 'yd' : 'm';
     
-    const dist = currentHole.waypoints.get('tee').distanceTo(currentHole.waypoints.get('pin'));
-    this.distText.textContent = `${dist.toFixed(0)} m`;
+    if (tee && pin) {
+      const dist = tee.distanceTo(pin);
+      let distanceValue = dist;
+      if (this.units === 'imperial') {
+        distanceValue = UnitConversions.metersToYards(distanceValue);
+      }
+      this.distText.textContent = `${distanceValue.toFixed(0)} ${unitText}`;
+    } else {
+      this.distText.textContent = '';
+    }
   }
 
-  render(scene, currentHole, currentPositions = {}) {
+  render(scene: THREE.Scene, currentHole: Hole, currentPositions: { ball?: THREE.Vector3, aim?: THREE.Vector3 } = {}) {
     scene.fog = null;
     this.renderer.render(scene, this.camera);
 
     // render overlay
     const ctx = this.overlayCanvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Unable to get map overlay canvas context');
+    }
     ctx.clearRect(0, 0, this.width, this.height);
     // const stsartPosition = currentHole?.waypoints?.get('pin');
     const ballPosition = currentPositions.ball ?? currentHole?.waypoints?.get('tee');
@@ -105,26 +147,46 @@ export class CourseMap extends EventTarget {
     const pinPosition = currentHole?.waypoints?.get('pin');
 
     if (ballPosition) {
-      this._drawDot(ctx, ballPosition, 'rgb(255, 211, 68)');
+      this._drawDot(ctx, ballPosition, colors.white);
     }
     if (aimPosition) {
-      this._drawDot(ctx, aimPosition, 'rgb(255, 74, 68)');
+      const aimDist = ballPosition ? aimPosition.distanceTo(ballPosition) : 0;
+      this._drawDot(ctx, aimPosition, colors.yellow, aimDist);
     }
     if (pinPosition) {
-      this._drawDot(ctx, pinPosition, 'rgb(255, 255, 255)');
+      const pinDist = ballPosition ? pinPosition.distanceTo(ballPosition) : 0;
+      this._drawDot(ctx, pinPosition, colors.red, pinDist);
     }
   }
 
-  _drawDot(ctx, position, color) {
-      const startXY = this._worldToMinimap(position);
-      // tee marker
-      ctx.beginPath();
-      ctx.arc(startXY.x, startXY.y, 5, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
+  _drawDot(ctx: CanvasRenderingContext2D, position: THREE.Vector3, color: string = '#e9c834', distanceMeters = 0) {
+    const startXY = this._worldToMinimap(position);
+    // tee marker
+    ctx.beginPath();
+    ctx.arc(startXY.x, startXY.y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    
+    if (distanceMeters) {
+      this._drawDistance(ctx, position, '#000', distanceMeters, [2, 12]);
+      this._drawDistance(ctx, position, '#fff', distanceMeters, [0, 10]);
+    }
+  }
+  _drawDistance(ctx: CanvasRenderingContext2D, position: THREE.Vector3, color: string, distanceMeters: number, offset: [number, number] = [0, 0]) {
+    const startXY = this._worldToMinimap(position);
+    ctx.fillStyle = color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    let distanceUnits = 'm';
+    if (this.units === 'imperial') {
+      distanceMeters = UnitConversions.metersToYards(distanceMeters);
+      distanceUnits = 'YD';
+    }
+    ctx.font = 'bold 10px Arial,Helvetica,sans-serif'
+    ctx.fillText(`${distanceMeters.toFixed(0)} ${distanceUnits}`, startXY.x + offset[0], startXY.y + offset[1]);
   }
 
-  _worldToMinimap(position) {
+  _worldToMinimap(position: THREE.Vector3) {
     const v = position.clone().project(this.camera);
     // project() gives normalized device coords (-1 to 1)
     return {
@@ -133,7 +195,7 @@ export class CourseMap extends EventTarget {
     };
   }
   
-  _minimapToWorld(event) {
+  _minimapToWorld(event: PointerEvent) {
     const rect = this.overlayCanvas.getBoundingClientRect();
     // Convert click to normalized device coords (-1 to 1)
     const ndc = new THREE.Vector3(
@@ -146,7 +208,7 @@ export class CourseMap extends EventTarget {
     return new THREE.Vector3(ndc.x, 0, ndc.z);
   }
 
-  _handleCanvasClick(event) {
+  _handleCanvasClick(event: PointerEvent) {
     console.log('CLICK', event);
     const pos = this._minimapToWorld(event);
     console.log('POS', pos);
@@ -158,7 +220,7 @@ export class CourseMap extends EventTarget {
     }
   }
 
-  updatePosition(startPoint, endPoint) {
+  updatePosition(startPoint: THREE.Vector3, endPoint: THREE.Vector3) {
     // const tee = currentHole().waypoints.get('tee');
     // const hole = currentHole().waypoints.get('hole');
 

@@ -31,6 +31,8 @@ declare module '*.svg' {
 
 namespace OpenGolfSim {
 
+  type MeasurementUnits = 'imperial' | 'metric';
+
   interface Club {
     name: string;
     id: string;
@@ -70,7 +72,7 @@ namespace OpenGolfSim {
     players: OpenGolfSim.Player[],
     practiceMode: boolean;
     elevation?: number;
-    units: 'imperial' | 'metric';
+    units: MeasurementUnits;
   }
 
   type GameData = {

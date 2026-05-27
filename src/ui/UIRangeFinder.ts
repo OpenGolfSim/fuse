@@ -2,7 +2,7 @@ import styles from '@/css/ui.module.css';
 import { UnitConversions } from '@/utils/units';
 
 type UIRangeFinderOptions = {
-  units?: OpenGolfSim.SetupData['units'];
+  units?: OpenGolfSim.MeasurementUnits;
 }
 
 export class UIRangeFinder {
@@ -12,7 +12,7 @@ export class UIRangeFinder {
   distanceUnit: HTMLElement;
   heightValue: HTMLElement;
   heightUnit: HTMLElement;
-  units: OpenGolfSim.SetupData['units'];
+  units: OpenGolfSim.MeasurementUnits;
 
   constructor(element: string | Element, options: UIRangeFinderOptions = {}) {
     if (typeof element === 'string') {
@@ -48,24 +48,24 @@ export class UIRangeFinder {
     this.element.append(this.wrapper);
 
     const distanceLine = document.createElement('div');
-    distanceLine.className = styles.rangeFinderDistance;
+    distanceLine.className = styles.rangeFinderCol;
     this.wrapper.append(distanceLine);
 
-    this.distanceValue.className = styles.rangeFinderDistanceValue;
+    this.distanceValue.className = styles.rangeFinderValue;
     this.distanceValue.textContent = '120';
     
-    this.distanceUnit.className = styles.rangeFinderDistanceUnit;
+    this.distanceUnit.className = styles.rangeFinderUnit;
     this.distanceUnit.textContent = this.units === 'imperial' ? 'YD' : 'm';
 
     distanceLine.append(this.distanceValue, this.distanceUnit);
     const heightLine = document.createElement('div');
-    heightLine.className = styles.rangeFinderDistance;
+    heightLine.className = styles.rangeFinderCol;
     this.wrapper.append(heightLine);
 
-    this.heightValue.className = styles.rangeFinderHeightValue;
+    this.heightValue.className = styles.rangeFinderValue;
     this.heightValue.textContent = '5';
     
-    this.heightUnit.className = styles.rangeFinderDistanceUnit;
+    this.heightUnit.className = styles.rangeFinderUnit;
     this.heightUnit.textContent = this.units === 'imperial' ? 'ft' : 'm';
     
     heightLine.append(this.heightValue, this.heightUnit);
@@ -75,13 +75,13 @@ export class UIRangeFinder {
   update(distanceMeters: number, heightMeters: number) {
     if (this.units === 'imperial') {
       this.distanceValue.textContent = UnitConversions.metersToYards(distanceMeters).toFixed(0);
-      this.heightValue.textContent = UnitConversions.metersToFeet(heightMeters).toFixed(1);
-      this.distanceUnit.textContent = 'yd';
-      this.heightUnit.textContent = 'ft';
+      const heightYards = UnitConversions.metersToYards(heightMeters);
+      this.heightValue.textContent = heightYards >= 0.1 ? `+${heightYards.toFixed(1)}` : heightYards.toFixed(1);
+      this.distanceUnit.textContent = 'YD';
+      this.heightUnit.textContent = 'YD';
     } else {
       this.distanceValue.textContent = distanceMeters.toFixed(0);
-      const heightString = heightMeters.toFixed(1);
-      this.heightValue.textContent = heightMeters > 0 ? `+${heightString}` : heightString;
+      this.heightValue.textContent = heightMeters >= 0.1 ? `+${heightMeters.toFixed(1)}` : heightMeters.toFixed(1);
       this.distanceUnit.textContent = 'm';
       this.heightUnit.textContent = 'm';
     }

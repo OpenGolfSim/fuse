@@ -6,7 +6,6 @@ export * from '@/camera';
 export * from '@/controls';
 export * from '@/trees';
 export * from '@/lights';
-export * from '@/map';
 export * from '@/sky';
 
 // Objects

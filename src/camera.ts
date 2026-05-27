@@ -83,7 +83,7 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     this.#tmpBack = new THREE.Vector3();
     this.#tmpRight = new THREE.Vector3();
 
-    this.aimSpeed = 10; // meters per second
+    this.aimSpeed = 7; // meters per second
     this.aimKeys = { left: false, right: false, forward: false, backward: false };    
     this.trackingDelay = options.trackingDelay ?? 3000;
     this.#trackTimeout = 0;

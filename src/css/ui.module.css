@@ -16,31 +16,27 @@
   width: 15vw;
 }
 
-
 .shotData {
   position: absolute;
-  top: 0.5vw;
-  right: 0.5vw;
-  width: calc(var(--grid-size) * 10);
-  /* aspect-ratio: 16 / 9; */
+  top: var(--grid-size);
+  right: var(--grid-size);
 }
+
 .shotDataContainer {
   display: flex;
   flex-direction: column;
-  gap: 0.4vw;
+  gap: calc(var(--grid-size) / 2);
 }
+
 .shotDataItem {
   display: flex;
   flex-direction: column;
-  /* align-items: center;
-  justify-content: center; */
   background-color: var(--bg-color);
   border-radius: var(--border-radius);
-  /* height: 8vh; */
   font-size: 1.5vw;
-  padding: 0.5vw 0;
-  /* text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5); */
+  gap: 0;
 }
+
 .shotDataItemLabel {
   color: #aaa;
   font-size: var(--small-text-size);
@@ -48,15 +44,21 @@
   font-weight: 800;
   text-transform: uppercase;
   text-align: center;
+  padding-top: calc(var(--base-padding) * 0.75);
+  padding-left: var(--base-padding);
+  padding-right: var(--base-padding);
+  padding-bottom: 0;
 }
+
 .shotDataItemValue {
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: center;
   gap: 0.2vw;
-  margin-top: 5px;
+  /* margin-top: 5px; */
   flex: 1;
+  padding: var(--base-padding);
 }
 .shotDataItemDigit {
   /* display: block; */
@@ -65,6 +67,7 @@
   font-size: var(--medium-text-size);
   /* line-height: var(--large-text-size); */
   flex: 0;
+  line-height: 1;
 }
 .shotDataItemUnit {
   /* display: inline-block; */
@@ -73,21 +76,8 @@
   font-weight: 800;
   /* line-height: 1.2vh; */
   flex: 0;
+  line-height: 1;
 }
-
-@media (min-aspect-ratio: 7/3) {
-  .shotData {
-    width: auto;
-    justify-content: space-evenly;
-  }
-  .shotDataContainer {
-    flex-direction: row;
-  }
-  .shotDataItem {
-    flex: 1;
-  }
-}
-
 
 .rangeFinder {
   background-color: var(--bg-color);
@@ -95,31 +85,29 @@
   /* width: 10vw; */
   /* height: 5vh; */
   position: fixed;
-  top: 1vh;
+  top: var(--grid-size);
   left: 50%;
   transform: translateX(-50%);
-  padding: 0.5vh 1vw;
+  padding: var(--base-padding) calc(var(--base-padding) * 2);
 }
 .rangeFinderContainer {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  gap: var(--base-padding);
 }
-.rangeFinderDistance {
+.rangeFinderCol {
   display: flex;
   flex-direction: row; 
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: calc(var(--base-padding) / 2);
 }
-.rangeFinderHeightValue {
+
+.rangeFinderValue {
   font-weight: 800;
-  font-size: 2vh;
+  font-size: var(--medium-text-size);
 }
-.rangeFinderDistanceValue {
-  font-weight: 800;
-  font-size: var(--large-text-size);
-}
-.rangeFinderDistanceUnit {
+.rangeFinderUnit {
   font-weight: 800;
   color: var(--primary-color);
   font-size: var(--unit-text-size);
@@ -130,56 +118,48 @@
   border-radius: var(--border-radius);
   overflow: hidden;
   position: fixed;
-  left: 1vh;
-  top: 1vh;
-  min-width: 200px;
-  width: 15vw;
+  left: var(--grid-size);
+  top: var(--grid-size);
+  /* min-width: 200px; */
+  /* width: calc(var(--grid-size) * 20); */
 }
 .playerMenuContainer {
-  height: 4vh;
-  padding: 0 1vh;
+  /* height: 4vh; */
+  /* padding: calc(var(--grid-size) / 2) var(--grid-size); */
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 1vh;
+  gap: var(--grid-size);
 }
 .playerMenuName {
   flex: 1;
-  font-size: var(--base-font-size);
+  font-size: var(--medium-text-size);
   font-weight: bold;
+  padding: var(--base-padding);
+  min-width: calc(var(--grid-size) * 4);
 }
-/* .playerMenuClub {
-  padding: 0.6vw;
-  border: 2px solid #fff;
-  font-weight: bold;
-  font-size: 1.2vh;
-} */
 .playerMenuClub,
 .playerMenuScore {
-  height: 2.4vh;
-  width: 2.4vh;
   display: flex;
+  padding: var(--grid-size);
   flex-direction: row;
+  min-width: calc(var(--grid-size) * 2);
   align-items: center;
-  justify-content: center;  
+  justify-content: center;
   font-weight: bold;
-  font-size: 1.2vh;
+  font-size: var(--small-text-size);
 }
-.playerMenuClub {
-  /* background-color: rgba(255, 255, 255, 0.3); */
-  /* border-radius: 1.4vh;
-  border: 0.15vh solid #fff; */
-}
+
+
 .mapContainer {
   position: fixed;
-  left: 10px;
-  bottom: 10px;
+  left: var(--grid-size);
+  bottom: var(--grid-size);
   background-color: var(--bg-color);
   font-weight: 800;
   color: var(--text-color);
-  font-size: 0.85cqi;
-  /* font-size: var(--base-font-size); */
+  font-size: var(--base-font-size);
   border-radius: var(--border-radius);
   overflow: hidden;
 }

@@ -5,6 +5,7 @@ interface CourseKeyboardControlEvents {
   testShot: (shot: OpenGolfSim.Shot) => void;
   toggleStats: () => void;
   mulligan: () => void;
+  fullscreen: () => void;
   aim: (aimKeys: AimKeys) => void;
 }
 
@@ -37,6 +38,15 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
           break;
         case 'KeyM':
           this.emit('mulligan');
+          handled = true;
+          break;
+        case 'KeyF':
+          this.emit('fullscreen');
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+          } else {
+            document.exitFullscreen();
+          }
           handled = true;
           break;
       }

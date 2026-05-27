@@ -179,20 +179,15 @@ async function createGroundPlane() {
   gameContext.mountain.scale.set(20, 20, 20);
   gameContext.scene.add(gameContext.mountain);
 
-  gameContext.visualAimPoint = new AimPoint();
-  gameContext.scene.add(gameContext.visualAimPoint.object);
 
 }
 
-async function setupRange() {
-  gameContext.loadingScreen = new UILoadingScreen();
-  gameContext.loadingScreen.on('load', () => {
-    requestAnimationFrame(animate);
-  });
-  gameContext.meshLoader = new MeshLoader(gameContext.loadingScreen?.manager);  
+
+async function loadRange() {
   
   setupWorld();
-  
+
+  gameContext.meshLoader = new MeshLoader(gameContext.loadingScreen?.manager);
 
   gameContext.scene = new THREE.Scene();
   gameContext.scene.background = skyColor;
@@ -211,6 +206,11 @@ async function setupRange() {
     cameraOffsetX: -(gameContext.setupData.cameraOffset / 100),
     // cameraOffsetYZ: [1.4, 9],
   });
+
+  gameContext.visualAimPoint = new AimPoint(gameContext.camera, {
+    units: gameContext.setupData.units
+  });
+  gameContext.scene.add(gameContext.visualAimPoint.object);
 
   gameContext.controls = new CourseKeyboardControls({ testShots: true });
   gameContext.controls.on('aim', aimKeys => {
@@ -235,7 +235,8 @@ async function setupRange() {
   gameContext.scene.add(gameContext.clouds.object);
   
   gameContext.golfBall = new GolfBall(gameContext.scene, app.world, app.rapier, {
-    setupData: gameContext.setupData
+    setupData: gameContext.setupData,
+    clearTrail: 'start'
   });
   gameContext.golfBall.on('shotEnded', onShotEnded);
 
@@ -243,6 +244,15 @@ async function setupRange() {
   gameContext.rangeFinder = new UIRangeFinder('#top-center', { units: gameContext.setupData?.units });
 
   setupNextShot();
+}
+
+async function setupRange() {
+  gameContext.loadingScreen = new UILoadingScreen(document.body);
+  gameContext.loadingScreen.on('load', () => {
+    console.log('ALL LOADED!');
+    requestAnimationFrame(animate);
+  });
+  gameContext.loadingScreen.load(loadRange);
 }
 
 function onShotEnded() {
@@ -298,19 +308,20 @@ function setupNextShot(event) {
   gameContext.camera.setTracking(false);
   gameContext.camera.setPositions(gameContext.startPoint, gameContext.aimPoint);
   // recreate ball after each shot to ensure physics are fully reset
-  gameContext.golfBall.reset(gameContext.aimPoint, gameContext.startPoint);  
+  gameContext.golfBall.reset(gameContext.aimPoint, gameContext.startPoint);
+  updateAimPoint()
 }
 
 function updateAimPoint() {
-  const dist = gameContext.aimPoint.distanceTo(gameContext.startPoint);
-  const heightDiff = gameContext.startPoint.y - gameContext.aimPoint.y;
-  gameContext.rangeFinder.update(dist, heightDiff);
+  gameContext.distanceToAim = gameContext.startPoint.distanceTo(gameContext.aimPoint);
+  gameContext.heightToAim = gameContext.startPoint.y - gameContext.aimPoint.y;
+  gameContext.rangeFinder.update(gameContext.distanceToAim, gameContext.heightToAim);
   gameContext.golfBall.aimAt(gameContext.aimPoint);
 }
 
 function animate(animDelta) {
   requestAnimationFrame(animate);
-
+  // console.log('start anim', gameContext);
   gameContext.stats.begin();  
   const delta = gameContext.timer.getDelta();   
 
@@ -321,9 +332,10 @@ function animate(animDelta) {
   gameContext.renderer.clear();
 
   if (gameContext.controls) gameContext.controls.update(delta);
-  if (gameContext.visualAimPoint) gameContext.visualAimPoint.update(gameContext.aimPoint, gameContext.camera, gameContext.golfBall.isShotActive);
+  
   if (gameContext.clouds) gameContext.clouds.update(delta);
 
+  
   if (gameContext.camera) {
     // gameContext.yardageLines.update(gameContext.camera);
 
@@ -334,6 +346,9 @@ function animate(animDelta) {
     // gameContext.camera.render(gameContext.scene);    
     gameContext.camera.render(gameContext.scene, gameContext.fog);
   }
+  // should come after the camera update
+  gameContext.visualAimPoint?.update(gameContext.aimPoint, gameContext.distanceToAim, gameContext.heightToAim, gameContext.golfBall.isShotActive);
+  
   if (gameContext.shotData && gameContext.golfBall) {
     gameContext.shotData.updateShotResult(gameContext.golfBall.stats);
   }

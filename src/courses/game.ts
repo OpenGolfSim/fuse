@@ -2,13 +2,17 @@ import * as THREE from 'three';
 import { CourseLoader } from './loader';
 import { Hole, PlayerState } from './types';
 import { type GolfBallEvents, type GolfBall } from '@/objects/golfBall';
+import EventEmitter from 'eventemitter3';
 
+interface CourseGameEvents {
+  nextShot: (status: PlayerStatus) => void;
+}
 export type PlayerStatus = {
   player: OpenGolfSim.Player;
   state: PlayerState;
 }
 
-export class CourseGame extends EventTarget {
+export class CourseGame extends EventEmitter<CourseGameEvents> {
   course: CourseLoader;
   golfBall: GolfBall;
   players: OpenGolfSim.Player[];
@@ -41,7 +45,8 @@ export class CourseGame extends EventTarget {
     this.#playerData = new Map();
 
     this.golfBall.on('shotEnded', (details) => this._onShotEnded(details));
-
+    
+    // setup first hole
     this._setupHole();
   }
 
@@ -164,10 +169,8 @@ export class CourseGame extends EventTarget {
     }
 
 
-    this.updateAimPoint(playerState.start);
-    
-    // this.activePlayer = this.players[this.currentPlayer];
-    this.dispatchEvent(new CustomEvent('nextShot', { detail: playerState }));
+    this.updateAimPoint(playerState.start);    
+    this.emit('nextShot', { state: playerState, player: this.activePlayer });
   }
 
   _nextHole() {

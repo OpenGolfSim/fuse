@@ -1,5 +1,4 @@
 import { PlayerStatus } from '@/courses/game';
-import { PlayerState } from '@/courses/types';
 import styles from '@/css/ui.module.css';
 
 type UIPlayerUpdate = {

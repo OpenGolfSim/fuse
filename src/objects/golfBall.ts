@@ -14,9 +14,13 @@ export interface GolfBallEvents {
   shotEnded: (details: { surface?: CourseSurfaceProperties }) => void
 }
 
+type BallTrailClearMode = 'start' | 'end' | 'never';
+
 type GolfBallOptions = {
   waitTime?: number;
   setupData?: Partial<OpenGolfSim.SetupData>;
+  /** Clear ball trail before the shot. Default is to clear when the shot ends. */
+  clearTrail?: BallTrailClearMode;
 }
 
 export class GolfBall extends EventEmitter<GolfBallEvents> {
@@ -35,6 +39,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
   object?: THREE.Object3D;
   trail?: BallTrail;
   physics?: BallPhysics;
+  clearTrail: BallTrailClearMode;
   #setupData?: Partial<OpenGolfSim.SetupData>;
   #waitTime: number;
   #timeout?: number;
@@ -48,6 +53,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     super();
     this.radius = 0.0213;
     this.stats = { ...defaultStats };
+    this.clearTrail = options.clearTrail || 'end';
     this.#setupData = options.setupData;
     this.#waitTime = options.waitTime ?? 3000;
     this.#scene = scene;
@@ -65,7 +71,6 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
       // remove existing ball object and physics
       this.#scene.remove(this.object);
     }
-    if (this.trail) this.trail.remove();
     if (this.physics) this.physics.remove();
     this.isShotWaiting = false;
     // const geometry = new THREE.SphereGeometry( this.radius, 32, 16 );
@@ -82,6 +87,10 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
 
     this.#scene.add(this.object);
 
+    if (this.clearTrail === 'end') {
+      this.#resetBallTrail();
+    }
+    
     if (aimPoint) {
       this.aimAt(aimPoint)
     }
@@ -89,6 +98,14 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     this.physics = new BallPhysics(this.object, this.#world, this.#rapier, this.radius);
     this.physics.on('shotEnded', surface => this._onShotEnded(surface));
     this.physics.setElevation(this.#setupData?.elevation);
+  }
+
+  #resetBallTrail() {
+    if (!this.object) {
+      console.warn('No ball object to add trail to');
+      return;
+    }
+    if (this.trail) this.trail.remove();
     this.trail = new BallTrail(this.#scene, this.object, { lineWidth: 0.2 });
   }
 
@@ -140,6 +157,9 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     if (this.isShotActive) {
       return;
     }
+    if (this.clearTrail === 'start') {
+      this.#resetBallTrail();
+    }    
     this.isShotActive = true;
     this.#lastShot = shot;
     const isPutt = shot.verticalLaunchAngle < 1;

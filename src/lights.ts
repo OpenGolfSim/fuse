@@ -6,7 +6,7 @@ export class CourseLight extends THREE.Group {
 
   constructor(color: THREE.ColorRepresentation | undefined = 0xffffff) {
     super();
-    console.log('light color', color.toString());
+    console.log('light color', color);
     // Bright warm ambient
     this.ambient = new THREE.AmbientLight(color, 0.8);
     this.add(this.ambient);

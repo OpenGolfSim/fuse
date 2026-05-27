@@ -1,6 +1,7 @@
 import { LoadingManager } from 'three';
 import styles from '@/css/ui.module.css';
 import EventEmitter from 'eventemitter3';
+import { colors } from '@/utils/colors';
 
 type UILoadingScreenOptions = {
   loadingPrefix?: string;
@@ -15,6 +16,7 @@ export class UILoadingScreen extends EventEmitter {
   #delayTimeout?: number;
   manager: LoadingManager;
   loadingPrefix: string;
+  error?: string;
 
   constructor(element: string | HTMLElement, options: UILoadingScreenOptions = {}) {
     super();
@@ -27,16 +29,37 @@ export class UILoadingScreen extends EventEmitter {
       this.element = element;
     }
     if (!this.element) {
-      console.warn('Unable to find UILoadingScreen root element, using document body...');
-      this.element = document.body;
-    }    
+      throw new Error('Unable to find UILoadingScreen root element, using document body...');
+    }
     // this.element.className = styles.playerMenu;
     this.#build();
     
     this.manager = new LoadingManager();
     this.manager.onStart = () => this.#handleStart();
     this.manager.onLoad = () => this.#handleLoad();
+    this.manager.onError = (url: string) => this.#handleError(url);
     this.manager.onProgress = (url, itemsLoaded, itemsTotal) => this.#handleProgress(url, itemsLoaded, itemsTotal);
+  }
+
+
+
+  // Example: Tracking a custom task (e.g., a custom API call or physics init)
+  async load(asyncSetupTask: () => Promise<void>) {
+    const taskId = 'asyncSetupTask';
+    
+    // 1. Tell the manager a new item has started loading
+    this.manager.itemStart(taskId);
+
+    try {
+      await asyncSetupTask(); // Your custom Promise logic
+    } catch (err) {
+      this.error = `${err}`;
+      console.error('task error', err);
+      this.manager.itemError(taskId); // Optional: report errors to the manager
+    } finally {
+      // 2. Tell the manager the item is complete
+      this.manager.itemEnd(taskId);
+    }
   }
 
   #handleProgress(url: string, itemsLoaded: number, itemsTotal: number) {
@@ -58,8 +81,22 @@ export class UILoadingScreen extends EventEmitter {
     }
     this.emit('start');
   }
+  #handleError(url: string) {
+    // this.error = 'Loading error';
+    this.emit('error', url);
+  }
   #handleLoad() {
-    this.emit('load');
+    this.emit('load', this.error);
+    if (this.error) {
+      if (this.#progressBarFill) {
+        this.#progressBarFill.style.backgroundColor = colors.red;
+      }
+      if (this.#progressText) {
+        this.#progressText.style.color = colors.red;
+        this.#progressText.textContent = `Error: ${this.error}`;
+      }
+      return;
+    }
     clearTimeout(this.#delayTimeout);
     this.#delayTimeout = setTimeout(() => this.#fadeOut(), 1000);
   }
