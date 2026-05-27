@@ -72,4 +72,10 @@ namespace OpenGolfSim {
     elevation?: number;
     units: 'imperial' | 'metric';
   }
+
+  type GameData = {
+    id: string;
+    gameMode: number;
+    courseUrl?: boolean;
+  }
 }

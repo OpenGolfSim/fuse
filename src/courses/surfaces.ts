@@ -53,7 +53,7 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
     hasCollider: true,
     friction: 0.4,
     restitution: 0.4,
-    rollResistance: 0.15
+    rollResistance: 0.25
   },
   [CourseSurfaceType.FirstCut]: {
     hasCollider: true,

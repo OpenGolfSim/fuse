@@ -4,7 +4,8 @@ import { GRAVITY_VECTOR } from './physics/constants';
 
 export type SetupMessage = {
   type: 'setup',
-  setupData: OpenGolfSim.SetupData
+  setupData: OpenGolfSim.SetupData,
+  gameData: OpenGolfSim.GameData,
 };
 
 export type ShotMessage = {
@@ -24,7 +25,7 @@ export type PlayerUpdateMessage = {
 interface EventMap {
   ready: () => void;
   shot: (shotData: OpenGolfSim.Shot) => void;
-  setup: (setupData: OpenGolfSim.SetupData) => void;
+  setup: (message: Omit<SetupMessage, 'type'>) => void;
 }
 
 /**
@@ -66,7 +67,7 @@ export class AppBridge extends EventEmitter<EventMap> {
         this.emit('shot', data.shot);
         break;
       case 'setup':
-        this.emit('setup', data.setupData);
+        this.emit('setup', data);
         break;
     }
   }

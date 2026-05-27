@@ -1,65 +1,70 @@
 import * as THREE from 'three';
 
-const MAX_LINES = 32;
-const ATLAS_CELL_W = 256;
-const ATLAS_CELL_H = 128;
+function nextPow2(v: number): number {
+  return Math.pow(2, Math.ceil(Math.log2(v)));
+}
 
 export type YardageLinesMaterialOptions = {
   lineWidth?: number;
   lineLength?: number;
   lineColor?: [number, number, number, number];
   feather?: number;
-  labels?: string[];                              // custom labels, defaults to distance values
-  labelSize?: [number, number];                   // [width, height] in world units
-  labelGap?: number;                              // gap between line and label (downrange)
-  labelColor?: [number, number, number, number];
+  labels?: (string | number)[];
+  labelSize?: [number, number];
+  labelGap?: number;
   labelFont?: string;
+  maxAnisotropy?: number;
+  texelsPerMeter?: number;
 };
 
 export class YardageLinesMaterial {
   customUniforms: Record<string, { value: any }>;
   material?: THREE.Material;
 
+  private lineLength: number;
+  private maxDist: number;
+  private pxPerMeter: number;
+  private maxTexSize: number;
+
   constructor(
     object: THREE.Object3D,
-    teeWorldPos: THREE.Vector3,
-    direction: THREE.Vector3,
+    ballPos: THREE.Vector3,
+    aimPoint: THREE.Vector3,
     distances: number[],
     options: YardageLinesMaterialOptions = {}
   ) {
-    const lineWidth  = options.lineWidth  ?? 0.15;
-    const lineLength = options.lineLength ?? 80;
+    const lineLength = options.lineLength ?? 90;
     const lineColor  = options.lineColor  ?? [1.0, 1.0, 1.0, 0.6];
-    const feather    = options.feather    ?? 0.08;
-
     const labelSize  = options.labelSize  ?? [5, 2.5];
     const labelGap   = options.labelGap   ?? 0.4;
-    const labelColor = options.labelColor ?? [1.0, 1.0, 1.0, 0.85];
-    const labels     = options.labels;
+    const maxAniso   = options.maxAnisotropy ?? 16;
 
-    const dir = new THREE.Vector2(direction.x, direction.z).normalize();
+    this.lineLength = lineLength;
+    this.pxPerMeter = options.texelsPerMeter ?? 30;
+    this.maxTexSize = 8192;
 
-    const count = Math.min(distances.length, MAX_LINES);
-    const paddedDistances = new Float32Array(MAX_LINES);
-    for (let i = 0; i < count; i++) paddedDistances[i] = distances[i];
+    const dir = new THREE.Vector2(
+      aimPoint.x - ballPos.x,
+      aimPoint.z - ballPos.z
+    ).normalize();
 
-    // Build the text atlas
-    const atlas = this.buildAtlas(distances, labels, options.labelFont);
+    const perpDir = new THREE.Vector2(dir.y, -dir.x);
+
+    this.maxDist = Math.max(...distances) + labelGap + labelSize[1] + 2;
+
+    const texW = Math.min(nextPow2(lineLength * this.pxPerMeter), this.maxTexSize);
+    const texH = Math.min(nextPow2(this.maxDist * this.pxPerMeter), this.maxTexSize);
+
+    const tex = this.buildLineTexture(texW, texH, distances, options);
+    tex.anisotropy = maxAniso;
 
     this.customUniforms = {
-      teePos:        { value: new THREE.Vector3(teeWorldPos.x, 0, teeWorldPos.z) },
-      rangeDir:      { value: new THREE.Vector2(dir.x, dir.y) },
-      lineDistances: { value: paddedDistances },
-      lineCount:     { value: count },
-      lineWidth:     { value: lineWidth },
-      lineLength:    { value: lineLength },
-      lineColor:     { value: new THREE.Vector4(lineColor[0], lineColor[1], lineColor[2], lineColor[3]) },
-      feather:       { value: feather },
-      labelAtlas:    { value: atlas },
-      labelSize:     { value: new THREE.Vector2(labelSize[0], labelSize[1]) },
-      labelGap:      { value: labelGap },
-      labelColor:    { value: new THREE.Vector4(labelColor[0], labelColor[1], labelColor[2], labelColor[3]) },
-      labelCellCount:{ value: count },
+      teePos:       { value: new THREE.Vector3(ballPos.x, 0, ballPos.z) },
+      rangeDir:     { value: dir },
+      perpDir:      { value: perpDir },
+      lineTexture:  { value: tex },
+      texWorldSize: { value: new THREE.Vector2(lineLength, this.maxDist) },
+      lineColor:    { value: new THREE.Vector4(lineColor[0], lineColor[1], lineColor[2], lineColor[3]) },
     };
 
     if (object instanceof THREE.Mesh) {
@@ -68,7 +73,6 @@ export class YardageLinesMaterial {
       mat.onBeforeCompile = (shader: THREE.WebGLProgramParametersWithUniforms) => {
         Object.assign(shader.uniforms, this.customUniforms);
 
-        // ── Vertex shader ──
         shader.vertexShader = shader.vertexShader.replace(
           '#include <common>',
           /* glsl */ `
@@ -84,7 +88,6 @@ export class YardageLinesMaterial {
           `
         );
 
-        // ── Fragment shader: declarations ──
         shader.fragmentShader = shader.fragmentShader.replace(
           '#include <common>',
           /* glsl */ `
@@ -92,42 +95,13 @@ export class YardageLinesMaterial {
             varying vec3 vWorldPos;
             uniform vec3 teePos;
             uniform vec2 rangeDir;
-            uniform float lineDistances[${MAX_LINES}];
-            uniform float lineCount;
-            uniform float lineWidth;
-            uniform float lineLength;
+            uniform vec2 perpDir;
+            uniform sampler2D lineTexture;
+            uniform vec2 texWorldSize;
             uniform vec4 lineColor;
-            uniform float feather;
-
-            uniform sampler2D labelAtlas;
-            uniform vec2 labelSize;      // (width, height) in world units
-            uniform float labelGap;
-            uniform vec4 labelColor;
-            uniform float labelCellCount;
-
-            float stripeMask(float downrange, float targetDist, float width) {
-              float hw   = width * 0.5;
-              float fw   = fwidth(downrange);
-              float edge = max(fw, 0.005);
-              return smoothstep(targetDist - hw - edge, targetDist - hw + edge, downrange)
-                   * (1.0 - smoothstep(targetDist + hw - edge, targetDist + hw + edge, downrange));
-            }
-
-            float lengthMask(float crossrange, float halfLen, float featherLen) {
-              float fw   = fwidth(crossrange);
-              float edge = max(fw, 0.005);
-              float mask = smoothstep(-halfLen - edge, -halfLen + edge, crossrange)
-                         * (1.0 - smoothstep(halfLen - edge, halfLen + edge, crossrange));
-              if (featherLen > 0.0) {
-                float innerEdge = halfLen - featherLen;
-                mask *= 1.0 - smoothstep(innerEdge, halfLen, abs(crossrange));
-              }
-              return mask;
-            }
           `
         );
 
-        // ── Fragment shader: compositing ──
         shader.fragmentShader = shader.fragmentShader.replace(
           '#include <map_fragment>',
           /* glsl */ `
@@ -135,57 +109,18 @@ export class YardageLinesMaterial {
 
             vec2 offset      = vWorldPos.xz - teePos.xz;
             float downrange  = dot(offset, rangeDir);
-            vec2 perpDir = vec2(-rangeDir.y, rangeDir.x);
             float crossrange = dot(offset, perpDir);
 
-            float halfLen    = lineLength * 0.5;
-            float featherLen = feather * lineLength;
-            float lMask      = lengthMask(crossrange, halfLen, featherLen);
+            float u = 0.5 - crossrange / texWorldSize.x;
+            float v = downrange / texWorldSize.y;
 
-            float totalLineMask  = 0.0;
-            float totalLabelMask = 0.0;
-            vec3  labelBlend     = vec3(0.0);
-            int count = int(lineCount);
+            float inBounds = step(0.0, u) * step(u, 1.0)
+                           * step(0.0, v) * step(v, 1.0);
 
-            for (int i = 0; i < ${MAX_LINES}; i++) {
-              if (i >= count) break;
-              float d = lineDistances[i];
+            vec4 lineSample = texture2D(lineTexture, vec2(u, v));
+            float mask = lineSample.a * lineColor.a * inBounds;
 
-              // ── Line stripe ──
-              totalLineMask += stripeMask(downrange, d, lineWidth);
-
-              // ── Label rectangle ──
-              // Positioned just downrange of the line, centered on crossrange
-              float labelMinD = d + labelGap;
-              float labelMaxD = labelMinD + labelSize.y;
-              float halfLabelW = labelSize.x * 0.5;
-
-              // Normalized coords within the label rectangle
-              float lu = (crossrange + halfLabelW) / labelSize.x;
-              // float lv = 1.0 - (downrange - labelMinD) / labelSize.y; // flip V so text reads correctly from tee
-              float lv = (downrange - labelMinD) / labelSize.y; // flip V so text reads correctly from tee
-
-              // Bounds mask (no branching — always sample, mask out-of-bounds)
-              float inBounds = step(0.001, lu) * step(lu, 0.999)
-                             * step(0.001, lv) * step(lv, 0.999);
-
-              // Atlas UV: each label occupies 1/cellCount horizontal strip
-              vec2 atlasUV = vec2(
-                (float(i) + clamp(lu, 0.0, 1.0)) / labelCellCount,
-                clamp(lv, 0.0, 1.0)
-              );
-              float glyphAlpha = texture2D(labelAtlas, atlasUV).a;
-
-              totalLabelMask += glyphAlpha * inBounds;
-            }
-
-            totalLineMask  = clamp(totalLineMask * lMask, 0.0, 1.0);
-            totalLabelMask = clamp(totalLabelMask, 0.0, 1.0);
-
-            // Composite lines
-            diffuseColor.rgb = mix(diffuseColor.rgb, lineColor.rgb, totalLineMask * lineColor.a);
-            // Composite labels on top
-            diffuseColor.rgb = mix(diffuseColor.rgb, labelColor.rgb, totalLabelMask * labelColor.a);
+            diffuseColor.rgb = mix(diffuseColor.rgb, lineColor.rgb, mask);
           `
         );
       };
@@ -196,63 +131,93 @@ export class YardageLinesMaterial {
     }
   }
 
-  /** Renders all yardage numbers into a single horizontal texture atlas. */
-  private buildAtlas(
+  private buildLineTexture(
+    texW: number, texH: number,
     distances: number[],
-    labels?: string[],
-    font?: string
+    options: YardageLinesMaterialOptions
   ): THREE.CanvasTexture {
-    const count = Math.min(distances.length, MAX_LINES);
+    const lineWidth = options.lineWidth ?? 0.4;
+    const feather   = options.feather   ?? 0.08;
+    const labelSize = options.labelSize ?? [5, 2.5];
+    const labelGap  = options.labelGap  ?? 0.4;
+    const labels    = options.labels;
+    const font      = options.labelFont;
+
+    const pxPerMX = texW / this.lineLength;
+    const pxPerMY = texH / this.maxDist;
+    const aspectCorrection = pxPerMX / pxPerMY;
+
     const canvas = document.createElement('canvas');
-    canvas.width  = ATLAS_CELL_W * count;
-    canvas.height = ATLAS_CELL_H;
-
+    canvas.width  = texW;
+    canvas.height = texH;
     const ctx = canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = 'white';
-    ctx.font = font ?? 'bold 80px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    ctx.clearRect(0, 0, texW, texH);
 
-    for (let i = 0; i < count; i++) {
-      const text = labels?.[i] ?? `${distances[i]}`;
-      ctx.fillText(text, ATLAS_CELL_W * i + ATLAS_CELL_W / 2, ATLAS_CELL_H / 2);
+    for (let i = 0; i < distances.length; i++) {
+      const d = distances[i];
+
+      // ── Line stripe ──
+      const lineY = texH - d * pxPerMY;
+      const lineH = Math.max(lineWidth * pxPerMY, 1);
+
+      const grad = ctx.createLinearGradient(0, 0, texW, 0);
+      grad.addColorStop(0, 'rgba(255,255,255,0)');
+      grad.addColorStop(feather, 'rgba(255,255,255,1)');
+      grad.addColorStop(1 - feather, 'rgba(255,255,255,1)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, lineY - lineH / 2, texW, lineH);
+
+      // ── Text label ──
+      const labelHPx     = labelSize[1] * pxPerMY;
+      const labelCenterY = texH - (d + labelGap + labelSize[1] / 2) * pxPerMY;
+      const fontSize     = Math.round(labelHPx * 0.8);
+
+      const text = labels?.[i] != null ? `${labels[i]}` : `${distances[i]}`;
+
+      ctx.save();
+      ctx.translate(texW / 2, labelCenterY);
+      ctx.scale(aspectCorrection, 1);
+      ctx.fillStyle    = 'white';
+      ctx.font         = font ?? `bold ${fontSize}px Arial`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 0, 0);
+      ctx.restore();
     }
 
     const tex = new THREE.CanvasTexture(canvas);
-    tex.minFilter = THREE.LinearMipmapLinearFilter;
-    tex.magFilter = THREE.LinearFilter;
-    tex.wrapS = THREE.ClampToEdgeWrapping;
-    tex.wrapT = THREE.ClampToEdgeWrapping;
-    tex.needsUpdate = true;
+    tex.minFilter       = THREE.LinearMipmapLinearFilter;
+    tex.magFilter       = THREE.LinearFilter;
+    tex.wrapS           = THREE.ClampToEdgeWrapping;
+    tex.wrapT           = THREE.ClampToEdgeWrapping;
+    tex.generateMipmaps = true;
+    tex.needsUpdate     = true;
     return tex;
   }
 
-  /** Swap distances (and optionally labels) at runtime. */
-  setDistances(distances: number[], labels?: string[], font?: string) {
-    const count = Math.min(distances.length, MAX_LINES);
-    const arr = this.customUniforms.lineDistances.value as Float32Array;
-    arr.fill(0);
-    for (let i = 0; i < count; i++) arr[i] = distances[i];
+  setDistances(distances: number[], options: YardageLinesMaterialOptions = {}) {
+    this.maxDist = Math.max(...distances) + (options.labelGap ?? 0.4) + (options.labelSize?.[1] ?? 2.5) + 2;
 
-    this.customUniforms.lineCount.value = count;
-    this.customUniforms.labelCellCount.value = count;
+    const texW = Math.min(nextPow2(this.lineLength * this.pxPerMeter), this.maxTexSize);
+    const texH = Math.min(nextPow2(this.maxDist * this.pxPerMeter), this.maxTexSize);
 
-    // Rebuild the atlas with new labels
-    const oldTex = this.customUniforms.labelAtlas.value as THREE.CanvasTexture;
+    const oldTex = this.customUniforms.lineTexture.value as THREE.CanvasTexture;
+    const aniso  = oldTex.anisotropy;
     oldTex.dispose();
-    this.customUniforms.labelAtlas.value = this.buildAtlas(distances, labels, font);
+
+    const tex = this.buildLineTexture(texW, texH, distances, options);
+    tex.anisotropy = aniso;
+    this.customUniforms.lineTexture.value = tex;
+    this.customUniforms.texWorldSize.value.set(this.lineLength, this.maxDist);
   }
 
   setLineColor(r: number, g: number, b: number, a: number) {
     this.customUniforms.lineColor.value.set(r, g, b, a);
   }
 
-  setLabelColor(r: number, g: number, b: number, a: number) {
-    this.customUniforms.labelColor.value.set(r, g, b, a);
-  }
-
   dispose() {
-    (this.customUniforms.labelAtlas.value as THREE.Texture)?.dispose();
+    (this.customUniforms.lineTexture.value as THREE.Texture)?.dispose();
   }
 }

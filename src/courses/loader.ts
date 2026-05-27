@@ -201,14 +201,14 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
           // const grass = new GrassSystem(child, this.grassTex);
           // this.scene.add(grass);
           const grass = new GrassShader(child, this.grassAssets!, {
-            density: 25,
-            renderDistance: 30,
+            density: 18,
+            renderDistance: 25,
             cellSize: 5,
             lean: 0.01,
             heightVariation: 0.05,
             maxNewCellsPerFrame: 10,
-            scaleXZ: 1.0,
-            scaleY: 0.8,
+            scaleXZ: 0.9,
+            scaleY: 0.75,
             layer: 2,
             baseColor: '#364d1e',
             tipColor1: '#6f9b34',

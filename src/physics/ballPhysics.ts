@@ -21,6 +21,11 @@ type TerrainInfo = {
   surface?: CourseSurfaceProperties;
 }
 
+// Membership in low 16 bits, filter in high 16 bits
+export const GROUP_TERRAIN = 0x0001;
+export const GROUP_BALL    = 0x0002;
+export const GROUP_OBJECT  = 0x0004; // trees, walls, etc.
+
 export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   mesh: THREE.Object3D;
   world: World;
@@ -36,7 +41,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   dragCoeff = 0.25;
   spinDecayRate = 0.987;
   gripStrength = 2.8;
-
+  
   // State flags
   isPutt = false;
   isLanded = false;
@@ -44,11 +49,12 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   isEnded = false;
   isShotActive = false;
   hasBeenAirborne = false;
+  terrainCollisionsEnabled = false;
   currentSurface?: CourseSurfaceProperties;
 
   // Thresholds
   defaultEndThresholdSpeed = 0.15;   // m/s linear
-  defaultEndThresholdAngular = 6.0;  // rad/s
+  defaultEndThresholdAngular = 4.0;  // rad/s
   shotFrames = 0;
   groundedFrames = 0;
   groundedFramesRequired = 10; // consecutive grounded steps before "rolling"
@@ -57,7 +63,9 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   rigidBody: RigidBody;
   collider: ColliderWithUserData;
   ballColliderHandle: number;
-  
+
+  #preStepLinvel?: { x: number; y: number; z: number };
+
   #lastTerrainInfo: TerrainInfo = {
     height: 0,
     restitution: 0.35,
@@ -99,6 +107,12 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
       .setFriction(0.6)
       .setActiveEvents(this.rapier.ActiveEvents.COLLISION_EVENTS);
     this.collider = world.createCollider(colliderDesc, this.rigidBody);
+    // this.collider.setCollisionGroups(
+    //   (GROUP_BALL << 16) | (GROUP_TERRAIN | GROUP_OBJECT)
+    // );
+    this.collider.setCollisionGroups(
+      (GROUP_BALL << 16) | GROUP_OBJECT  // trees/objects only, never terrain
+    );
 
     // Store the collider handle so we can identify it in events
     this.ballColliderHandle = this.collider.handle;
@@ -132,7 +146,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
         return {
           ballSpeed: speed,
           // spinRate: l(a.spinRate, b.spinRate, t),
-          launchAngle: l(a.launchAngle, b.launchAngle, t),
+          // launchAngle: l(a.launchAngle, b.launchAngle, t),
           magnusCoeff: l(a.magnusCoeff, b.magnusCoeff, t),
           dragCoeff: l(a.dragCoeff, b.dragCoeff, t),
           spinDecayRate: l(a.spinDecayRate, b.spinDecayRate, t),
@@ -182,6 +196,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
 
     // Reset state
     this.hasBeenAirborne = false;
+    this.terrainCollisionsEnabled = true;
     this.isLanded = isPutt;
     this.isGrounded = isPutt;
     this.isEnded = false;
@@ -194,7 +209,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     this.isShotActive = true;
     // Disable CCD during launch — re-enable once airborne
     // this.rigidBody.enableCcd(false);
-
+    
     if (isPutt) {
       this._launchPutt(ballSpeed, shot.horizontalLaunchAngle || 0);
     } else {
@@ -289,32 +304,33 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
 
   // ─── Collision event processing ──────────────────────────────────
   _processCollisions() {
-    let touching = false;
-
     this.shotFrames++;
-    // this.world.contactPairsWith(this.collider, (otherCollider) => {
-    //   touching = true;
-    // });
 
-    // Detect airborne via velocity: ball was launched upward, 
-    // give it a few frames to clear the ground, then once it's
-    // descending we know it's been up and is coming back down.
-    if (!this.hasBeenAirborne && this.shotFrames > 3) {
-      const lv = this.rigidBody.linvel();
-      if (lv.y < 0) {
+    // Track airborne: ball must rise above launch surface
+    if (!this.hasBeenAirborne && this.shotFrames > 1) {
+      const pos = this.rigidBody.translation();
+      const terrainY = this.getTerrainHeight(pos.x, pos.z);
+      if (pos.y > terrainY + this.ballRadius * 3) {
         this.hasBeenAirborne = true;
       }
     }
 
+    // Detect landing via terrain height, not Rapier contacts
+    if (!this.isLanded && this.hasBeenAirborne) {
+      const pos = this.rigidBody.translation();
+      const terrainY = this.getTerrainHeight(pos.x, pos.z);
+      if (pos.y <= terrainY + this.ballRadius + 0.01) {
+        this.isLanded = true;
+      }
+    }
+
+    // Tree collisions still handled by Rapier
     this.world.contactPairsWith(this.collider, (otherCollider) => {
       // @ts-expect-error
       if (otherCollider.userData?.type === 'tree') {
-        // Push ball away from tree center
         const ballPos = this.rigidBody.translation();
         const treeBody = otherCollider.parent();
-        if (!treeBody) {
-          return;
-        }
+        if (!treeBody) return;
         const treePos = treeBody.translation();
 
         const dx = ballPos.x - treePos.x;
@@ -322,47 +338,22 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
         const dist = Math.sqrt(dx * dx + dz * dz);
 
         if (dist < 0.01) {
-          // Directly on top of tree center — pick a random direction
           const angle = Math.random() * Math.PI * 2;
           this.rigidBody.setLinvel({
-            x: Math.cos(angle) * 2,
-            y: 2,
-            z: Math.sin(angle) * 2
+            x: Math.cos(angle) * 2, y: 2, z: Math.sin(angle) * 2
           }, true);
         } else {
-          // Push outward from tree trunk
           const nx = dx / dist;
           const nz = dz / dist;
           const lv = this.rigidBody.linvel();
           const speed = Math.sqrt(lv.x * lv.x + lv.y * lv.y + lv.z * lv.z);
           const pushSpeed = Math.max(speed * 0.3, 1.0);
-
           this.rigidBody.setLinvel({
-            x: nx * pushSpeed,
-            y: Math.max(lv.y, 0.5),
-            z: nz * pushSpeed
+            x: nx * pushSpeed, y: Math.max(lv.y, 0.5), z: nz * pushSpeed
           }, true);
         }
-        return;
       }
-
-      touching = true;
     });
-
-    if (touching) {
-      if (this.hasBeenAirborne && !this.isLanded) {
-        console.log('LANDED', this.hasBeenAirborne);
-        this.isLanded = true;
-      }
-      this.groundedFrames++;
-      if (this.groundedFrames >= this.groundedFramesRequired) {
-        this.isGrounded = true;
-      }
-    } else {
-      this.hasBeenAirborne = true;
-      this.isGrounded = false;
-      this.groundedFrames = 0;
-    }
 
     this.eventQueue.drainCollisionEvents((handle1, handle2, started) => {
       const c1 = this.world.getCollider(handle1);
@@ -401,8 +392,11 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     if (!this.isLanded) {
       // Rapier handles ball in flight
       this._applyAirForces(dt);
+      const lv = this.rigidBody.linvel();
+      this.#preStepLinvel = { x: lv.x, y: lv.y, z: lv.z };
+
       this.world.timestep = dt;
-      this.world.step(this.eventQueue);
+      this.world.step(this.eventQueue);      
       this._processCollisions();
     } else {
       // Use custom ground physics once landed
@@ -503,10 +497,10 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     
     this.currentSurface = terrain?.surface;
 
-    
+    const minY = terrainY + (this.ballRadius * 2);
 
-    if (newY <= terrainY + this.ballRadius) {
-
+    if (newY <= minY) {
+      
       // === BOUNCE or ROLL ===
       const speed = vel.length();
       const impactVelAlongNormal = -vel.dot(normal);
@@ -630,6 +624,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     const finalPos = this.rigidBody.translation();
     const safeY = this.getTerrainHeight(finalPos.x, finalPos.z) + this.ballRadius;
     if (finalPos.y < safeY) {
+      console.warn('Ball fallen below ground');
       this.rigidBody.setTranslation(
         { x: finalPos.x, y: safeY, z: finalPos.z }, true
       );

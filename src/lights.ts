@@ -4,14 +4,15 @@ export class CourseLight extends THREE.Group {
   ambient: THREE.AmbientLight;
   overhead: THREE.DirectionalLight;
 
-  constructor(color = 0xfcfbf5) {
+  constructor(color: THREE.ColorRepresentation | undefined = 0xffffff) {
     super();
+    console.log('light color', color.toString());
     // Bright warm ambient
-    this.ambient = new THREE.AmbientLight(color, 1.0);
+    this.ambient = new THREE.AmbientLight(color, 0.8);
     this.add(this.ambient);
     
     // Main overhead light for shadows
-    this.overhead = new THREE.DirectionalLight(color, 1.0);
+    this.overhead = new THREE.DirectionalLight(color, 1.1);
     this.overhead.position.set(600, 300, 600);
     this.overhead.castShadow = true;
     this.overhead.shadow.mapSize.width = 2048; // Higher = crisper shadows

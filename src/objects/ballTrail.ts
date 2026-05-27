@@ -92,12 +92,12 @@ export class BallTrail {
     this.golfBall = golfBall;
     this.maxPoints = options.maxPoints ?? MAX_POINTS;
     this.lineWidth = options.lineWidth ?? 0.1;
-    this.color = options.color ?? 0x237afc;
-    this.fadeLength = options.fadeLength ?? 10.0;        // world units
+    this.color = options.color ?? new THREE.Color('#fc4723');
+    this.fadeLength = options.fadeLength ?? 2.0;        // world units
     this.resampleSpacing = options.resampleSpacing ?? 0.15;
     // Camera-distance fade controls (in world units)
-    this.uCamFadeNear = { value: options.cameraFadeNear ?? 2.0 }; // fully transparent here
-    this.uCamFadeFar = { value: options.cameraFadeFar  ?? 4.5 }; // fully opaque past here
+    this.uCamFadeNear = { value: options.cameraFadeNear ?? 6 }; // fully transparent here
+    this.uCamFadeFar = { value: options.cameraFadeFar  ?? 12 }; // fully opaque past here
 
     this.points = [];
     this.frameNum = 0;

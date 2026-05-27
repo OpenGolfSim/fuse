@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { type World } from '@dimforge/rapier3d-compat';
-import { ColliderWithUserData } from './constants';
+import { ColliderWithUserData } from '@/physics/constants';
+import { GROUP_BALL, GROUP_TERRAIN } from '@/physics/ballPhysics';
 
 const _raycaster = new THREE.Raycaster();
 const _origin = new THREE.Vector3();
@@ -59,7 +60,11 @@ export class GroundPhysics {
       .setRestitution(this.options.restitution)
       .setFriction(this.options.friction);
 
+      
     this.collider = this.world.createCollider(desc);
+    this.collider.setCollisionGroups(
+      (GROUP_TERRAIN << 16) | GROUP_BALL  // member of TERRAIN, interacts with BALL
+    );
     this.collider.userData = this.options;
   }
 

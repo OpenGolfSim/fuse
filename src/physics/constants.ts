@@ -3,7 +3,7 @@ import { type Collider } from '@dimforge/rapier3d-compat';
 
 export type PhysicsLookUpTableRecord = {
   ballSpeed: number;
-  launchAngle: number;
+  // launchAngle: number;
   magnusCoeff: number;
   dragCoeff: number;
   spinDecayRate: number;
@@ -15,53 +15,59 @@ export type PhysicsLookUpTableRecord = {
 export const PhysicsLookupTable: PhysicsLookUpTableRecord[] = [
   {
     ballSpeed: 67, // m/s
-    launchAngle: 10, // VLA in degrees
+    // launchAngle: 10, // VLA in degrees
     magnusCoeff: 0.0004, 
     dragCoeff: 0.27,
     spinDecayRate: 0.986
   },
   {
     ballSpeed: 64,
-    launchAngle: 9,
+    // launchAngle: 9,
     magnusCoeff: 0.00038,
     dragCoeff: 0.27,
     spinDecayRate: 0.985
   },
   {
     ballSpeed: 60,
-    launchAngle: 12,
+    // launchAngle: 12,
     magnusCoeff: 0.00035,
     dragCoeff: 0.30,
     spinDecayRate: 0.985
   },
   {
     ballSpeed: 54,
-    launchAngle: 14,
+    // launchAngle: 14,
     magnusCoeff: 0.0001,
     dragCoeff: 0.31,
     spinDecayRate: 0.985
   },
   {
-    ballSpeed: 48,
-    launchAngle: 16,
+    ballSpeed: 48, // ~107 mph
+    // launchAngle: 16,
     magnusCoeff: 0.00005,
     dragCoeff: 0.32,
     spinDecayRate: 0.98
   },
   {
-    ballSpeed: 42,
-    launchAngle: 22,
+    ballSpeed: 42, // ~94 MPH
+    // launchAngle: 22,
     magnusCoeff: 0.00005,
     dragCoeff: 0.34,
-    spinDecayRate: 0.90
+    spinDecayRate: 0.98
   },
   {
-    ballSpeed: 40,
-    launchAngle: 25,
+    ballSpeed: 40, // ~89.5 MPH
+    // launchAngle: 25,
     magnusCoeff: 0.00005,
     dragCoeff: 0.34,
-    spinDecayRate: 0.90
-  }
+    spinDecayRate: 0.97
+  },
+  {
+    ballSpeed: 20, // ~45 MPH
+    magnusCoeff: 0.00001,
+    dragCoeff: 0.34,
+    spinDecayRate: 0.9
+  },
 ];
 
 export const GRAVITY = 9.81;

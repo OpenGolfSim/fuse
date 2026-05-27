@@ -8,15 +8,19 @@ import { CourseSurfaceProperties } from '@/courses/surfaces';
 const FIXED_DT = 1 / 120;
 
 const defaultStats = { apex: 0, lateral: 0, carry: 0, total: 0, roll: 0 };
-const defaultOptions = { waitTime: 3000 };
+// const defaultOptions = { waitTime: 3000 };
 
 export interface GolfBallEvents {
   shotEnded: (details: { surface?: CourseSurfaceProperties }) => void
 }
 
+type GolfBallOptions = {
+  waitTime?: number;
+  setupData?: Partial<OpenGolfSim.SetupData>;
+}
+
 export class GolfBall extends EventEmitter<GolfBallEvents> {
   radius: number;
-  options: { waitTime?: number, setupData?: Partial<OpenGolfSim.SetupData> };
   stats: {
     apex: number;
     lateral: number;
@@ -25,11 +29,14 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     roll: number;
   };
   isShotActive: boolean;
+  isShotWaiting: boolean;
   startPoint: THREE.Vector3;
   aimPoint: THREE.Vector3;
   object?: THREE.Object3D;
   trail?: BallTrail;
   physics?: BallPhysics;
+  #setupData?: Partial<OpenGolfSim.SetupData>;
+  #waitTime: number;
   #timeout?: number;
   #scene: THREE.Scene;
   #world: World;
@@ -37,11 +44,12 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
   #accumulator: 0;
   #lastShot?: OpenGolfSim.Shot;
 
-  constructor(scene: THREE.Scene, world: World, R: RapierInstance, options = defaultOptions) {
+  constructor(scene: THREE.Scene, world: World, R: RapierInstance, options: GolfBallOptions = {}) {
     super();
-    this.options = options || {};
     this.radius = 0.0213;
     this.stats = { ...defaultStats };
+    this.#setupData = options.setupData;
+    this.#waitTime = options.waitTime ?? 3000;
     this.#scene = scene;
     this.#world = world;
     this.#rapier = R;
@@ -49,6 +57,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     this.startPoint = new THREE.Vector3(0, 0, 0);
     this.aimPoint = new THREE.Vector3(0, 0, 0);
     this.isShotActive = false;
+    this.isShotWaiting = false;
   }
 
   reset(aimPoint: THREE.Vector3, startPoint: THREE.Vector3) {
@@ -58,7 +67,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     }
     if (this.trail) this.trail.remove();
     if (this.physics) this.physics.remove();
-  
+    this.isShotWaiting = false;
     // const geometry = new THREE.SphereGeometry( this.radius, 32, 16 );
     const geometry = new THREE.IcosahedronGeometry(this.radius, 5);
     const material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
@@ -79,8 +88,8 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
 
     this.physics = new BallPhysics(this.object, this.#world, this.#rapier, this.radius);
     this.physics.on('shotEnded', surface => this._onShotEnded(surface));
-    this.physics.setElevation(this.options.setupData?.elevation);
-    this.trail = new BallTrail(this.#scene, this.object);
+    this.physics.setElevation(this.#setupData?.elevation);
+    this.trail = new BallTrail(this.#scene, this.object, { lineWidth: 0.2 });
   }
 
   getPosition() {
@@ -101,13 +110,15 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
   // }
 
   _onShotEnded(surface: CourseSurfaceProperties | undefined) {
-    console.log('SHOT END');
-    this.isShotActive = false;
+    console.log('RAW SHOT END');
     clearTimeout(this.#timeout);
     this.#timeout = setTimeout(() => {
+      this.isShotActive = false;
+      // this.isShotEnded = true;
+      console.log('FIRE SHOT END');
       this.emit('shotEnded', { surface });
       // this.dispatchEvent(new CustomEvent('shotEnd', { detail: { surface } }));
-    }, this.options.waitTime);
+    }, this.#waitTime);
   }
 
   aimAt(aimPoint: THREE.Vector3) {

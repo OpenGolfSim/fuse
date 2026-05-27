@@ -21,7 +21,7 @@
   position: absolute;
   top: 0.5vw;
   right: 0.5vw;
-  width: 7vw;
+  width: calc(var(--grid-size) * 10);
   /* aspect-ratio: 16 / 9; */
 }
 .shotDataContainer {
@@ -74,6 +74,20 @@
   /* line-height: 1.2vh; */
   flex: 0;
 }
+
+@media (min-aspect-ratio: 7/3) {
+  .shotData {
+    width: auto;
+    justify-content: space-evenly;
+  }
+  .shotDataContainer {
+    flex-direction: row;
+  }
+  .shotDataItem {
+    flex: 1;
+  }
+}
+
 
 .rangeFinder {
   background-color: var(--bg-color);
@@ -241,4 +255,16 @@
   text-align: center;
   color: var(--text-disabled);
   font-size: var(--medium-text-size);
+}
+
+.uiStats {
+  position: fixed;
+  background-color: red;
+  bottom: 1vw;
+  right: 1vw;
+  position:fixed;
+  cursor:pointer;
+  opacity:0.9;
+  z-index:10000;
+  border-radius: var(--border-radius);
 }

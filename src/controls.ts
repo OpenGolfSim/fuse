@@ -29,13 +29,13 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
   #keyHandler(event: KeyboardEvent) {
     const pressed = event.type === 'keydown';
     let handled = false;
-    if (pressed && event.code.startsWith('Numpad')) {      
+    if (pressed) {
       switch (event.code) {
-        case 's':
+        case 'KeyS':
           this.emit('toggleStats');
           handled = true;
           break;
-        case 'm':
+        case 'KeyM':
           this.emit('mulligan');
           handled = true;
           break;

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { type World } from '@dimforge/rapier3d-compat';
 import { seededRandom } from '@/utils/random';
 import { isMeshObject } from '@/utils/mesh';
+import { GROUP_BALL, GROUP_OBJECT } from './physics/ballPhysics';
 
 export type TreePlanterOptions = {
   groundMeshes?: THREE.Group | THREE.Group[];
@@ -112,6 +113,10 @@ export class TreePlanter {
     const collider = this.world!.createCollider(colliderDesc, body);
     // @ts-expect-error
     collider.userData = userData;
+    collider.setCollisionGroups(
+      (GROUP_OBJECT << 16) | GROUP_BALL
+    );
+
   }
 
   // extractLODs(gltfScene) {

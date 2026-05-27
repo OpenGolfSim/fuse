@@ -5,7 +5,13 @@ import { type GolfBall } from '@/objects/golfBall';
 export type AimKeys = { left: boolean, right: boolean, forward: boolean, backward: boolean };
 
 type ShotPerspectiveCameraOptions = {
+  fov?: number,
+  near?: number,
+  far?: number,
   trackingDelay?: number;
+  cameraOffsetX?: number;
+  cameraOffsetYZ?: [number, number];
+  cameraTrackingOffsetYZ?: [number, number];
 }
 
 export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
@@ -17,25 +23,47 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
   currentLookAt: THREE.Vector3;
   desiredCamPos: THREE.Vector3;
   desiredLookAt: THREE.Vector3;
+  // cameraOffset: THREE.Vector3;
+  cameraOffsetYZ: [number, number];
+  cameraTrackingOffsetYZ: [number, number];
+  cameraOffsetX: number;
   isTracking: boolean;
   aimVelocity: { lateral: number, longitudinal: number };
   aimSpeed: number;
   aimKeys: AimKeys;
   trackingDelay: number;
-
+  
   #lastGroundCheck: THREE.Vector3;
   #groundY: number;
   #right: THREE.Vector3;
   #up: THREE.Vector3;
   #trackTimeout: number;
-  
+  #activeFrustumOffset: number = 0;
+  #tmpBack: THREE.Vector3;
+  #tmpRight: THREE.Vector3;
 
-  constructor(fov: number, near: number, far: number, renderer: THREE.WebGLRenderer, scene: THREE.Scene, options: ShotPerspectiveCameraOptions = {}) {
+
+  constructor(
+    renderer: THREE.WebGLRenderer,
+    scene: THREE.Scene,  
+    options: ShotPerspectiveCameraOptions = {}
+  ) {
     const aspect = (window.innerWidth / window.innerHeight);
+    const fov = options.fov ?? 20;
+    const near = options.near ?? 0.75;
+    const far = options.far ?? 900;
     super(fov, aspect, near, far);
-    
     this.scene = scene;
     this.renderer = renderer;
+
+    // defaults
+    this.cameraOffsetX = options.cameraOffsetX ?? 0;
+    this.cameraOffsetYZ = options.cameraOffsetYZ ?? [1.5, 10];
+    this.cameraTrackingOffsetYZ = options.cameraTrackingOffsetYZ ?? [4.5, 15];
+    // this.cameraOffset = new THREE.Vector3(this.cameraOffsetX, this.cameraOffsetYZ[0], this.cameraOffsetYZ[1]);
+
+    this.#activeFrustumOffset = this.cameraOffsetX;
+    this.projectionMatrix.elements[8] = this.#activeFrustumOffset;
     this.shotDirection = new THREE.Vector3();
     this.staticCamPos = new THREE.Vector3();
     this.staticLookAt = new THREE.Vector3();
@@ -51,6 +79,9 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     this.#groundY = 0;
     this.#right = new THREE.Vector3();
     this.#up = new THREE.Vector3(0, 1, 0);
+    // Initialize in constructor
+    this.#tmpBack = new THREE.Vector3();
+    this.#tmpRight = new THREE.Vector3();
 
     this.aimSpeed = 10; // meters per second
     this.aimKeys = { left: false, right: false, forward: false, backward: false };    
@@ -62,10 +93,32 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
   _handleResize() {
     this.aspect = window.innerWidth / window.innerHeight;
     this.updateProjectionMatrix();
+    this.projectionMatrix.elements[8] = this.#activeFrustumOffset;
     if (this.renderer) {
       this.renderer.setSize(window.innerWidth, window.innerHeight);  
     }
   }
+  
+  applyFrustumOffset(dt: number, target: number, smooth: boolean) {
+    if (smooth) {
+      const t = 1 - Math.exp(-Math.min(dt, 1 / 60) * 3);
+      this.#activeFrustumOffset += (target - this.#activeFrustumOffset) * t;
+    } else {
+      if (this.#activeFrustumOffset === target) return;
+      this.#activeFrustumOffset = target;
+    }
+    this.projectionMatrix.elements[8] = this.#activeFrustumOffset;
+  }
+
+
+  // updateProjectionMatrix() {
+  //   super.updateProjectionMatrix();
+  //   if (this.cameraOffset) {
+  //     this.projectionMatrix.elements[8] += this.#activeFrustumOffset;
+  //   }
+
+  // }
+
 
   setTracking(track: boolean, timeScale = 1) {
     clearTimeout(this.#trackTimeout);
@@ -80,19 +133,29 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
   }
   
   setPositions(startPoint: THREE.Vector3, aimPoint: THREE.Vector3) {
-    const back = new THREE.Vector3().subVectors(startPoint, aimPoint).normalize();
+    // const back = new THREE.Vector3().subVectors(startPoint, aimPoint).normalize();
+    const back = this.#tmpBack.subVectors(startPoint, aimPoint).normalize();
     back.y = 0;
     back.normalize();
-    this.staticCamPos.copy(startPoint).addScaledVector(back, 4);
-    this.staticCamPos.y += 1.0;
+
+    // const right = new THREE.Vector3().crossVectors(this.#up, back).normalize();
+    // const right = this.#tmpRight.crossVectors(this.#up, back).normalize();
+
+    // z = behind ball, y = height above ball
+    this.staticCamPos.copy(startPoint)
+      .addScaledVector(back, this.cameraOffsetYZ[1]);
+    this.staticCamPos.y += this.cameraOffsetYZ[0];
+
     this.staticLookAt.copy(aimPoint);
 
-    // this.position.copy(this.staticCamPos);
-    // this.currentLookAt.copy(this.staticLookAt);
-    // this.lookAt(this.currentLookAt);
+    // x = lateral dolly: shift BOTH camera and lookAt by the same amount
+    // so the whole frame slides left/right without changing the view angle
+    // if (this.cameraOffset.x !== 0) {
+    //   const lateralShift = right.clone().multiplyScalar(this.cameraOffset.x);
+    //   this.staticCamPos.add(lateralShift);
+    //   this.staticLookAt.add(lateralShift);
+    // }
 
-    // Lock in the downrange direction for the whole shot.
-    // Horizontal only so camera height stays stable.
     this.shotDirection.subVectors(aimPoint, startPoint);
     this.shotDirection.y = 0;
     this.shotDirection.normalize();
@@ -100,7 +163,6 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
 
   updateAim(dt: number, startPoint: THREE.Vector3, aimPoint: THREE.Vector3) {
     const { left, right, forward, backward } = this.aimKeys;
-    // if (!(left || right || forward || backward)) return false;
     const ramp = 1 - Math.exp(-dt * 20);
     const decay = 1 - Math.exp(-dt * 12);
 
@@ -120,7 +182,7 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
 
     if (this.aimVelocity.lateral !== 0) {
       const angle = this.aimVelocity.lateral * angleStep;
-      const offset = new THREE.Vector3().subVectors(aimPoint, startPoint);
+      const offset = this.#tmpBack.subVectors(aimPoint, startPoint);
       offset.applyAxisAngle(this.#up, angle);
       aimPoint.copy(startPoint).add(offset);
     }
@@ -155,15 +217,20 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     if (dt && this.isTracking && golfBall.object) {
       const posSmooth  = 1 - Math.exp(-dt * 2.5);
       const lookSmooth = 1 - Math.exp(-dt * 3.5);
-      const tmpBack = new THREE.Vector3().copy(this.shotDirection).negate();
+      const tmpBack = this.#tmpBack.copy(this.shotDirection).negate();
 
-      this.desiredCamPos.copy(golfBall.object.position).addScaledVector(tmpBack, 6);
-      this.desiredCamPos.y += 2.5;
+      this.staticCamPos.copy(startPoint)
+    //   .addScaledVector(back, this.cameraOffsetYZ[1]);
+    // this.staticCamPos.y += this.cameraOffsetYZ[0];
+
+      this.desiredCamPos.copy(golfBall.object.position).addScaledVector(tmpBack, this.cameraTrackingOffsetYZ[1]);
+      this.desiredCamPos.y += this.cameraTrackingOffsetYZ[0];
       this.desiredLookAt.copy(golfBall.object.position);
 
       this.position.lerp(this.desiredCamPos, posSmooth);
       this.currentLookAt.lerp(this.desiredLookAt, lookSmooth);
       this.lookAt(this.currentLookAt);
+      this.applyFrustumOffset(dt, 0, true);
       return false;
     }
     // Only allow aiming when no shot is active
@@ -175,6 +242,7 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     this.position.copy(this.staticCamPos);
     this.currentLookAt.copy(this.staticLookAt);
     this.lookAt(this.currentLookAt);
+    this.applyFrustumOffset(dt, this.cameraOffsetX, false);
     if (aimChanged) return true;
 
     return false;

@@ -10,10 +10,10 @@ import {
   GolfBall,
   GroundPhysics,
   ShotPerspectiveCamera,
-  Stats,
   UIShotData,
   UIRangeFinder,
   UIPlayerMenu,
+  UIStats,
   UILoadingScreen,
   UnitConversions,
   VolumetricClouds,
@@ -35,7 +35,7 @@ let canvas;
 const lights = {};
 
 const defaultSkyColor = 'rgb(192, 215, 241)';
-const lightColor = new THREE.Color('rgb(255, 255, 253)');
+const lightColor = new THREE.Color('rgb(255, 247, 224)');
 
 let trackTimeout;
 
@@ -99,26 +99,27 @@ function onShotEnded() {
 }
 
 function createStats() {
-  gameContext.stats = new Stats();
-  // stats.dom.style.width = '80px';
-  // stats.dom.style.height = '48px';
-  // stats.dom.style.position = 'fixed';
-  // // stats.dom.style.left = '20px';
-  // stats.dom.style.bottom = '10px';
-  // stats.dom.style.right = '10px'; // move to top-right
-  const statsContainer = document.createElement('div');
-  Object.assign(statsContainer.style, {
-    position: 'fixed',
-    width: '80px',
-    height: '48px',
-    bottom: '10px',
-    right: '10px',
-    // left: 'auto',
-    zIndex: '9999'
-  });
-  gameContext.stats.dom.style.cssText = 'position: relative;';
-  statsContainer.appendChild(gameContext.stats.dom);
-  document.body.appendChild(statsContainer);
+  gameContext.stats = new UIStats('#render-stats', { hidden: false }); // start hidden (press S to toggle)
+  // gameContext.stats = new UIStats();
+  // // stats.dom.style.width = '80px';
+  // // stats.dom.style.height = '48px';
+  // // stats.dom.style.position = 'fixed';
+  // // // stats.dom.style.left = '20px';
+  // // stats.dom.style.bottom = '10px';
+  // // stats.dom.style.right = '10px'; // move to top-right
+  // const statsContainer = document.createElement('div');
+  // Object.assign(statsContainer.style, {
+  //   position: 'fixed',
+  //   width: '80px',
+  //   height: '48px',
+  //   bottom: '10px',
+  //   right: '10px',
+  //   // left: 'auto',
+  //   zIndex: '9999'
+  // });
+  // gameContext.stats.dom.style.cssText = 'position: relative;';
+  // statsContainer.appendChild(gameContext.stats.dom);
+  // document.body.appendChild(statsContainer);
 }
 
 function setupWorld() {
@@ -141,10 +142,16 @@ function setupScene() {
   gameContext.fog = new THREE.Fog(clouds?.fogColor ?? fogColor, 100, 800);
   gameContext.scene.fog = gameContext.fog;
 
-  gameContext.lightGroup = new CourseLight(gameContext.scene, lightColor);
+  gameContext.lightGroup = new CourseLight(lightColor);
   gameContext.scene.add(gameContext.lightGroup);
 
-  gameContext.camera = new ShotPerspectiveCamera(30, 0.5, 1000, gameContext.renderer, gameContext.course.getGroundMeshes());
+  gameContext.camera = new ShotPerspectiveCamera(gameContext.renderer, gameContext.course.getGroundMeshes(), {
+    // fov: 30,
+    // near: 0.5,
+    // far: 1000,
+    cameraOffsetX: -(gameContext.setupData.cameraOffset / 100),
+    // cameraOffsetYZ: [],
+  });
   gameContext.courseMap = new CourseMap();
   // gameContext.controls = new OrbitControls( gameContext.camera, gameContext.renderer.domElement );
   gameContext.controls = new CourseKeyboardControls({ testShots: true });
@@ -152,10 +159,7 @@ function setupScene() {
     gameContext.camera.aimKeys = aimKeys;
   });
   gameContext.controls.on('testShot', launchShot);
-  gameContext.controls.on('toggleStats', () => {
-    const hidden = gameContext.stats.dom.style.display === 'none';
-    gameContext.stats.dom.style.display = hidden ? 'block' : 'none';
-  });
+  gameContext.controls.on('toggleStats', () => gameContext.stats.toggle());
 
   gameContext.visualAimPoint = new AimPoint();
   gameContext.scene.add(gameContext.visualAimPoint.object);
@@ -210,7 +214,9 @@ async function setupCourse(coursePath, setupData) {
   // console.log('Course bounds', bounds);
   gameContext.scene.add(gameContext.course.scene);
 
-  gameContext.golfBall = new GolfBall(gameContext.scene, app.world, app.rapier);
+  gameContext.golfBall = new GolfBall(gameContext.scene, app.world, app.rapier, {
+    setupData: gameContext.setupData,
+  });
   
   gameContext.game = new CourseGame(gameContext.course, gameContext.golfBall, gameContext.setupData);
   gameContext.game.addEventListener('nextShot', setupNextShot);
@@ -334,33 +340,29 @@ function updateAimPoint() {
 
 function animate(animDelta) {
   requestAnimationFrame(animate);
+
   gameContext.stats.begin();
   const delta = gameContext.timer.getDelta();
-  // const frameDelta = Math.min(delta, 0.1);
-  
-  // accumulator += frameDelta;
-  // // Fixed-timestep physics
-  // while (accumulator >= FIXED_DT) {
-  //   gameContext.golfBall.physics.update(FIXED_DT);
-  //   accumulator -= FIXED_DT;
-  // }
+
   if (gameContext.golfBall) {
     gameContext.golfBall.update(delta);
   }
 
   gameContext.renderer.clear();
 
+  if (gameContext.controls) gameContext.controls.update(delta);
+  if (gameContext.visualAimPoint) gameContext.visualAimPoint.update(gameContext.aimPoint, gameContext.camera, gameContext.golfBall.isShotActive);
+  if (gameContext.clouds) gameContext.clouds.update(delta);
+
   // main camera, full screen
-  const { width, height } = gameContext.renderer.getSize(new THREE.Vector2());
-  gameContext.renderer.setViewport(0, 0, width, height);
+  // const { width, height } = gameContext.renderer.getSize(new THREE.Vector2());
+  // gameContext.renderer.setViewport(0, 0, width, height);
 
   // gameContext.renderer.render(gameContext.scene, gameContext.camera);
-  gameContext.camera.render(gameContext.scene, gameContext.fog);
+  
 
-  if (gameContext.clouds) gameContext.clouds.update(delta);
   if (gameContext.course) gameContext.course.update(delta, gameContext.camera);
   if (gameContext.game) gameContext.game.update(delta);
-  if (gameContext.visualAimPoint) gameContext.visualAimPoint.update(gameContext.aimPoint, gameContext.camera, gameContext.golfBall.isShotActive);
 
   if (gameContext.courseMap) {
     gameContext.courseMap.render(
@@ -372,7 +374,6 @@ function animate(animDelta) {
       }
     );
   }
-  if (gameContext.controls) gameContext.controls.update(delta);
 
   if (gameContext.camera) {
     const aimChanged = gameContext.camera.update(delta, gameContext.golfBall, gameContext.startPoint, gameContext.aimPoint);
@@ -383,7 +384,9 @@ function animate(animDelta) {
       // gameContext.rangeFinder.update(dist, heightDiff);
       // gameContext.golfBall.aimAt(gameContext.aimPoint);
     }
-    
+    gameContext.camera.render(gameContext.scene, gameContext.fog);
+  }
+  if (gameContext.shotData && gameContext.golfBall) {
     gameContext.shotData.updateShotResult(gameContext.golfBall.stats);
   }
 
