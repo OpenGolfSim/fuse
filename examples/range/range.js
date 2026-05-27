@@ -15,7 +15,7 @@ import {
   Stats,
   YardageLinesMaterial
 } from '@opengolfsim/fuse';
-
+import rangeMtnsModel from './models/rangeMtns.glb?url';
 
 
 const skyColor = new THREE.Color('#c4daed');
@@ -146,22 +146,7 @@ async function createGroundPlane() {
     }
   );
 
-  // // Assuming the plane is rotated to lie flat (rotation.x = -Math.PI / 2)
-  // // and the tee is at the near edge (z = +250 if centered at origin)
-  // const teeZ = 250; // half of the 500m plane length
-
-  // yardages.forEach((yds) => {
-  //   const distMeters = UnitConversions.yardsToMeters(yds);
-  //   const marker = createYardageMarker(yds);
-
-  //   marker.rotation.x = -Math.PI / 2;
-  //   marker.position.y = 0.01;           // slight hover above ground
-  //   marker.position.z = distMeters;
-
-  //   gameContext.scene.add(marker);
-  // });
-
-  gameContext.mountain = await gameContext.meshLoader.load('./models/rangeMtns.glb', true);
+  gameContext.mountain = await gameContext.meshLoader.load(rangeMtnsModel, true);
 
   // const mountainMap = textureLoader.load('https://coursedata.opengolfsim.com/webgl/assets/textures/Ground081_4K-JPG_Color.jpg');
   // const mountainNormalMap = textureLoader.load('https://coursedata.opengolfsim.com/webgl/assets/textures/Ground081_4K-JPG_NormalGL.jpg');
@@ -221,7 +206,6 @@ async function setupRange() {
 
   gameContext.controls = new CourseKeyboardControls({ testShots: true });
   gameContext.controls.on('aim', aimKeys => {
-    console.log('aim', aimKeys);
     gameContext.camera.aimKeys = aimKeys;
   });
   gameContext.controls.on('testShot', shot => launchShot(shot));

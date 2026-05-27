@@ -3,8 +3,8 @@
   "version": "1.0.1",
   "description": "",
   "type": "module",
-  "main": "dist/fuse.js",
-  "module": "dist/fuse.js",
+  "main": "dist/module/fuse.js",
+  "module": "dist/module/fuse.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepare": "npm run build:lib && npm run build:examples",

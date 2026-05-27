@@ -14,8 +14,9 @@ import { FlagStick } from '@/objects/flagStick';
 import { type ShotPerspectiveCamera } from '@/camera';
 import { GroundPhysics } from '@/physics/groundPhysics';
 import { CourseSurfaces, isCourseSurfaceType } from '@/courses/surfaces';
-import perlinNoise from '@/images/perlinnoise.webp';
+import perlinNoise from '@/images/perlinnoise.webp?url';
 import { isMeshObject } from '@/utils/mesh';
+import grassBladesModel from '@/models/grassBlades.glb?url';
 
 export interface SceneSettings {
   sky?: {
@@ -113,7 +114,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
 
     // load the model + textures once during init
     this.grassAssets = await GrassShader.loadAssets({
-      modelPath: '/models/grassBlades.glb',
+      modelPath: grassBladesModel,
       noisePath: perlinNoise
     });
     if (!this.grassAssets) {

@@ -9,13 +9,13 @@ export default defineConfig({
   },
   build: {
     lib: {
-      name: 'OpenGolfSim_FUSE',
+      name: 'OpenGolfSimFuse',
       entry: 'src/index.ts',
       fileName: 'fuse',
       formats: ['es'],
     },
     sourcemap: true,
-    outDir: 'dist',
+    outDir: 'dist/module',
     emptyOutDir: true,
     target: 'es2020',
     rollupOptions: {

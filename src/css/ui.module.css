@@ -240,5 +240,5 @@
 .progressText {
   text-align: center;
   color: var(--text-disabled);
-  font-size: var(--base-font-size);
+  font-size: var(--medium-text-size);
 }

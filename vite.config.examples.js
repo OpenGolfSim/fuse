@@ -14,7 +14,7 @@ export default defineConfig({
   build: {
     sourcemap: true,
     outDir: path.resolve(import.meta.dirname, 'dist/examples'),
-    emptyOutDir: false,
+    emptyOutDir: true,
     target: 'es2020',
     rollupOptions: {
       input: {
