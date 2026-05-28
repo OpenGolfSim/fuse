@@ -1,6 +1,7 @@
 import { colors } from '@/utils/colors';
 import { UnitConversions } from '@/utils/units';
 import * as THREE from 'three';
+import fontUrl from '@/css/fonts/Rubik-Bold.woff';
 
 const MIN_SCALE = 0.05;
 
@@ -28,27 +29,27 @@ export class AimPoint {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
 
-  #cachedTexture?: THREE.Texture;
   #cachedTextureKey?: string;
+  #fontsReady = false;
 
   constructor(camera: THREE.Camera, options: AimPointOptions = {}) {
     this.#pixelRatio = Math.round( window.devicePixelRatio || 1 );
     this.camera = camera;
     this.units = options.units || 'metric';
     
-    this.scaleFactor = 0.004;
+    this.scaleFactor = 0.003;
     this.opacity = 0.98;
     this.fadeDistance = [21, 20];
     this.color = new THREE.Color(colors.background);
     this.#pointHeight = 5;
     this.#pointOffsetY = 0.25;
-    this.#panelWidth = 9;
-    this.#panelHeight = 4;
+    this.#panelWidth = 8;
+    this.#panelHeight = 6;
     this.#panelAspect = this.#panelHeight / this.#panelWidth;
 
     this.canvas = document.createElement('canvas');
-    this.canvas.width = 512 * this.#pixelRatio;
-    this.canvas.height = Math.round(512 * this.#panelAspect) * this.#pixelRatio;
+    this.canvas.width = 256 * this.#pixelRatio;
+    this.canvas.height = Math.round(this.canvas.width * this.#panelAspect);
     const ctx = this.canvas.getContext('2d');
     if (!ctx) {
       throw new Error('Unable to get 2d context for aim point panel');
@@ -64,14 +65,35 @@ export class AimPoint {
 
     this.panel = this.#buildPanel();
     this.object.add(this.panel);
+
+
+  }
+
+  async load() {
+    //// only works for "normal" weight
+    // await document.fonts.ready;
+    //// only works for "normal" weight
+    // await document.fonts.load('12px bold Rubik');
+    await document.fonts.load('bold 16px "Rubik"');
+    console.log('FONT LOADED');
+    // const myFont = new FontFace('Rubik_Bold', `url(${fontUrl})`);
+    // const loadedFont = await myFont.load();
+    // console.log('FONTS READY', loadedFont);
+
+    // .then(loadedFont => {
+    //   document.fonts.add(loadedFont);
+    //   this.#fontsReady = true;
+    //   console.log('loaded');
+    // });
   }
 
   #buildPoint() {
 
-    const geometry = new THREE.ConeGeometry( 2, this.#pointHeight, 16 );
+    const geometry = new THREE.ConeGeometry( (this.#panelWidth / 2) - 0.01, this.#pointHeight, 16 );
 
     const material = new THREE.MeshBasicMaterial({
       color: this.color,
+      fog: false,
       transparent: true
     });
     
@@ -84,7 +106,7 @@ export class AimPoint {
 
   #buildPanel() {
     const yOffset = -0.5;
-
+    
     // 3. Create a plane geometry and apply the texture to the material
     const geometry = new THREE.PlaneGeometry(this.#panelWidth, this.#panelHeight); // Width, Height
     const material = new THREE.MeshBasicMaterial({ 
@@ -92,6 +114,8 @@ export class AimPoint {
       // color: colors.background,
       // blending: THREE.AdditiveBlending,
       // opacity: this.opacity,
+      fog: false,
+      alphaTest: 0.2,
       transparent: true,
       side: THREE.DoubleSide // Optional: visible from both sides
     });
@@ -108,33 +132,47 @@ export class AimPoint {
   #fontStyle(fontSize: number, fontWeight = 'bold') {
     return [
       fontWeight,
-      `${fontSize}px`,
-      'system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"'
+      `${fontSize.toFixed(0)}px`,
+      'Rubik'
     ].join(' ');
   }
   #updateDistanceMaterial(distance: number, height: number, units: string) {
+    const gap = this.canvas.height * 0.02;
+    const topOffset = this.canvas.height * 0.09;
+    const fontSize = this.canvas.height * 0.45;
+    const fontSizeHeight = this.canvas.height * 0.28;
 
+    const distanceTop = topOffset + (this.canvas.height / 2) - (fontSize / 2) - gap;
+    const heightTop = topOffset + (this.canvas.height / 2) + (fontSizeHeight / 2) + gap;
+    
     this.ctx.fillStyle = colors.background;
-    // this.ctx.roundRect(0, 0, this.canvas.width, this.canvas.height, (30 * this.#pixelRatio)); // 20px radius for all corners
-    // this.ctx.fill();
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.roundRect(0, 0, this.canvas.width, this.canvas.height, (20 * this.#pixelRatio)); // 20px radius for all corners
+    this.ctx.fill();
+    // this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.fillStyle = 'white';
-    const fontSize = 80 * this.#pixelRatio;
-    this.ctx.font = this.#fontStyle(fontSize, '800');
+    this.ctx.font = this.#fontStyle(fontSize);
+    console.log('this.ctx.font', this.ctx.font);
     this.ctx.textBaseline = 'middle';
     this.ctx.textAlign = 'center';
-    this.ctx.fillText(`${distance.toFixed(0)} ${units}`, this.canvas.width/2, (this.canvas.height/2) - (30 * this.#pixelRatio));
+    this.ctx.fillText(
+      `${distance.toFixed(0)}`,
+      (this.canvas.width / 2),
+      distanceTop
+    );
 
-    const fontSizeHeight = 50 * this.#pixelRatio;
-    this.ctx.font = this.#fontStyle(fontSizeHeight, '400');
+    this.ctx.font = this.#fontStyle(fontSizeHeight);
     const prefix = height >= 0.1 ? '+' : '';
-    this.ctx.fillStyle = '#aaa';
-    this.ctx.fillText(`${prefix}${height.toFixed(1)} ${units}`, this.canvas.width/2, (this.canvas.height/2) + (60 * this.#pixelRatio));
+    this.ctx.fillStyle = colors.primary;
+    this.ctx.fillText(
+      `${prefix}${height.toFixed(1)}`,
+      (this.canvas.width / 2),
+      heightTop
+    );
 
 
     const texture = new THREE.CanvasTexture(this.canvas);
-    texture.colorSpace = THREE.SRGBColorSpace; // correct color rendering
-    // texture.anisotropy = gameContext.renderer.capabilities.getMaxAnisotropy();
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.premultiplyAlpha = true;
     return texture;
   }
 
@@ -165,6 +203,7 @@ export class AimPoint {
     this.object.position.copy(aimPoint);
     if (this.camera) {
       this.object.lookAt(this.camera.position);
+      this.object.translateZ(0.1);
     }
 
     const cameraDistance = this.camera.position.distanceTo(this.object.position);
@@ -184,8 +223,8 @@ export class AimPoint {
     let unitsDisplay = 'm';
     if (this.units === 'imperial') {
       distanceDisplay = UnitConversions.metersToYards(distanceDisplay);
-      heightDisplay = UnitConversions.metersToFeet(heightDisplay);
-      unitsDisplay = 'yd';
+      heightDisplay = UnitConversions.metersToYards(heightDisplay);
+      unitsDisplay = 'YD';
     }
 
     const texKey = `${distanceDisplay}-${heightDisplay}`;

@@ -4,6 +4,9 @@ import { Hole, PlayerState } from './types';
 import { type GolfBallEvents, type GolfBall } from '@/objects/golfBall';
 import EventEmitter from 'eventemitter3';
 
+// how far away from the tee box position to auto-aim at the pin instead of aim point
+const AIMPOINT_THRESHOLD = 25;
+
 interface CourseGameEvents {
   nextShot: (status: PlayerStatus) => void;
 }
@@ -88,12 +91,16 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     });
   }
   
-  pinPoint() {
-    return this.#playerData.get(this.activePlayer.id)?.pin;
+  pinPoint(): THREE.Vector3 {
+    const pos = this.#playerData.get(this.activePlayer.id)?.pin;
+    if (!pos) throw new Error('Unable to find PIN position');
+    return pos;
   }
   
-  startPoint() {
-    return this.#playerData.get(this.activePlayer.id)?.start;
+  startPoint(): THREE.Vector3 {
+    const pos = this.#playerData.get(this.activePlayer.id)?.start;
+    if (!pos) throw new Error('Unable to find START position');
+    return pos;
   }
 
   updateStartPoint(point: THREE.Vector3) {
@@ -104,18 +111,10 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     this.updateAimPoint(point);
   }
   
-  aimPoint() {
-    return this.#playerData.get(this.activePlayer.id)?.aim || this.#playerData.get(this.activePlayer.id)?.pin;
-    // const playerState = this._playerData.get(this.activePlayer.id);
-    // if (!playerState) {
-    //   throw new Error('No active player');
-    // }
-    // const distFromStart = playerState.originalStart.distanceTo(playerState.start);
-    // console.log('distFromStart', distFromStart);
-    // if (distFromStart > 20) {
-    //   return playerState.pin;
-    // }
-    // return playerState.aim;
+  aimPoint(): THREE.Vector3 {
+    const pos = this.#playerData.get(this.activePlayer.id)?.aim || this.#playerData.get(this.activePlayer.id)?.pin;
+    if (!pos) throw new Error('Unable to find AIM position');
+    return pos;
   }
 
   updateAimPoint(position: THREE.Vector3) {
@@ -124,7 +123,7 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
       throw new Error('No player found!');
     }
     const distFromStart = playerState.originalStart.distanceTo(position);
-    if (distFromStart > 20) {
+    if (distFromStart > AIMPOINT_THRESHOLD) {
       // playerState.aim ? playerState.aim.copy(playerState.pin) : playerState.aim = playerState.pin.clone();
       playerState.aim = playerState.pin.clone();
     }

@@ -15,7 +15,7 @@ type ShotPerspectiveCameraOptions = {
 }
 
 export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
-  scene: THREE.Scene;
+  scene: THREE.Object3D | THREE.Object3D[];
   renderer: THREE.WebGLRenderer;
   shotDirection: THREE.Vector3;
   staticCamPos: THREE.Vector3;
@@ -45,7 +45,7 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
 
   constructor(
     renderer: THREE.WebGLRenderer,
-    scene: THREE.Scene,  
+    scene: THREE.Object3D | THREE.Object3D[],
     options: ShotPerspectiveCameraOptions = {}
   ) {
     const aspect = (window.innerWidth / window.innerHeight);
@@ -207,8 +207,10 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     return true;
   }
 
-  render(scene: THREE.Scene, fog: THREE.Fog) {
-    scene.fog = fog;
+  render(scene: THREE.Scene, fog?: THREE.Fog) {
+    if (fog) {
+      scene.fog = fog;
+    }
     this.renderer.render(scene, this);
   }
 

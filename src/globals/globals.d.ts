@@ -72,12 +72,13 @@ namespace OpenGolfSim {
     players: OpenGolfSim.Player[],
     practiceMode: boolean;
     elevation?: number;
-    units: MeasurementUnits;
+    units?: MeasurementUnits;
+    cameraOffset?: number;
   }
 
   type GameData = {
     id: string;
     gameMode: number;
-    courseUrl?: boolean;
+    courseUrl?: string;
   }
 }

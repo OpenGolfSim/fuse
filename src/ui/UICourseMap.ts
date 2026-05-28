@@ -4,10 +4,12 @@ import styles from '@/css/ui.module.css';
 import { Hole } from '@/courses/types';
 import { UnitConversions } from '@/utils/units';
 import { colors } from '@/utils/colors';
+import { UIDropDownMenu } from '@/ui/UIDropDownMenu';
 
 type UICourseMapOptions = {
   mapWidthPercent?: number;
   units?: OpenGolfSim.MeasurementUnits;
+  holes?: Map<string, Hole>;
 }
 interface UICourseMapsEvents {
   updateAim: (position: THREE.Vector3) => void;
@@ -25,8 +27,11 @@ export class UICourseMap extends EventEmitter {
   parText: HTMLElement;
   distText: HTMLElement;
   units: OpenGolfSim.MeasurementUnits;
+  holes: Map<string, Hole>;
   canvas: HTMLCanvasElement;
   overlayCanvas: HTMLCanvasElement;
+  
+  holeDropdown: UIDropDownMenu;
 
   aspect: number;
   width: number;
@@ -39,7 +44,8 @@ export class UICourseMap extends EventEmitter {
     // this.course = course;
     this.units = options.units ?? 'metric';
     this.mapWidthPercent = options.mapWidthPercent ?? 0.25;
-
+    this.holes = options.holes || new Map();
+    
     const mapSize = 40;
     const nearField = 10;
     const farField = 1000;
@@ -97,6 +103,20 @@ export class UICourseMap extends EventEmitter {
 
     this._handleResize();
     window.addEventListener('resize', this._handleResize.bind(this));
+
+    this.holeDropdown = new UIDropDownMenu({
+      anchor: this.holeText,
+      placement: 'top',
+      menuItems: [...this.holes.values()].map(hole => ({
+        label: `Hole ${hole.number}`,
+        secondary: `Par ${hole.par}`,
+        action: () => console.log("EXIT")
+      })),
+        // { label: 'Hole 1', action: () => console.log("EXIT") },
+        // { label: 'Hole 2', action: () => console.log("EXIT") },
+        // { label: 'Hole 3', action: () => console.log("EXIT") },
+      // ]
+    });
   }
 
   _handleResize() {
@@ -122,7 +142,7 @@ export class UICourseMap extends EventEmitter {
     const tee = currentHole.waypoints.get('tee');
     const pin = currentHole.waypoints.get('pin');
 
-    const unitText = this.units === 'imperial' ? 'yd' : 'm';
+    const unitText = this.units === 'imperial' ? 'YD' : 'm';
     
     if (tee && pin) {
       const dist = tee.distanceTo(pin);
@@ -152,43 +172,63 @@ export class UICourseMap extends EventEmitter {
     const pinPosition = currentHole?.waypoints?.get('pin');
 
     if (ballPosition) {
-      this._drawDot(ctx, ballPosition, colors.white);
+      this.#drawDot(ctx, ballPosition, colors.white);
     }
     if (aimPosition) {
       const aimDist = ballPosition ? aimPosition.distanceTo(ballPosition) : 0;
-      this._drawDot(ctx, aimPosition, colors.yellow, aimDist);
+      this.#drawDot(ctx, aimPosition, colors.yellow, aimDist);
     }
     if (pinPosition) {
-      const pinDist = ballPosition ? pinPosition.distanceTo(ballPosition) : 0;
-      this._drawDot(ctx, pinPosition, colors.red, pinDist);
+      const aimPinDist = aimPosition ? aimPosition.distanceTo(pinPosition) : 0;
+      const pinDist = aimPinDist > 20 && ballPosition ? pinPosition.distanceTo(ballPosition) : 0;
+      this.#drawDot(ctx, pinPosition, colors.red, pinDist);
     }
   }
 
-  _drawDot(ctx: CanvasRenderingContext2D, position: THREE.Vector3, color: string = '#e9c834', distanceMeters = 0) {
+  #drawDot(ctx: CanvasRenderingContext2D, position: THREE.Vector3, color: string = '#e9c834', distanceMeters = 0) {
     const startXY = this._worldToMinimap(position);
+
+    if (distanceMeters) {
+      // this._drawDistance(ctx, position, 'rgba(0, 0, 0, 0.6)', distanceMeters, [1, 12]);
+      this.#drawDistanceLabel(ctx, position, '#fff', distanceMeters);
+    }
+
     // tee marker
     ctx.beginPath();
-    ctx.arc(startXY.x, startXY.y, 5, 0, Math.PI * 2);
+    const viewHeight = window.innerHeight * 0.006;
+    ctx.arc(startXY.x, startXY.y, viewHeight, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
     
-    if (distanceMeters) {
-      this._drawDistance(ctx, position, '#000', distanceMeters, [2, 12]);
-      this._drawDistance(ctx, position, '#fff', distanceMeters, [0, 10]);
-    }
   }
-  _drawDistance(ctx: CanvasRenderingContext2D, position: THREE.Vector3, color: string, distanceMeters: number, offset: [number, number] = [0, 0]) {
+
+  #drawDistanceLabel(ctx: CanvasRenderingContext2D, position: THREE.Vector3, color: string, distanceMeters: number) {
     const startXY = this._worldToMinimap(position);
-    ctx.fillStyle = color;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
+    const viewHeight = window.innerHeight * 0.012;
+    const padding = viewHeight * 1.005; // 10% extra padding
+    const offsetY = window.innerHeight * 0.01;
+
+    ctx.font = `bold ${viewHeight}px Rubik,Arial,Helvetica,sans-serif`;
     let distanceUnits = 'm';
     if (this.units === 'imperial') {
       distanceMeters = UnitConversions.metersToYards(distanceMeters);
-      distanceUnits = 'YD';
+      distanceUnits = '';
     }
-    ctx.font = 'bold 10px Arial,Helvetica,sans-serif'
-    ctx.fillText(`${distanceMeters.toFixed(0)} ${distanceUnits}`, startXY.x + offset[0], startXY.y + offset[1]);
+    const text = `${distanceMeters.toFixed(0)} ${distanceUnits}`;
+    const metrics = ctx.measureText(text);
+    const textWidth = Math.ceil(metrics.width + padding);
+    const textHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent + padding;
+
+
+    ctx.beginPath();
+    ctx.roundRect(startXY.x - (textWidth/2), startXY.y + offsetY - (padding/2), textWidth, textHeight, 4);
+    ctx.fillStyle = colors.background;
+    ctx.fill();
+
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = "top";
+    ctx.fillText(text, startXY.x, startXY.y + offsetY, textWidth);
   }
 
   _worldToMinimap(position: THREE.Vector3) {

@@ -1,9 +1,10 @@
 @import url('./root.css');
+@import url('./fonts.css');
 
 body {
   margin: 0;
   overflow: hidden;
-  font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  font-family: var(--font-family);
   background: #131414;
   color: #fff;
 }
@@ -43,3 +44,4 @@ button:hover {
     font-size: 2.2vh;
   }
 }
+

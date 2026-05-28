@@ -13,7 +13,7 @@ import { FlatGrassShaderMaterial } from '@/shaders/grassFlat';
 import { FlagStick } from '@/objects/flagStick';
 import { type ShotPerspectiveCamera } from '@/camera';
 import { GroundPhysics } from '@/physics/groundPhysics';
-import { CourseSurfaces, isCourseSurfaceType } from '@/courses/surfaces';
+import { CourseSurfaceProperties, CourseSurfaces, isCourseSurfaceType } from '@/courses/surfaces';
 import perlinNoise from '@/images/perlinnoise.webp?url';
 import { isMeshObject } from '@/utils/mesh';
 import grassBladesModel from '@/models/grassBlades.glb?url';
@@ -26,6 +26,7 @@ export interface SceneSettings {
       fogColor?: string;
       cloudColor?: string;
       density?: number;
+      opacity?: number;
       scale?: number;
       position?: number[];
     };
@@ -45,7 +46,7 @@ interface CourseLoaderEvents {
 export class MeshLoader extends EventEmitter<CourseLoaderEvents> {
   gltfLoader: GLTFLoader;
   
-  constructor(meshUri: string, manager: THREE.LoadingManager) {
+  constructor(meshUri: string, manager?: THREE.LoadingManager) {
     super();
     this.gltfLoader = new GLTFLoader(manager);
   }
@@ -65,13 +66,19 @@ export class MeshLoader extends EventEmitter<CourseLoaderEvents> {
     return mesh;
   }  
 }
+
+interface LoadedCourseSurface extends CourseSurfaceProperties {
+  mesh: THREE.Mesh,
+  ground: GroundPhysics,
+}
+
 export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   world: World;
   rapier: RapierInstance;
   gltfLoader: GLTFLoader;
   holes: Map<string, any>;
   waterSurfaces: Map<string, any>;
-  surfaces: Map<string, any>;
+  surfaces: Map<string, LoadedCourseSurface>;
   grasses: Map<string, any>;
   greenGrids: Map<string, any>;
 
@@ -87,7 +94,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   #direction: THREE.Vector3;
   setupData?: Partial<OpenGolfSim.SetupData>;
 
-  constructor(world: World, rapier: RapierInstance, setupData: OpenGolfSim.SetupData | undefined, manager: THREE.LoadingManager) {
+  constructor(world: World, rapier: RapierInstance, setupData: OpenGolfSim.SetupData | undefined, manager?: THREE.LoadingManager) {
     super();
     this.world = world;
     this.rapier = rapier;
@@ -258,7 +265,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   }
 
   getGroundMeshes() {
-    return [...this.surfaces.values()].map(surface => surface.mesh);
+    return [...this.surfaces.values()].map(surface => surface.mesh).filter(Boolean);
   }
 
   _loadTree(tree: THREE.Object3D) {

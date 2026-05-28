@@ -100,3 +100,4 @@ export class AppBridge extends EventEmitter<EventMap> {
     }
   }
 }
+

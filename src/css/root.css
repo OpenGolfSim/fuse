@@ -1,49 +1,54 @@
+@import url('./fonts.css');
+
 :root {
   /* colors */
+  --font-family: 'Rubik', Roboto, Helvetica, Arial, sans-serif;
   --primary-color: #21d48d;
+  --hover-bg-color: rgb(255, 255, 255, 0.06);
+  --active-bg-color: rgb(0, 0, 0, 0.3);
+  --text-color: #ffffff;
   --bg-color-solid: #111c1c;
   --bg-color: rgba(17, 28, 28, 0.9);
-  --text-color: #FFF;
   --text-disabled: #7e9a9a;
 
   /* text */
   --base-font-size: 1.3vh;
-  --small-text-size: 0.8vh;
-  --medium-text-size: 1.7vh;
-  --large-text-size: 2.6vh;
-  --unit-text-size: 0.9vh;
+  --small-font-size: 1vh;
+  --medium-font-size: 1.7vh;
+  --large-font-size: 2.1vh;
+  --unit-font-size: 0.8vh;
   
   /* spacing */
   --border-radius: 0.5vh;
-  --grid-size: 0.75vh;
-  --base-padding: calc(var(--grid-size) / 2);
+  --grid-size: 1vh;
+  --base-padding: var(--grid-size);
 }
-
+/* 
 @media (min-height: 480px) {
   :root {
     --base-font-size: 1.3vh;
-    --small-text-size: 1vh;
-    --unit-text-size: 0.8vh;
+    --small-font-size: 1vh;
+    --unit-font-size: 0.8vh;
     --grid-size: 1vh;
     --base-padding: var(--grid-size);
   }
-}
+} */
 
 /* @media (min-width: 640px) {
   :root {
     --base-font-size: 1.3vh;
-    --small-text-size: 0.7vw;
-    --medium-text-size: 1.2vw;
-    --large-text-size: 2.4vh;
-    --unit-text-size: 0.4vw;
+    --small-font-size: 0.7vw;
+    --medium-font-size: 1.2vw;
+    --large-font-size: 2.4vh;
+    --unit-font-size: 0.4vw;
   }
 } */
 
 /* @media (max-aspect-ratio: 7/3) {
   :root {
     --grid-size: 0.8vw;
-    --medium-text-size: 1.2vw;
-    --large-text-size: 2.4vh;
-    --unit-text-size: 0.4vw;
+    --medium-font-size: 1.2vw;
+    --large-font-size: 2.4vh;
+    --unit-font-size: 0.4vw;
   }
 } */

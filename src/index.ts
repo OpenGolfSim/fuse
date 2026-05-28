@@ -30,6 +30,7 @@ export * from '@/ui';
 
 // Utils
 export * from '@/utils/units';
+export * from '@/utils/data';
 
 import '@/css/base.css';
 

@@ -210,6 +210,7 @@ async function loadRange() {
   gameContext.visualAimPoint = new AimPoint(gameContext.camera, {
     units: gameContext.setupData.units
   });
+  await gameContext.visualAimPoint.load();
   gameContext.scene.add(gameContext.visualAimPoint.object);
 
   gameContext.controls = new CourseKeyboardControls({ testShots: true });
