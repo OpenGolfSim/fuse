@@ -38,12 +38,12 @@ export class AimPoint {
     
     this.scaleFactor = 0.004;
     this.opacity = 0.98;
-    this.fadeDistance = [60, 20];
+    this.fadeDistance = [21, 20];
     this.color = new THREE.Color(colors.background);
     this.#pointHeight = 5;
     this.#pointOffsetY = 0.25;
-    this.#panelWidth = 10;
-    this.#panelHeight = 5;
+    this.#panelWidth = 9;
+    this.#panelHeight = 4;
     this.#panelAspect = this.#panelHeight / this.#panelWidth;
 
     this.canvas = document.createElement('canvas');
@@ -115,16 +115,17 @@ export class AimPoint {
   #updateDistanceMaterial(distance: number, height: number, units: string) {
 
     this.ctx.fillStyle = colors.background;
-    this.ctx.roundRect(0, 0, this.canvas.width, this.canvas.height, 30); // 20px radius for all corners
-    this.ctx.fill();
+    // this.ctx.roundRect(0, 0, this.canvas.width, this.canvas.height, (30 * this.#pixelRatio)); // 20px radius for all corners
+    // this.ctx.fill();
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.fillStyle = 'white';
-    const fontSize = 100 * this.#pixelRatio;
+    const fontSize = 80 * this.#pixelRatio;
     this.ctx.font = this.#fontStyle(fontSize, '800');
     this.ctx.textBaseline = 'middle';
     this.ctx.textAlign = 'center';
     this.ctx.fillText(`${distance.toFixed(0)} ${units}`, this.canvas.width/2, (this.canvas.height/2) - (30 * this.#pixelRatio));
 
-    const fontSizeHeight = 60 * this.#pixelRatio;
+    const fontSizeHeight = 50 * this.#pixelRatio;
     this.ctx.font = this.#fontStyle(fontSizeHeight, '400');
     const prefix = height >= 0.1 ? '+' : '';
     this.ctx.fillStyle = '#aaa';

@@ -31,8 +31,6 @@ const gameContext = {
   aimPoint: new THREE.Vector3(0, 0, 0)
 };
 
-let canvas;
-
 const lights = {};
 
 const defaultSkyColor = 'rgb(192, 215, 241)';
@@ -41,7 +39,7 @@ const lightColor = new THREE.Color('rgb(255, 247, 224)');
 let trackTimeout;
 
 function launchShot(shot) {
-  console.log('[DEBUG} Received new shot data:', shot);
+  console.log('[DEBUG] Received new shot data:', shot);
   if (shot.ballSpeed && !gameContext.golfBall.isShotActive) {
     gameContext.shotData.updateShotData(shot);
     gameContext.golfBall.launchShot(shot);
@@ -53,58 +51,38 @@ function launchShot(shot) {
 }
 
 function setupNextShot(playerStatus) {
-  console.log('setupNextShot', playerStatus);
+  console.log('Setup next shot with player', playerStatus);
 
   gameContext.camera.setTracking(false);
-  
-  // const startPoint = gameContext.game.startPoint();
   gameContext.startPoint.copy(gameContext.game.startPoint());
   gameContext.aimPoint.copy(gameContext.game.aimPoint());
-
-  // const aimPoint = gameContext.game.aimPoint();
 
   gameContext.camera.setPositions(gameContext.startPoint, gameContext.aimPoint);
 
   // recreate ball after each shot to ensure physics are fully reset
   gameContext.golfBall.reset(gameContext.aimPoint, gameContext.startPoint);  
-  // aimMarker.visible = true;
 
-  aimPointUpdated();
+  aimPointUpdated(true);
   
   gameContext.courseMap.updatePosition(gameContext.startPoint, gameContext.game.pinPoint());
   gameContext.courseMap.updateHole(gameContext.game.activeHole);
   gameContext.playerMenu.update(gameContext.game.currentPlayer());
 }
 
-async function onProgress(progress) {
-  document.getElementById('progress-bar-fill').style.width = `${progress.percent.toFixed(1)}%`;
-  document.getElementById('progress-text').textContent = `${progress.percent.toFixed(0)}%`;
-}
-
-function onHoleEnded() {
-  console.log('onHoleEnded[main]');
-  gameContext.playerMenu.update(gameContext.game.currentPlayer());
-}
-
-function onShotEnded() {
-  console.log('onShotEnded[main]');
-  gameContext.playerMenu.update(gameContext.game.currentPlayer());
-}
-
-function setupWorld() {
-  canvas = document.getElementById('canvas');
-  gameContext.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+function setupRenderer() {
+  gameContext.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
   gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
   gameContext.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
   gameContext.renderer.shadowMap.enabled = true;
   gameContext.renderer.shadowMap.type = THREE.PCFShadowMap;
 }
 
-// helpers, move to core?
 function setupScene() {
   const skyType = gameContext.course?.sceneSettings?.sky?.type;
   const clouds = gameContext.course?.sceneSettings?.sky?.clouds;
-  console.log('clouds', skyType, clouds);
+
+  // Base scene
+  // TODO: move to course loader?
   gameContext.scene = new THREE.Scene(); 
   gameContext.scene.background = new THREE.Color(clouds?.skyColor ?? defaultSkyColor);
 
@@ -114,18 +92,23 @@ function setupScene() {
   gameContext.lightGroup = new CourseLight(lightColor);
   gameContext.scene.add(gameContext.lightGroup);
 
+  // Main Camera
   gameContext.camera = new ShotPerspectiveCamera(gameContext.renderer, gameContext.course.getGroundMeshes(), {
     cameraOffsetX: -(gameContext.setupData.cameraOffset / 100),
   });
+  
+  // Aim point
   gameContext.visualAimPoint = new AimPoint(gameContext.camera, {
     units: gameContext.setupData.units
   });
   gameContext.scene.add(gameContext.visualAimPoint.object);
 
+  // Course Map
   gameContext.courseMap = new UICourseMap({
     units: gameContext.setupData?.units
   });
-  // gameContext.controls = new OrbitControls( gameContext.camera, gameContext.renderer.domElement );
+
+  // Controls
   gameContext.controls = new CourseKeyboardControls({ testShots: true });
   gameContext.controls.on('aim', aimKeys => {
     gameContext.camera.aimKeys = aimKeys;
@@ -134,6 +117,7 @@ function setupScene() {
   gameContext.controls.on('toggleStats', () => gameContext.stats.toggle());
 
 
+  // TODO: move to course loader..
   // Sky/Clouds
   gameContext.clouds = new VolumetricClouds(gameContext.camera, {
     radius: 800,
@@ -143,61 +127,45 @@ function setupScene() {
     skyColor: new THREE.Color(clouds?.skyColor ?? defaultSkyColor),
     cloudColor: clouds?.cloudColor && new THREE.Color(clouds?.cloudColor),
     fogColor: clouds?.fogColor && new THREE.Color(clouds?.fogColor),
-    // position: new THREE.Vector3(0, -50, 0)
     position: new THREE.Vector3(clouds?.position ?? [0, -50, 0])
   });
   gameContext.scene.add(gameContext.clouds.object);
   
-  // gameContext.playerMenu = new UIPlayerMenu('#top-left');
   gameContext.shotData = new UIShotData('#shot-data', { units: gameContext.setupData?.units });
   gameContext.rangeFinder = new UIRangeFinder('#top-center', { units: gameContext.setupData?.units });
   gameContext.playerMenu = new UIPlayerMenu('#top-left');
 }
 
-function getObjectBounds(obj) {
-  const box = new THREE.Box3().setFromObject(obj);
-  const center = new THREE.Vector3();
-  box.getCenter(center);
-  const size = new THREE.Vector3();
-  box.getSize(size);
-  return { size, center };
-}
-
-// async function setupCourse() {
-  
-// }
-
-
 /**
  * Manually place ball
  */
-function adjustStartPoint(event) {
-  const newPosition = event.detail;
+function adjustStartPoint(newPosition) {
   console.log('update start', newPosition);
   const ground = gameContext.course.getGroundY(newPosition.x, newPosition.z);
   if (ground) {
     newPosition.y = ground.y;
   }
   gameContext.game.updateStartPoint(newPosition);
-  console.log('UPDATE START POINT');
   setupNextShot();
 }
 
-function adjustAimPoint(event) {
-  const newPosition = event.detail;
+/**
+ * Adjust the aim point
+ */
+function adjustAimPoint(newPosition) {
   // console.log('update aim', newPosition);
   const ground = gameContext.course.getGroundY(newPosition.x, newPosition.z);
   if (ground) {
     newPosition.y = ground.y;
   }
-  // console.log('find ground', newPosition);
   gameContext.aimPoint.copy(newPosition);
-  gameContext.camera.setPositions(gameContext.game.startPoint(), gameContext.aimPoint);
-  console.log('UPDATE AIM POINT');
-  
-  aimPointUpdated();
+  gameContext.camera.setPositions(gameContext.game.startPoint(), gameContext.aimPoint);  
+  aimPointUpdated(true);
 }
 
+/**
+ * Called after the aim point has changed
+ */
 function aimPointUpdated(forced = false) {
   gameContext.distanceToAim = gameContext.startPoint.distanceTo(gameContext.aimPoint);
   gameContext.heightToAim = gameContext.startPoint.y - gameContext.aimPoint.y;
@@ -206,9 +174,11 @@ function aimPointUpdated(forced = false) {
   if (forced) {
     gameContext.visualAimPoint.reset(gameContext.aimPoint);
   }
-  // console.log('AIM POINT UPDATED');
 }
 
+/**
+ * Generates setup data for testing
+ */
 function testSetupData() {
   const clubs = [
     { fullName: 'Driver', name: 'DR', id: 'DR', distance: 180 },
@@ -241,19 +211,11 @@ function testSetupData() {
 }
 
 
-async function initialize(payload) {
+async function handleSetup(payload) {
+  console.log('Received setup event', payload);
   gameContext.setupData = payload?.setupData;
   gameContext.gameData = payload?.gameData;
-  console.log('SETUP RECEIVED', payload);
   preLoad();
-
-  // test data
-  // const courseUrl = './MountainVista.glb';
-  // // pretend we're given a URL and setupData
-  // const setupData = testSetupData();
-  // await setupCourse(payload.gameData.courseUrl, payload.setupData);
-  // console.log('POST SETUP');
-  // postLoad();
 }
 
 let isLoaded = false;
@@ -266,7 +228,7 @@ async function setupFullCourse() {
   if (!gameContext?.gameData?.courseUrl) {
     throw new Error('Missing a courseUrl to a GLB in the gameData object');
   }
-  setupWorld();
+  setupRenderer();
   
   // load course details and meshes
   gameContext.course = new CourseLoader(app.world, app.rapier, gameContext.setupData, gameContext.loadingScreen.manager);
@@ -278,7 +240,6 @@ async function setupFullCourse() {
 
   setupScene();
 
-  const bounds = getObjectBounds(gameContext.course.scene);
   gameContext.scene.add(gameContext.course.scene);
 
   gameContext.golfBall = new GolfBall(gameContext.scene, app.world, app.rapier, {
@@ -291,8 +252,8 @@ async function setupFullCourse() {
   setupNextShot();
 
   // gameContext.playerMenu.update(gameContext.game.currentPlayer());
-  gameContext.courseMap.addEventListener('updateAim', adjustAimPoint);
-  gameContext.courseMap.addEventListener('updateStart', adjustStartPoint);
+  gameContext.courseMap.on('updateAim', adjustAimPoint);
+  gameContext.courseMap.on('updateStart', adjustStartPoint);
   
 }
 
@@ -373,15 +334,16 @@ async function initializeDebug() {
   }
 }
 
-/**
- * Required setup for OpenGolfSim FUSE
- */
+// -- Required setup --
+//
 // listen for setup event from OpenGolfSim app
-app.on('setup', initialize);
+app.on('setup', handleSetup);
 // listen for shot event from OpenGolfSim app
 app.on('shot', launchShot);
+
 // initialize must be called before engaging physics/world
 app.initialize(() => {
+  // if we passed a test course URL as a query param, we start in debug mode
   if (window.location.search) {
     initializeDebug();
   }

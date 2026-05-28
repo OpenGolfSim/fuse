@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import EventEmitter from 'eventemitter3';
 import styles from '@/css/ui.module.css';
 import { Hole } from '@/courses/types';
 import { UnitConversions } from '@/utils/units';
@@ -8,8 +9,12 @@ type UICourseMapOptions = {
   mapWidthPercent?: number;
   units?: OpenGolfSim.MeasurementUnits;
 }
+interface UICourseMapsEvents {
+  updateAim: (position: THREE.Vector3) => void;
+  updateStart: (position: THREE.Vector3) => void;
+}
 
-export class UICourseMap extends EventTarget {
+export class UICourseMap extends EventEmitter {
   mapWidthPercent: number;
   camera: THREE.OrthographicCamera;
   renderer: THREE.WebGLRenderer;
@@ -195,7 +200,7 @@ export class UICourseMap extends EventTarget {
     };
   }
   
-  _minimapToWorld(event: PointerEvent) {
+  _minimapToWorld(event: PointerEvent): THREE.Vector3 {
     const rect = this.overlayCanvas.getBoundingClientRect();
     // Convert click to normalized device coords (-1 to 1)
     const ndc = new THREE.Vector3(
@@ -214,9 +219,9 @@ export class UICourseMap extends EventTarget {
     console.log('POS', pos);
 
     if (event.shiftKey) {
-      this.dispatchEvent(new CustomEvent('updateStart', { detail: pos }));
+      this.emit('updateStart', pos);
     } else {
-      this.dispatchEvent(new CustomEvent('updateAim', { detail: pos }));
+      this.emit('updateAim', pos);
     }
   }
 
