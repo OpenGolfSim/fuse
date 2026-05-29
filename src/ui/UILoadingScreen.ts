@@ -4,10 +4,12 @@ import EventEmitter from 'eventemitter3';
 import { colors } from '@/utils/colors';
 
 type UILoadingScreenOptions = {
+  initText?: string;
   loadingPrefix?: string;
 }
 export class UILoadingScreen extends EventEmitter {
   element: HTMLElement | null;
+  initText: string;
   #wrapper?: HTMLElement;
   #progressCard?: HTMLElement;
   #progressBar?: HTMLElement;
@@ -22,6 +24,7 @@ export class UILoadingScreen extends EventEmitter {
     super();
 
     this.loadingPrefix = options.loadingPrefix ?? 'Loading';
+    this.initText = options.initText ?? 'Initializing…';
 
     if (typeof element === 'string') {
       this.element = document.querySelector(element);
@@ -132,7 +135,7 @@ export class UILoadingScreen extends EventEmitter {
     this.#progressBar.append(this.#progressBarFill);
     
     this.#progressText = document.createElement('div');
-    this.#progressText.textContent = 'Loading...';
+    this.#progressText.textContent = this.initText;
     this.#progressText.className = styles.progressText;
 
     this.#progressCard.append(this.#progressBar, this.#progressText);

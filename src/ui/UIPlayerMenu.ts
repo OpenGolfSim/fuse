@@ -1,20 +1,14 @@
-import { PlayerStatus } from '@/courses/game';
+import { CoursePlayer } from '@/courses/player';
 import styles from '@/css/ui.module.css';
 import { UIDropDownMenu } from '@/ui/UIDropDownMenu';
 import EventEmitter from 'eventemitter3';
 
-type UIPlayerUpdate = {
-  player: string;
-  club: string;
-  strokes: number;
-}
-
 type UIPlayerMenuOptions = {
-  setupData?: Pick<OpenGolfSim.SetupData, 'players'>;
-}
+  players: CoursePlayer[]
+};
 
 interface UIPlayerMenuEvents {
-  selectPlayer: (player: OpenGolfSim.Player) => void;
+  selectPlayer: (player: CoursePlayer) => void;
   selectClub: (club: OpenGolfSim.Club) => void;
   showScorecard: () => void;
 }
@@ -28,7 +22,7 @@ export class UIPlayerMenu extends EventEmitter<UIPlayerMenuEvents> {
   playerNameText?: HTMLElement;
   playerClub?: HTMLElement;
   playerScore?: HTMLElement;
-  allPlayers: OpenGolfSim.Player[];
+  allPlayers: CoursePlayer[];
 
   constructor(element: string | Element, options: UIPlayerMenuOptions) {
     super();
@@ -42,14 +36,15 @@ export class UIPlayerMenu extends EventEmitter<UIPlayerMenuEvents> {
     }    
     this.element.className = styles.playerMenu;
 
-    if (!options.setupData?.players.length) {
-      throw new Error('No players found in setupData');
+    console.log(options);
+    if (!options.players?.length) {
+      throw new Error('No players found in options');
     }
-    this.allPlayers = options.setupData.players || [];
-    this._build();
+    this.allPlayers = options.players || [];
+    this.#build();
   }
 
-  _build() {
+  #build() {
     if (!this.element) {
       console.error('Unable to find UIPlayerMenu root element');
       return;
@@ -57,6 +52,8 @@ export class UIPlayerMenu extends EventEmitter<UIPlayerMenuEvents> {
     if (this.wrapper) {
       this.wrapper.remove();
     }
+    const firstPlayer = this.allPlayers?.[0];
+
     this.wrapper = document.createElement('div');
     this.wrapper.setAttribute('id', 'ui-player-menu');
     this.wrapper.className = styles.playerMenuContainer;
@@ -68,7 +65,7 @@ export class UIPlayerMenu extends EventEmitter<UIPlayerMenuEvents> {
 
     const playerName = document.createElement('a');
     playerName.className = styles.playerMenuName;
-    this.playerNameText.textContent = 'Player X';
+    this.playerNameText.textContent = firstPlayer.name || '(No Player)';
     playerName.append(this.playerNameAvatar, this.playerNameText);
     
     this.playerClub = document.createElement('div');
@@ -83,29 +80,43 @@ export class UIPlayerMenu extends EventEmitter<UIPlayerMenuEvents> {
   
     this.element.append(this.wrapper);
 
-    this.playerDropdown = new UIDropDownMenu({
-      anchor: playerName, 
-      placement: 'bottom-start',
-      menuItems: this.allPlayers.map(player => ({
-        label: player.name,
-        action: () => this.emit('selectPlayer', player)
-      }))
-    });
+    if (this.allPlayers.length > 1) {
+      this.playerDropdown = new UIDropDownMenu({
+        anchor: playerName, 
+        placement: 'bottom-start',
+        menuItems: this.allPlayers.map(player => ({
+          label: player.name,
+          id: player.id,
+          disabled: player.disabled,
+          action: () => this.emit('selectPlayer', player)
+        }))
+      });
+    }
+
     this.clubDropdown = new UIDropDownMenu({
       anchor: this.playerClub,
-        menuItems: [
-        // { label: 'Driver', action: () => this.emit('clubChange') },
-        // { label: '2-Iron', action: () => console.log("EXIT") },
-        // { label: '3-Iron', action: () => console.log("EXIT") },
-        // { label: 'Putter', action: () => console.log("EXIT") },
-      ]
+        menuItems: firstPlayer.clubs.map(club => ({
+          label: club.name,
+          action: () => this.emit('selectClub', club)
+        }))
     });
   }
 
-  update({ player, state }: PlayerStatus) {
+  update(player: CoursePlayer) {
     if (this.playerNameText) this.playerNameText.textContent = player.name;
-    if (this.playerClub) this.playerClub.textContent = state.club.name;
-    if (this.playerScore) this.playerScore.textContent = `${state.strokes || 0}`;
+    if (this.playerClub) this.playerClub.textContent = player.currentClub?.name || 'NA';
+    if (this.playerScore) this.playerScore.textContent = `${player.strokes || 0}`;
+
+    // this.playerDropdown.menuItems?.find(item => item.id === player.id)
+
+    this.playerDropdown?.setMenuItems(
+      this.allPlayers.map(player => ({
+        label: player.name,
+        id: player.id,
+        disabled: player.disabled,
+        action: () => this.emit('selectPlayer', player)
+      }))  
+    );
 
     this.clubDropdown?.setMenuItems(
       player.clubs.map(club => ({

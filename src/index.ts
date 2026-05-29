@@ -20,6 +20,8 @@ export * from '@/shaders';
 // Courses
 export * from '@/courses/game';
 export * from '@/courses/loader';
+export * from '@/courses/surfaces';
+export * from '@/courses/player';
 
 // Physics
 export * from '@/physics/ballPhysics';

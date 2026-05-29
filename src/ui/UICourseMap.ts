@@ -208,7 +208,7 @@ export class UICourseMap extends EventEmitter {
     const padding = viewHeight * 1.005; // 10% extra padding
     const offsetY = window.innerHeight * 0.01;
 
-    ctx.font = `bold ${viewHeight}px Rubik,Arial,Helvetica,sans-serif`;
+    ctx.font = `normal ${viewHeight}px Rubik,Arial,Helvetica,sans-serif`;
     let distanceUnits = 'm';
     if (this.units === 'imperial') {
       distanceMeters = UnitConversions.metersToYards(distanceMeters);

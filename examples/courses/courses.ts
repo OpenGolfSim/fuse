@@ -16,16 +16,17 @@ import {
   UIStats,
   UILoadingScreen,
   VolumetricClouds,
-  type PlayerStatus,
   generateSetupData,
+  CoursePlayer,
  } from '@opengolfsim/fuse';
 
-interface GameContext {
-  timer: THREE.Timer,
+
+const gameContext: {
   startPoint: THREE.Vector3,
   aimPoint: THREE.Vector3,
   
   // Environment
+  timer: THREE.Timer,
   world?: World;
   scene?: THREE.Scene;
   renderer?: THREE.WebGLRenderer,
@@ -34,7 +35,7 @@ interface GameContext {
   fog?: THREE.Fog,  
   clouds?: VolumetricClouds,
 
-  // Data
+  // Course Data
   setupData?: OpenGolfSim.SetupData,
   gameData?: OpenGolfSim.GameData,
   course?: CourseLoader,
@@ -56,9 +57,7 @@ interface GameContext {
   // State
   distanceToAim: number,
   heightToAim: number,
-}
-
-const gameContext: GameContext = {
+} = {
   timer: new THREE.Timer(),
   startPoint: new THREE.Vector3(0, 0, 0),
   aimPoint: new THREE.Vector3(0, 0, 0),
@@ -85,8 +84,7 @@ function launchShot(shot: OpenGolfSim.Shot) {
   }
 }
 
-function setupNextShot(playerStatus?: PlayerStatus) {
-  console.log('Setup next shot with player', playerStatus);
+function setupNextShot() {
   if (!gameContext.game) return;
   gameContext.camera?.setTracking(false);
   gameContext.startPoint.copy(gameContext.game.startPoint());
@@ -101,7 +99,8 @@ function setupNextShot(playerStatus?: PlayerStatus) {
   
   gameContext.courseMap?.updatePosition(gameContext.startPoint, gameContext.game.pinPoint());
   gameContext.courseMap?.updateHole(gameContext.game.activeHole);
-  gameContext.playerMenu?.update(gameContext.game.currentPlayer());
+
+  gameContext.playerMenu?.update(gameContext.game.activePlayer);
 }
 
 function setupRenderer() {
@@ -184,13 +183,6 @@ async function setupScene() {
   });
   gameContext.scene.add(gameContext.clouds.object);
   
-  gameContext.shotData = new UIShotData('#shot-data', { units: gameContext.setupData?.units });
-  gameContext.rangeFinder = new UIRangeFinder('#top-center', { units: gameContext.setupData?.units });
-  gameContext.playerMenu = new UIPlayerMenu('#top-left', { setupData: gameContext.setupData });
-  gameContext.playerMenu.on('selectClub', club => {
-    
-  });
-
 }
 
 /**
@@ -244,7 +236,7 @@ async function handleSetup(payload: any) {
   preLoad();
 }
 
-async function setupFullCourse() {
+async function setupCourse() {
   if (!app.world) {
     throw new Error('Physics world does not exist');
   }
@@ -281,8 +273,31 @@ async function setupFullCourse() {
   
   // setup course game controller
   gameContext.game = new CourseGame(gameContext.course, gameContext.golfBall, gameContext.setupData);
-  gameContext.game?.on('nextShot', (status) => setupNextShot(status));
+  gameContext.game?.on('nextShot', (player) => {
+    console.log(`A new player (${player.name}) is up!`);
+    setupNextShot();
+  });
 
+  gameContext.shotData = new UIShotData('#shot-data', { units: gameContext.setupData?.units });
+  gameContext.rangeFinder = new UIRangeFinder('#top-center', { units: gameContext.setupData?.units });
+  gameContext.playerMenu = new UIPlayerMenu('#top-left', { players: gameContext.game?.players || [] });
+  gameContext.playerMenu.on('selectPlayer', player => {
+    // handle player changed
+    console.log('select player', player);
+    if (gameContext.game) {
+      gameContext.game.selectPlayer(player);
+    }
+  });
+  gameContext.playerMenu.on('selectClub', club => {
+    console.log('select club', club);
+    // handle club change
+    if (gameContext.game) {
+      gameContext.game.selectClub(club);
+      gameContext.playerMenu?.update(gameContext.game.activePlayer);
+    }
+  });
+
+  
   setupNextShot();
 
   gameContext.courseMap?.on('updateAim', adjustAimPoint);
@@ -290,17 +305,20 @@ async function setupFullCourse() {
   
 }
 
+/**
+ * Sets up loading screen and kicks off loading of the course and building the scene
+ */
 function preLoad() {
-  gameContext.loadingScreen = new UILoadingScreen(document.body);
+  gameContext.loadingScreen = new UILoadingScreen(document.body, { loadingPrefix: 'Loading Course' });
   gameContext.loadingScreen.on('load', (error) => {
     console.log('POST LOAD', error);
     if (!error) {
       requestAnimationFrame(animate);
     }
   });
-  gameContext.loadingScreen.load(setupFullCourse);
+  gameContext.loadingScreen.load(setupCourse);
   
-  gameContext.stats = new UIStats('#render-stats', { hidden: false }); // start hidden (press S to toggle)
+  gameContext.stats = new UIStats('#render-stats', { hidden: true }); // start hidden (press S to toggle)
   gameContext.timer.connect(document);  
 }
 
@@ -367,15 +385,13 @@ async function initializeDebug() {
   if (!courseUrl) {
     throw new Error('No courseUrl provided');
   }
-  gameContext.setupData = generateSetupData();
+  gameContext.setupData = generateSetupData(2);
   gameContext.gameData = { id: 'web', courseUrl, gameMode: 2 };
   if (courseUrl) {
     preLoad();
   }
 }
 
-// -- Required setup --
-//
 // listen for setup event from OpenGolfSim app
 app.on('setup', handleSetup);
 // listen for shot event from OpenGolfSim app

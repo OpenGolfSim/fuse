@@ -3,7 +3,9 @@ import styles from '@/css/ui.module.css';
 
 interface UIDropDownMenuItem {
   label: string;
+  id?: string;
   secondary?: string;
+  disabled?: boolean;
   action: () => void;
 }
 
@@ -49,9 +51,12 @@ export class UIDropDownMenu {
     this.menu.innerHTML = '';
     
     for (const item of menuItems) {
-      const ele = document.createElement('div');
+      const ele = document.createElement('a');
       ele.classList.add(styles.clickableArea, styles.dropDownItem);
-
+      
+      if (item.disabled) {
+        ele.classList.add(styles.dropDownDisabled);
+      }
       ele.addEventListener('click', () => {
         item.action();
         this.hide();

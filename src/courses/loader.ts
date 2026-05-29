@@ -46,12 +46,12 @@ interface CourseLoaderEvents {
 export class MeshLoader extends EventEmitter<CourseLoaderEvents> {
   gltfLoader: GLTFLoader;
   
-  constructor(meshUri: string, manager?: THREE.LoadingManager) {
+  constructor(manager?: THREE.LoadingManager) {
     super();
     this.gltfLoader = new GLTFLoader(manager);
   }
   
-  async load(meshUri: string, firstMeshOnly = false) {
+  async load(meshUri: string, firstMeshOnly = false): Promise<THREE.Mesh | THREE.Group | undefined> {
     const model = await this.gltfLoader.loadAsync(meshUri);
     if (!firstMeshOnly) {
       return model.scene;

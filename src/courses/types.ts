@@ -9,6 +9,7 @@ export type Hole = {
 }
 
 export type PlayerState = {
+  index: number,
   strokes: number,
   club: OpenGolfSim.Club,
   scorecard: Map<string, number>,
@@ -17,5 +18,5 @@ export type PlayerState = {
   originalAim?: THREE.Vector3,
   start: THREE.Vector3,
   aim?: THREE.Vector3,
-  pin: THREE.Vector3
+  pin: THREE.Vector3,
 }

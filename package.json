@@ -20,12 +20,14 @@
     "@dimforge/rapier3d-compat": "^0.19.3",
     "@floating-ui/dom": "^1.7.6",
     "eventemitter3": "^5.0.4",
-    "meshline": "^3.3.1"
+    "meshline": "^3.3.1",
+    "sortablejs": "^1.15.7"
   },
   "peerDependencies": {
     "three": "^0.184.0"
   },
   "devDependencies": {
+    "@types/sortablejs": "^1.15.9",
     "@types/three": "^0.184.0",
     "cheerio": "^1.2.0",
     "concurrently": "^9.2.1",

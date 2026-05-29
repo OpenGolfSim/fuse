@@ -1,3 +1,4 @@
+import Sortable from 'sortablejs';
 import styles from '@/css/ui.module.css';
 import { UnitConversions } from '@/utils/units';
 
@@ -20,6 +21,7 @@ export class UIShotData {
   wrapper: HTMLElement;
   gridOptions: ShotDataGridOption[];
   units: OpenGolfSim.SetupData['units'];
+  #sortable?: Sortable;
   #speedUnit: string;
   #distanceUnit: string;
   #heightUnit: string;
@@ -186,5 +188,23 @@ export class UIShotData {
 
       option._element.append(dataLabel, dataValue);
     });
+
+    this.#sortable = new Sortable(this.wrapper, {
+      group: 'data-panel',
+      sort: true,
+      animation: 200,
+      store: {
+        get: (sortable) => {
+          const order = localStorage.getItem('ogs-fuse-shotDataPanel');
+          return order ? order.split('|') : [];
+        },
+        set: (sortable) => {
+          const order = sortable.toArray();
+          localStorage.setItem('ogs-fuse-shotDataPanel', order.join('|'));
+        }
+      }
+
+    });
+
   }
 }

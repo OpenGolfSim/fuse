@@ -81,6 +81,7 @@
 }
 
 .rangeFinder {
+  user-select: none;
   background-color: var(--bg-color);
   border-radius: var(--border-radius);
   /* width: 10vw; */
@@ -141,7 +142,6 @@
 .playerMenuScore {
   display: flex;
   font-weight: 700;
-  cursor: pointer;
   color: var(--text-color);
   align-items: center;
   justify-content: center;
@@ -162,7 +162,7 @@
   width: var(--medium-font-size);
   height: var(--medium-font-size);
   border-radius: 15%;
-  background-color: #921dff;
+  background-color: rgba(255, 255, 255, 0.2);
 }
 .playerMenuNameText {
   padding: var(--base-padding);
@@ -190,6 +190,7 @@
   font-size: var(--base-font-size);
   border-radius: var(--border-radius);
   overflow: hidden;
+  user-select: none;
 }
 .mapHeader {
   /* padding: 0.5vw; */
@@ -209,7 +210,6 @@
   font-size: var(--medium-font-size);
   cursor: pointer;
   font-weight: 700;
-  user-select: none;
 }
 .mapDistText,
 .mapParText {
@@ -302,6 +302,7 @@
   padding: var(--base-padding) 0;
   display: flex;
   flex-direction: column;
+  user-select: none;
   /* min-width: 10vw; */
 }
 
@@ -332,7 +333,14 @@
   color: var(--text-disabled);
 }
 
+.dropDownDisabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
 
+.clickableArea {
+  cursor: pointer;
+}
 .clickableArea:hover {
   background-color: var(--hover-bg-color);
 }

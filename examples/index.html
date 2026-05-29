@@ -6,6 +6,9 @@
       import '../src/css/base.css';
     </script>
     <style>
+      body {
+        overflow: auto !important;
+      }
       header {
         display: block;
         /* background-color: var(--bg-color-solid); */
@@ -14,39 +17,93 @@
       }
       main {
         display: block;
-        padding: 20px 40px;
+        padding: 4rem;
+      }
+      footer {
+        display: block;
+        text-align: center;
+        padding: 4rem;
+        color: var(--text-disabled);
+        font-size: 12px;
       }
       .container {
-        max-width: 500px;
+        max-width: 800px;
         margin: auto;
       }
       h3 {
-        font-weight: 800;
+        font-weight: 700;
         color: var(--text-disabled);
         border-bottom: 1px solid var(--bg-color);
         padding-bottom: 1rem;
+      }
+      .social {
+        text-align: center;
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-end;
+        gap: 1rem;
+        margin-bottom: 2rem;
+      }
+      .social a:hover img {
+        opacity: 1;
+      }
+      .social a:active img {
+        opacity: 0.4;
+      }
+      .social img {
+        opacity: 0.7;
+        width: 2rem;
+        height: auto;
+      }
+      .section {
+        margin-bottom: 3rem;
       }
     </style>
   </head>
   <body>
     <header>
+      <div class="social">
+        <a href="https://github.com/OpenGolfSim/fuse" target="_blank">
+          <img src="https://cdn.simpleicons.org/github/FFFFFF" width="50" />
+        </a>
+        <a href="https://help.opengolfsim.com/connect-with-us" target="_blank">
+          <img src="https://cdn.simpleicons.org/discord/FFFFFF" width="50" />
+        </a>
+      </div>
+
       <div class="container">
         <img src="images/fuse.png" style="width: 200px;" />
       </div>
     </header>
     <main>
       <div class="container">
+        <div class="section">
+          <p>
+            <a href="https://github.com/OpenGolfSim/fuse/">FUSE</a> (Fast Universal Simulator Engine) is <a href="https://opengolfsim.com">OpenGolfSim</a>'s free, lightweight 3D golf simulation and physics engine. 
+            It provides components and utilities for building fully featured golf simulator experiences in any WebGL-capable browser or device.
+          </p>
+        </div>
 
-        <h3>Examples</h3>
-        <ul>
-          <li>
-            <a href="range/">Driving Range</a>
-          </li>
-          <li>
-            <a href="courses/?courseUrl=https%3A%2F%2Fcoursedata.opengolfsim.com%2Fwebgl%2Fcourses%2Fmountain-vista%2Fv1%2Fmountain-vista-v1.1.glb">Mountain Vista 9-hole Course</a>
-          </li>
-        </ul>
+        <div class="section">
+          <h3>Examples</h3>
+          <ul>
+            <li>
+              <a href="range/">Driving Range</a>
+            </li>
+            <li>
+              <a href="courses/?courseUrl=https%3A%2F%2Fcoursedata.opengolfsim.com%2Fwebgl%2Fcourses%2Fmountain-vista%2Fv1%2Fmountain-vista-v1.1.glb">Mountain Vista 9-hole Course</a>
+            </li>
+          </ul>
+        </div>
+
+        <div class="section">
+          <h3>Documentation</h3>
+          <p style="color: #888">Coming soon!</p>
+        </div>
       </div>
     </main>
+    <footer>
+      &copy; 2026 <a href="https://opengolfsim.com">OpenGolfSim LLC</a> All Rights Reserved
+    </footer>
   </body>
 </html>
