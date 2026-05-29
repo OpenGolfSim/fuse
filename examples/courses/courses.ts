@@ -390,6 +390,7 @@ async function initializeDebug() {
   if (courseUrl) {
     preLoad();
   }
+  document.getElementById('debug-message')?.setAttribute('style', 'display: block;');
 }
 
 // listen for setup event from OpenGolfSim app

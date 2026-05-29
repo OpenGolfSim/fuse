@@ -330,6 +330,7 @@ async function initializeSetup(payload: any) {
 async function initializeDebug() {
   gameContext.setupData = generateSetupData(1);
   preLoad();
+  document.getElementById('debug-message')?.setAttribute('style', 'display: block;');
 }
 
 

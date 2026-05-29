@@ -97,31 +97,51 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
   }
 
   #handleTestShotKeys(code: string) {
+    console.log(code);
     switch (code) {
+      case 'Space':
+        const range = (min: number, max: number) => (Math.floor(Math.random() * (max - min + 1)) + min);
+        this.emit('testShot', {
+          ballSpeed: range(90, 120),
+          verticalLaunchAngle: range(14, 20),
+          horizontalLaunchAngle: range(-2, 2),
+          spinSpeed: range(2000, 6000),
+          spinAxis: range(2, 2),
+        });
+        break;
+      case 'Digit1':
       case 'Numpad1':
         this.emit('testShot', { ballSpeed: 150, verticalLaunchAngle: 11, horizontalLaunchAngle: 0, spinSpeed: 2000, spinAxis: 0 });
         break;
+      case 'Digit2':
       case 'Numpad2':
         this.emit('testShot', { ballSpeed: 120, verticalLaunchAngle: 15, horizontalLaunchAngle: 0, spinSpeed: 3200, spinAxis: 0 });
         break;
+      case 'Digit3':
       case 'Numpad3':
         this.emit('testShot', { ballSpeed: 100, verticalLaunchAngle: 22, horizontalLaunchAngle: 0, spinSpeed: 5000, spinAxis: 0 });
         break;
+      case 'Digit4':
       case 'Numpad4':
         this.emit('testShot', { ballSpeed: 80, verticalLaunchAngle: 25, horizontalLaunchAngle: 0, spinSpeed: 7500, spinAxis: 0 });
         break;
+      case 'Digit5':
       case 'Numpad5':
         this.emit('testShot', { ballSpeed: 60, verticalLaunchAngle: 28, horizontalLaunchAngle: 0, spinSpeed: 7000, spinAxis: 0 });
         break;
+      case 'Digit6': 
       case 'Numpad6':
         this.emit('testShot', { ballSpeed: 40, verticalLaunchAngle: 28, horizontalLaunchAngle: 0, spinSpeed: 6000, spinAxis: 0 });
         break;
+      case 'Digit7':
       case 'Numpad7':
         this.emit('testShot', { ballSpeed: 30, verticalLaunchAngle: 35, horizontalLaunchAngle: 0, spinSpeed: 6000, spinAxis: 0 });
         break;
+      case 'Digit8':
       case 'Numpad8':
         this.emit('testShot', { ballSpeed: 20, verticalLaunchAngle: 40, horizontalLaunchAngle: 0, spinSpeed: 4000, spinAxis: 0 });
         break;
+      case 'Digit9':
       case 'Numpad9':
         this.emit('testShot', { ballSpeed: 10, verticalLaunchAngle: 0, horizontalLaunchAngle: 1, spinSpeed: 0, spinAxis: 0 });
         break;

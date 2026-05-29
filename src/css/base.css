@@ -45,3 +45,15 @@ button:hover {
   }
 }
 
+
+#debug-message {
+  display: none;
+  background-color: var(--bg-color);
+  padding: var(--base-padding);
+  color: var(--text-disabled);
+  font-size: var(--base-padding);
+  position: fixed;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
