@@ -372,6 +372,15 @@ export class TreePlanter {
         // @ts-expect-error
         const instanced = new THREE.InstancedMesh(geo, child.material.clone(), count);
 
+        if (level === maxLevel) {
+          const mat = instanced.material as THREE.Material;
+          mat.alphaTest = 0;
+          mat.alphaToCoverage = true;
+          mat.transparent = false;
+          mat.depthWrite = true;
+          mat.side = THREE.DoubleSide;
+        }
+
         instanced.instanceMatrix.needsUpdate = true;
         instanced.castShadow = level !== maxLevel;
         instanced.receiveShadow = false;
