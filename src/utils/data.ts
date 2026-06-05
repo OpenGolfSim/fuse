@@ -1,3 +1,5 @@
+import { QualityMode } from "./constants";
+
 /**
  * Generates setup data for testing
  */
@@ -21,6 +23,7 @@ export function generateSetupData(playerCount: number = 1, override: Partial<Ope
     players,
     cameraOffset: 0,
     practiceMode: false,
+    qualityLevel: QualityMode.High,
     // puttingEnabled: false,
     // gimmesEnabled: true,
     // gimmeDistances: [10, 20],

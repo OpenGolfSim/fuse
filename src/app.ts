@@ -41,7 +41,7 @@ export class AppBridge extends EventEmitter<EventMap> {
     this.isReady = false;
 
     if (typeof window.ReactNativeWebView !== 'undefined') {
-      window.addEventListener('reactNativeMessage', this.#handleReactNativeMessage.bind(this));
+      window.addEventListener("message", this.#handleReactNativeMessage.bind(this));
     } else if (typeof window.ogsElectron !== 'undefined') {
       window.ogsElectron!.onMessage(this.#handleElectronMessage.bind(this));
     }
@@ -52,9 +52,14 @@ export class AppBridge extends EventEmitter<EventMap> {
     });
   }
 
-  #handleReactNativeMessage(event: CustomEvent<string>) {
-    const data = JSON.parse(event.detail);
-    this.#handleEvent(data);
+  #handleReactNativeMessage(event: MessageEvent<any>) {
+    try {
+      const data = JSON.parse(event.data);
+      this.#handleEvent(data);
+    } catch (error) {
+      console.log('Could not parse ReactNative message', error);
+      console.log(event);
+    }
   }
 
   #handleElectronMessage(data: any) {
@@ -95,7 +100,7 @@ export class AppBridge extends EventEmitter<EventMap> {
     } else if (payload.type === 'ready') {
       this.emit('ready');
     } else {
-      console.warn('No parent app to to send message!', payload);
+      console.warn('No parent to send message to!', payload);
       // TODO: use a cloud-based websocket here to sync for web play?
     }
   }

@@ -1,0 +1,155 @@
+:root {
+  --blue-color: #0a78c2;
+  --red-color: #db4534;
+  --bg-color: rgba(17, 28, 28, 0.9);
+}
+
+#scoreboard {
+  display: flex;
+  flex-direction: column;
+  gap: 1vh;
+  width: 10vw;
+  border-radius: 0.5vw;
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+.team-row {
+  text-align: center;
+}
+.team-name {
+  padding: 0.5vh;
+}
+.team-score {
+  font-size: 3vh;
+  font-weight: 800;
+  padding: 1vh;
+}
+#round {
+  text-align: center;
+  background-color: var(--bg-color);
+  padding: 1vh;
+  border-radius: 1vh;
+  font-size: 2vh;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+.team-row {
+  /* border: 4px solid transparent; */
+  border-radius: 1vh;
+}
+.team-row.active {
+  /* border-color: var(--bg-color); */
+}
+#team-red {
+  background-color: var(--red-color);
+}
+#team-blue {
+  background-color: var(--blue-color);
+}
+.input-group {
+  text-align: center;
+  padding: 10px;
+  font-size: 12px;
+  background-color: var(--bg-color);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+#top-center {
+  position: absolute;
+  top: 10px;
+  width: 10vw;
+  left: 50%;
+  margin-left: -5vw;
+  background-color: var(--bg-color);
+  border-radius: 1vh;
+  overflow: hidden;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  /* align-items: center;
+  justify-content: center; */
+  /* gap: 10px; */
+  /* padding: 10px; */
+}
+
+.distance-item {
+  padding: 1vh;
+  /* background-color: lime; */
+  flex-grow: 0;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.unit {
+  /* text-transform: uppercase; */
+  color: rgb(33, 212, 141);        
+  font-size: 10px;
+  font-weight: 800;
+}
+.digit {
+  color: #fff;
+  font-weight: 800;
+  font-size: 12px;
+}
+.item-label {
+  color: #aaa;
+  font-size: 10px;
+  letter-spacing: 2px;
+  font-weight: 500;
+  padding: 0 10px;
+}
+#current-team {
+  background-color: var(--blue-color);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  font-weight: 800;
+  padding: 1vh;
+  gap: 0.5rem;
+}
+#current-team.blue {
+  background-color: var(--blue-color);
+}
+#current-team.red {
+  background-color: var(--red-color);
+}
+#current-team-up {
+  text-transform: uppercase;
+}
+#current-team-bags {
+  gap: 10px;
+  text-align: center;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+}
+.team-bag {
+  width: 1.5vw;
+  height: 1.5vw;
+  line-height: 0;
+  background-color: #fff;
+  border-radius: 50%;
+  flex-grow: 0;
+  flex-shrink: 0;
+}
+
+.team-name {
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+@media (min-height: 500px) {
+  .unit {
+    font-size: 1.5vh;
+  }
+  .digit {
+    font-size: 3vh;
+  }
+}

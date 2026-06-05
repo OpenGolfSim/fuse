@@ -21,6 +21,7 @@ export default defineConfig({
         main: path.resolve(import.meta.dirname, 'examples/index.html'),
         range: path.resolve(import.meta.dirname, 'examples/range/index.html'),
         courses: path.resolve(import.meta.dirname, 'examples/courses/index.html'),
+        cornhole: path.resolve(import.meta.dirname, 'examples/cornhole/index.html'),
       },
     },
   },

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Cornhole</title>
+  </head>
+  <body>
+
+    <canvas id="canvas"></canvas>
+    
+    <div id="top-center">
+      <div class="distance-item">
+        <span class="digit" id="board-distance">0</span>
+        <span class="unit">yds</span>
+      </div>
+      <div id="current-team">
+        <div id="current-team-up">
+          BLUE IS UP
+        </div>
+        <div id="current-team-bags">
+          <div class="team-bag"></div>
+          <div class="team-bag"></div>
+          <div class="team-bag"></div>
+          <div class="team-bag"></div>
+        </div>
+      </div>
+    </div>
+    <div id="scoreboard">
+      <div id="round">Round 1</div>
+      <div class="team-row" id="team-blue">
+        <div class="team-name">Blue Team</div>
+        <div class="team-score" id="blue-team-score">0</div>
+      </div>
+      <div class="team-row" id="team-red">
+        <div class="team-name">Red Team</div>
+        <div class="team-score" id="red-team-score">0</div>
+      </div>
+    </div>
+    <script type="module" src="./cornhole.js"></script>
+  </body>
+</html>

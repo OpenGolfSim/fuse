@@ -13,9 +13,18 @@
       "description": "An easy but fun 9-hole course",
       "url": "courses/index.html",
       "gameMode": 2,
-      "courseUrl": "https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mountain-vista-v1.1.glb",
+
+      "courseUrl": "https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mtn-vista-v1.2.glb",
       "posterUrl": "https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mountain-vista-poster.jpg",
       "slug": "fuse_mtn_vista"
+    },
+    {
+      "title": "Corn Hole",
+      "description": "A beach themed cornhole game",
+      "url": "cornhole/index.html",
+      "gameMode": 1,
+      "posterUrl": "https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mountain-vista-poster.jpg",
+      "slug": "fuse_cornhole"
     }
   ]
 }

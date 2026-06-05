@@ -15,6 +15,7 @@ const AIM_CODES = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
 export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEvents> {
   #testShots: boolean;
   aimKeys: AimKeys;
+  #lastTap = 0;
 
   constructor(options = { testShots: false }) {
     super();
@@ -25,6 +26,27 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
     window.addEventListener('keyup',   this.#keyHandler.bind(this), true);
     // Reset aim state when the window loses focus (Cmd+Tab, etc.)
     window.addEventListener('blur', this.#resetAimKeys.bind(this));
+
+    document.addEventListener('touchend', this.#touchEnd.bind(this));
+
+  }
+
+  #touchEnd(event: TouchEvent) {
+    const currentTime = new Date().getTime();
+    const tapLength = currentTime - this.#lastTap;
+    // Check if the delay between taps matches a double tap (e.g., under 300ms)
+    if (tapLength < 300 && tapLength > 0) {
+      event.preventDefault(); // Prevents the default browser zoom behavior
+      const range = (min: number, max: number) => (Math.floor(Math.random() * (max - min + 1)) + min);
+      this.emit('testShot', {
+        ballSpeed: range(90, 120),
+        verticalLaunchAngle: range(14, 20),
+        horizontalLaunchAngle: range(-2, 2),
+        spinSpeed: range(2000, 6000),
+        spinAxis: range(2, 2),
+      });
+    }
+    this.#lastTap = currentTime;
   }
   
   #keyHandler(event: KeyboardEvent) {
@@ -53,7 +75,9 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
     }
 
     if (this.#testShots && pressed) {
-      handled = this.#handleTestShotKeys(event.code);
+      if (!event.metaKey && !event.ctrlKey && !event.altKey) {
+        handled = this.#handleTestShotKeys(event.code);
+      }
     }
 
     // handled = this.#handleAimKeys(event.code, pressed);

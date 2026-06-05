@@ -3,8 +3,8 @@ import { type World } from '@dimforge/rapier3d-compat';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import EventEmitter from 'eventemitter3';
 
-import { getTextureImageData } from '@/utils/image';
-import { TreePlanter } from '@/trees';
+import { getAverageTextureColor, getTextureImageData } from '@/utils/image';
+import { TreeGroup, TreePlanter } from '@/trees';
 import { TargetShaderMaterial } from '@/shaders/target';
 import { SandShaderMaterial } from '@/shaders/sand';
 import { GrassAssets, GrassShader } from '@/shaders/grass';
@@ -17,6 +17,10 @@ import { CourseSurfaceProperties, CourseSurfaces, isCourseSurfaceType } from '@/
 import perlinNoise from '@/images/perlinnoise.webp?url';
 import { isMeshObject } from '@/utils/mesh';
 import grassBladesModel from '@/models/grassBlades.glb?url';
+import golfCupModel from '@/models/golfCup.glb?url';
+import { QualityMode } from '@/utils/constants';
+
+
 
 export interface SceneSettings {
   sky?: {
@@ -51,6 +55,8 @@ export class MeshLoader extends EventEmitter<CourseLoaderEvents> {
     this.gltfLoader = new GLTFLoader(manager);
   }
   
+  async load(meshUri: string, firstMeshOnly?: false): Promise<THREE.Group>;
+  async load(meshUri: string, firstMeshOnly: true): Promise<THREE.Mesh | undefined>;
   async load(meshUri: string, firstMeshOnly = false): Promise<THREE.Mesh | THREE.Group | undefined> {
     const model = await this.gltfLoader.loadAsync(meshUri);
     if (!firstMeshOnly) {
@@ -72,10 +78,15 @@ interface LoadedCourseSurface extends CourseSurfaceProperties {
   ground: GroundPhysics,
 }
 
+type CourseLoaderOptions = {
+  manager?: THREE.LoadingManager,
+  setupData: Partial<OpenGolfSim.SetupData>
+}
+
 export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   world: World;
   rapier: RapierInstance;
-  gltfLoader: GLTFLoader;
+  meshLoader: MeshLoader;
   holes: Map<string, any>;
   waterSurfaces: Map<string, any>;
   surfaces: Map<string, LoadedCourseSurface>;
@@ -85,6 +96,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   
   gltf?: GLTF;
   scene?: THREE.Group;
+  golfCup?: THREE.Mesh;
   sceneSettings?: SceneSettings;
   grassAssets?: GrassAssets;
   planter?: TreePlanter;
@@ -94,12 +106,16 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   #direction: THREE.Vector3;
   setupData?: Partial<OpenGolfSim.SetupData>;
 
-  constructor(world: World, rapier: RapierInstance, setupData: OpenGolfSim.SetupData | undefined, manager?: THREE.LoadingManager) {
+  constructor(
+    world: World,
+    rapier: RapierInstance,
+    options: CourseLoaderOptions
+  ) {
     super();
     this.world = world;
     this.rapier = rapier;
-    this.gltfLoader = new GLTFLoader(manager);
-    this.setupData = setupData || {};
+    this.meshLoader = new MeshLoader(options.manager);
+    this.setupData = options.setupData || {};
 
     this.holes = new Map();
     this.waterSurfaces = new Map();
@@ -115,9 +131,12 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   }
 
   async load(coursePath: string) {
-    this.gltf = await this.gltfLoader.loadAsync(coursePath);
+    this.gltf = await this.meshLoader.gltfLoader.loadAsync(coursePath);
     this.scene = this.gltf.scene;
     this.sceneSettings = this.gltf.userData?.sceneSettings || {};
+
+    this.golfCup = await this.meshLoader.load(golfCupModel, true);
+    console.log('this.golfCup', this.golfCup);
 
     // load the model + textures once during init
     this.grassAssets = await GrassShader.loadAssets({
@@ -156,6 +175,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     this.waterSurfaces.forEach(water => water.update(dt));
     this.grasses.forEach(grass => grass.update(dt, camera));
     this.greenGrids.forEach(grid => grid.update(camera));
+    this.planter?.update(camera);
   }
 
   _addCourseColliders() {
@@ -207,6 +227,10 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         } else if (surfaceType === 'rough') {
           // const grass = new GrassSystem(child, this.grassTex);
           // this.scene.add(grass);
+          // console.log('averageColor-child.material', child.material);
+          // console.log('averageColor', averageColor.base.getHexString());
+          // const averageColor = getAverageTextureColor(child.material);
+
           const grass = new GrassShader(child, this.grassAssets!, {
             density: 18,
             renderDistance: 25,
@@ -214,12 +238,13 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
             lean: 0.01,
             heightVariation: 0.05,
             maxNewCellsPerFrame: 10,
-            scaleXZ: 0.9,
+            scaleXZ: 0.8,
             scaleY: 0.75,
             layer: 2,
-            baseColor: '#364d1e',
-            tipColor1: '#6f9b34',
-            tipColor2: '#6d9633',
+
+            baseColor: new THREE.Color('#3a4a13'),
+            tipColor1: new THREE.Color('#668a34'),
+            tipColor2: new THREE.Color('#ffffff'),
           });
           this.scene.add(grass.mesh);
           this.grasses.set(child.uuid, grass);
@@ -238,7 +263,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
             scaleXZ: 1.2,
             scaleY: 2,
             baseColor: '#395220',   // match your terrain's green
-            tipColor1: '#7da14d',
+            tipColor1: '#65792d',
             tipColor2: '#59792d',
           });
           this.scene.add(grass.mesh);
@@ -268,19 +293,21 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     return [...this.surfaces.values()].map(surface => surface.mesh).filter(Boolean);
   }
 
-  _loadTree(tree: THREE.Object3D) {
-    const treeGroup = new THREE.Group();
-    tree.scale.set(1, 1, 1);
-    tree.updateMatrixWorld(true);
-    tree.traverse((child) => {
-      if (child instanceof THREE.Mesh && child.isMesh) {
-        const mesh = child.clone();
-        child.matrixWorld.decompose(mesh.position, mesh.quaternion, mesh.scale);
-        treeGroup.add(mesh);
-      }
-    });
-    return treeGroup;
-  }
+  // _loadTree(tree: THREE.Object3D) {
+  //   const treeGroup = new THREE.Group();
+  //   tree.scale.set(1, 1, 1);
+  //   tree.updateMatrixWorld(true);
+  //   console.log('loading tree', tree.name);
+  //   tree.traverse((child) => {
+  //     console.log('loading tree-child', child.name);
+  //     if (child instanceof THREE.Mesh && child.isMesh) {
+  //       const mesh = child.clone();
+  //       child.matrixWorld.decompose(mesh.position, mesh.quaternion, mesh.scale);
+  //       treeGroup.add(mesh);
+  //     }
+  //   });
+  //   return treeGroup;
+  // }
 
   async _addTrees() {
     if (!this.scene) {
@@ -290,26 +317,57 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       throw new Error('Course file not loaded');
     }
     
+
+    const parser = this.gltf.parser;
+    const treeMasks = (parser.json?.images || []).filter(
+      (img: any) => img.extras?.type === 'tree_mask'
+      //  || img.extras?.id?.startsWith('tree-')
+    ) as TreeImage[];
+
+    const treeBillboards = (parser.json?.images || []).filter(
+      (img: any) => img.extras?.type === 'tree_billboard'
+      //  || img.extras?.id?.startsWith('tree-')
+    ) as TreeImage[];
+
     this.planter = new TreePlanter({
       scene: this.scene,
       worldSize: 1000,
+      qualityLevel: this.setupData?.qualityLevel,
+      // groundMeshes: this.getGroundMeshes(),
       world: this.world,
-      rapier: this.rapier,
-      // groundMeshes: 
+      rapier: this.rapier
     });
-    const treeConfigs: Record<string, any> = {};
+
+    const treeConfigs: Record<string, TreeGroup[]> = {};
     this.scene.traverse((child) => {
-      if (child.name.startsWith('TREE_')) {
+      // console.log('child.userData.type', child.userData.type);
+      if (child.userData?.type === 'tree_template') {
         const layerId = child.userData?.treeLayerId;
-        const group = this._loadTree(child);
-        const config = {
+        // console.log('child.userData.type', child.children);
+        const group = TreePlanter.loadTree(child);
+        console.log('Loaded', group);
+
+        let lodDistances = [80, 120];
+        if (this.setupData?.qualityLevel === QualityMode.Medium) {
+          lodDistances = [120, 250];
+        } else if (this.setupData?.qualityLevel === QualityMode.High) {
+          lodDistances = [200, 450];
+        }
+
+        const config: TreeGroup = {
           collider: {
             radius: 0.3,
-            height: 2.0
+            height: 2.0,
           }, // base collider, can be customized
+          scaleRange: { min: 1, max: 1 },
+          density: 1,
+          minDistance: 3,
+          lodDistances,
+          colors: [],
           meshGroup: group,
-          ...child.userData,
+          ...child.userData
         };
+        console.log('configure tree', config);
         if (!treeConfigs?.[layerId]) {
           treeConfigs[layerId] = [config];
         } else {
@@ -318,20 +376,17 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       }
     });
 
-    const parser = this.gltf.parser;
-    const treeImages = parser.json.images.filter(
-      (img: any) => img.extras?.type === 'tree_mask' || img.extras?.id?.startsWith('tree-')
-    );
 
-    for (const treeImage of treeImages) {
-      if (!treeImage.extras?.id) {
+    for (const treeMask of treeMasks) {
+      if (!treeMask.extras?.id) {
         continue;
       }
-      const treeMeshes = treeConfigs?.[treeImage.extras.id];
-      if (treeMeshes?.length && treeImage.bufferView) {
-        const buffer = await this.gltf.parser.getDependency('bufferView', treeImage.bufferView);
+      const configs = treeConfigs?.[treeMask.extras.id];
+
+      if (configs?.length && treeMask.bufferView) {
+        const buffer = await this.gltf.parser.getDependency('bufferView', treeMask.bufferView);
         const maskData = await getTextureImageData(buffer);
-        this.planter.plantFromMask(treeMeshes, maskData);
+        this.planter.plantFromMask(configs, maskData);
       }
     }
 
@@ -447,9 +502,11 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   
   _setupGreen(hit: THREE.Intersection, position: THREE.Vector3, holeNumber: number) {
     if (!this.scene) throw new Error('Scene missing');
-    const flag = new FlagStick(position, holeNumber);
+
+    const flag = new FlagStick(position, holeNumber, this.golfCup);
     const target = new TargetShaderMaterial(hit.object, position);
     this.scene.add(flag.object);
+    // this.golfCup
     return { object: hit.object, flag, target };
   }
 }

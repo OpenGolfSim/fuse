@@ -75,7 +75,6 @@ export class AimPoint {
     //// only works for "normal" weight
     // await document.fonts.load('12px bold Rubik');
     await document.fonts.load('bold 16px "Rubik"');
-    console.log('FONT LOADED');
     // const myFont = new FontFace('Rubik_Bold', `url(${fontUrl})`);
     // const loadedFont = await myFont.load();
     // console.log('FONTS READY', loadedFont);
@@ -151,7 +150,7 @@ export class AimPoint {
     // this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.fillStyle = 'white';
     this.ctx.font = this.#fontStyle(fontSize);
-    console.log('this.ctx.font', this.ctx.font);
+
     this.ctx.textBaseline = 'middle';
     this.ctx.textAlign = 'center';
     this.ctx.fillText(
@@ -213,6 +212,12 @@ export class AimPoint {
     const fadeStart = this.fadeDistance[0];
     const fadeEnd = this.fadeDistance[1];
     const opacity = THREE.MathUtils.clamp((cameraDistance - fadeEnd) / (fadeStart - fadeEnd), 0, 1);
+    if (opacity < 0.001) {
+      this.object.visible = false;
+    } else {
+      this.object.visible = true;
+    }
+
     //@ts-expect-error
     this.point.material.opacity = this.opacity * opacity;
     //@ts-expect-error

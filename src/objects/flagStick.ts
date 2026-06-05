@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 
+
 // Simple Verlet particle
 class FlagParticle {
   position: THREE.Vector3;
@@ -82,11 +83,12 @@ export class FlagStick {
   #tmpForce: THREE.Vector3;
   #restPositions: THREE.TypedArray;
 
-  constructor(position: THREE.Vector3, holeNumber: number) {
+  constructor(position: THREE.Vector3, holeNumber: number, golfCup?: THREE.Mesh) {
     this.object = new THREE.Group();
     this.holeNumber = holeNumber;
 
     const stickHeight = 2.13;
+    const stickWidth = 0.01;
     const flagWidth = 0.45;
     const flagHeight = 0.3;
     const segsX = 15;
@@ -154,7 +156,7 @@ export class FlagStick {
     this.#restPositions = flagGeometry.attributes.position.array.slice();
 
     // Pole mesh
-    const stickGeometry = new THREE.CylinderGeometry(0.02, 0.02, stickHeight, 32);
+    const stickGeometry = new THREE.CylinderGeometry(stickWidth, stickWidth, stickHeight, 32);
     const stickMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
     this.stick = new THREE.Mesh(stickGeometry, stickMaterial);
     this.stick.position.set(0, stickHeight / 2, 0);
@@ -164,6 +166,24 @@ export class FlagStick {
     this.object.add(this.stick);
     this.object.position.copy(position);
     this.object.name = `FlagStick${this.holeNumber}`
+
+    if (golfCup) {
+      console.log('----- ADD GOLF CUP!');
+      const cupCopy = golfCup.clone();
+      const mat = new THREE.MeshStandardMaterial({
+        // color: new THREE.Color('#ffffff'),
+        color: new THREE.Color('#dddddd'),
+        metalness: 0,
+        roughness: 0
+      });
+      cupCopy.material = mat;
+      cupCopy.scale.set(0.108, 0.108, 0.108);
+      cupCopy.position.set(0, -(stickHeight / 2) + 0.07, 0);
+      // cupCopy.position.copy(position);
+      cupCopy.position.y += 1;
+      this.object.add(cupCopy);
+    }
+
   }
 
   update(dt: number) {

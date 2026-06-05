@@ -74,11 +74,30 @@ namespace OpenGolfSim {
     elevation?: number;
     units?: MeasurementUnits;
     cameraOffset?: number;
+    qualityLevel?: number;
   }
 
   type GameData = {
     id: string;
     gameMode: number;
     courseUrl?: string;
+  }
+}
+
+type TreeImage = {
+  bufferView: number;
+  name?: string,
+  mimeType?: string,
+  extras?: {
+    type?: 'tree_mask' | 'tree_billboard',
+    id?: string,
+    treeLayerId?: string,
+    configId?: string,
+    size?: {
+      depth?: number,
+      height?: number,
+      maxDim?: number,
+      width?: number
+    }
   }
 }

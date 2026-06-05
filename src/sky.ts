@@ -79,6 +79,7 @@ export class VolumetricClouds {
         fogColor: { value: fogColor },
       },
       vertexShader: `
+        precision highp float;
         varying vec3 vWorldPosition;
         varying vec3 vLocalPosition;
         void main() {
@@ -90,6 +91,7 @@ export class VolumetricClouds {
         }
       `,
       fragmentShader: `
+        precision highp float;
         uniform float time;
         uniform float densityThreshold;
         uniform float opacity;
@@ -102,8 +104,9 @@ export class VolumetricClouds {
         varying vec3 vLocalPosition;
 
         float hash(vec3 p) {
-          p = fract(p * vec3(443.897, 441.423, 437.195));
-          p += dot(p, p.yxz + 19.19);
+          p = mod(p, 289.0);
+          p = fract(p * vec3(5.3987, 5.4421, 6.9371));
+          p += dot(p, p.yxz + 21.5351);
           return fract((p.x + p.y) * p.z);
         }
 
@@ -124,7 +127,7 @@ export class VolumetricClouds {
           float value = 0.0;
           float amplitude = 0.5;
           float frequency = 1.0;
-          for (int i = 0; i < 6; i++) {
+          for (int i = 0; i < 4; i++) {
             value += amplitude * smoothNoise(p * frequency);
             amplitude *= 0.5;
             frequency *= 2.0;

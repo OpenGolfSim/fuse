@@ -29,6 +29,7 @@ export class TargetShaderMaterial {
     // Store uniform refs so we can update them later
     this.customUniforms = {
       holePos:       { value: new THREE.Vector3(holeWorldPos.x, 0, holeWorldPos.z) },
+      holeRadius:    { value: 0.054 },   // 108mm diameter
       ringRadii:     { value: new THREE.Vector3(inner, middle, outer) },
       ringWidth:     { value: ringWidth },
       ringActive:    { value: new THREE.Vector3(0, 0, 0) },
@@ -37,8 +38,11 @@ export class TargetShaderMaterial {
     };
     // Clone the existing GLTF material so we keep all its properties
     if (object instanceof THREE.Mesh) {
-      const mat = object.material.clone();
+      const mat = object.material.clone() as THREE.MeshStandardMaterial;
 
+      mat.alphaToCoverage = true;
+      // mat.transparent = true;
+      mat.customProgramCacheKey = () => 'green-hole-rings-v1';
       mat.onBeforeCompile = (shader: THREE.WebGLProgramParametersWithUniforms) => {
         // Inject our uniforms into the shader program
         Object.assign(shader.uniforms, this.customUniforms);
@@ -71,6 +75,7 @@ export class TargetShaderMaterial {
             uniform vec3 ringActive;
             uniform vec4 activeColor;
             uniform vec4 inactiveColor;
+            uniform float holeRadius;
 
             float ringOutline(float dist, float radius, float width) {
               float hw = width * 0.5;
@@ -95,8 +100,15 @@ export class TargetShaderMaterial {
           '#include <map_fragment>',
           /* glsl */ `
             #include <map_fragment>
-
+            
             float dist = distance(vWorldPos.xz, holePos.xz);
+            // knock out hole
+            // if (dist < holeRadius) discard;
+            // diffuseColor.a *= smoothstep(holeRadius, holeRadius + fwidth(dist), dist);
+            float g = length(vec2(dFdx(dist), dFdy(dist))); // screen-space gradient of dist
+            g = clamp(g, 0.0008, 0.02);                      // floor stops sub-pixel shimmer; ceil stops over-blur
+            float holeMask = smoothstep(holeRadius - g, holeRadius + g, dist);
+            diffuseColor.a *= holeMask;                       // 0 inside the hole, 1 outside
 
             // --- Ring 1 (inner: 0 → ringRadii.x) ---
             float outline1 = ringOutline(dist, ringRadii.x, ringWidth);

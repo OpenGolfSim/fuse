@@ -4,6 +4,30 @@
     <title>OpenGolfSim FUSE (Fast Universal Simulator Engine)</title>
     <script type="module">
       import '../src/css/base.css';
+
+      document.addEventListener('DOMContentLoaded', async () => {
+        const res = await fetch('./games.json');
+        // mtn-vista-v1.2.glb
+        const examples = await res.json();
+        console.log('examples', examples);
+        const dev = document.querySelector('#game-list');
+        if (examples?.games?.length && dev) {
+          const games = document.createElement('ul');
+          examples.games.forEach(game => {
+            const gameItem = document.createElement('li');
+            const gameItemLink = document.createElement('a');
+            let uri = game.url;
+            if (game.courseUrl) {
+              uri += '?' + new URLSearchParams({ courseUrl: game.courseUrl});
+            }
+            gameItemLink.setAttribute('href', uri);
+            gameItemLink.textContent = game.title;
+            gameItem.append(gameItemLink);
+            games.append(gameItem);
+          });
+          dev.append(games);
+        }
+      });
     </script>
     <style>
       body {
@@ -87,14 +111,20 @@
         <div class="section">
           <h3>Examples</h3>
           <p style="padding: 1rem; background-color: rgba(0, 200, 0, 0.2);">To use the examples: Press any number key (1-9) or the space bar to take a shot.</p>
-          <ul>
+          
+          <div id="game-list"></div>
+
+          <!-- <ul>
             <li>
-              <a href="range/">Driving Range</a>
+              <a href="./range/">Driving Range</a>
             </li>
             <li>
-              <a href="courses/?courseUrl=https%3A%2F%2Fcoursedata.opengolfsim.com%2Fwebgl%2Fcourses%2Fmountain-vista%2Fv1%2Fmountain-vista-v1.1.glb">Mountain Vista 9-hole Course</a>
+              <a href="./courses/?courseUrl=https%3A%2F%2Fcoursedata.opengolfsim.com%2Fwebgl%2Fcourses%2Fmountain-vista%2Fv1%2Fmountain-vista-v1.1.glb">Mountain Vista 9-hole Course</a>
             </li>
-          </ul>
+            <li>
+              <a href="./cornhole/">CornHole</a>
+            </li>
+          </ul> -->
         </div>
 
         <div class="section">

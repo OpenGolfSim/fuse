@@ -188,9 +188,9 @@ function createBladeMaterial(noiseTexture: GrassAssets['noiseTexture'], opts: Gr
       if (vDistanceFade < 0.01) discard;
 
       vec4 grassVariation = texture2D(uNoiseTexture, vGlobalUV * uNoiseScale);
-      vec3 tipColor = mix(uTipColor1, uTipColor2, grassVariation.r);
+      // vec3 tipColor = mix(uTipColor1, uTipColor2, grassVariation.r);
 
-      diffuseColor.rgb = mix(uBaseColor, tipColor, 1.0 - vBladeUV.y) * uGrassLightIntensity;
+      diffuseColor.rgb = mix(uBaseColor, uTipColor1, 1.0 - vBladeUV.y) * uGrassLightIntensity;
       diffuseColor.a = vDistanceFade;
       `,
     );

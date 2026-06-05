@@ -250,6 +250,7 @@ async function setupRange() {
   if (!gameContext.renderer) throw new Error('Renderer should exist before creating camera');
   if (!gameContext.ground) throw new Error('Ground physics should exist before creating camera');
   gameContext.camera = new ShotPerspectiveCamera(gameContext.renderer, gameContext.ground, {
+    far: 900,
     cameraOffsetX: gameContext.setupData?.cameraOffset ? -(gameContext.setupData.cameraOffset / 100) : 0
   });
 
@@ -407,10 +408,17 @@ function animate(animDelta: number) {
 
   
   if (gameContext.scene && gameContext.golfBall) {
-
-    const aimChanged = gameContext.camera?.update(delta, gameContext.golfBall, gameContext.startPoint, gameContext.aimPoint);
-    if (aimChanged) {
-      updateAimPoint();
+    if (gameContext.golfBall.isShotActive && gameContext.golfBall.object) {
+      gameContext.camera?.track(delta, gameContext.startPoint, gameContext.golfBall.object.position);
+    } else {
+      const aimChanged = gameContext.camera?.update(
+        delta,
+        gameContext.startPoint,
+        gameContext.aimPoint
+      );
+      if (aimChanged) {
+        updateAimPoint();
+      }
     }
     gameContext.camera?.render(gameContext.scene, gameContext.fog);
 

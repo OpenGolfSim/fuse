@@ -1,3 +1,4 @@
+import { QualityMode } from '@/utils/constants';
 import { type World } from '@dimforge/rapier3d-compat';
 import {
   THREE,
@@ -17,14 +18,13 @@ import {
   UILoadingScreen,
   VolumetricClouds,
   generateSetupData,
-  CoursePlayer,
  } from '@opengolfsim/fuse';
 
 
 const gameContext: {
   startPoint: THREE.Vector3,
   aimPoint: THREE.Vector3,
-  
+  qualityLevel: QualityMode,
   // Environment
   timer: THREE.Timer,
   world?: World;
@@ -61,14 +61,15 @@ const gameContext: {
   timer: new THREE.Timer(),
   startPoint: new THREE.Vector3(0, 0, 0),
   aimPoint: new THREE.Vector3(0, 0, 0),
+  qualityLevel: QualityMode.Medium,
   distanceToAim: 0,
   heightToAim: 0
 };
 
 const defaultSkyColor = 'rgb(192, 215, 241)';
-const defaultFogColor = new THREE.Color('rgb(255, 247, 224)');
+const defaultFogColor = new THREE.Color('#fff7e0');
 const defaultCloudColor = new THREE.Color('rgb(255, 255, 255)');
-const lightColor = new THREE.Color('rgb(255, 247, 224)');
+// const lightColor = new THREE.Color('rgb(255, 247, 224)');
 
 
 function launchShot(shot: OpenGolfSim.Shot) {
@@ -106,11 +107,23 @@ function setupNextShot() {
 function setupRenderer() {
   const canvas = document.getElementById('canvas');
   if (!canvas) throw new Error('Unable to find canvas in HTML. Make sure you create a root canvas element (e.g. <canvas id="canvas"></canvas>)');
+  
+  THREE.ColorManagement.enabled = true;
+
   gameContext.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
-  gameContext.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
+  console.log('window.devicePixelRatio', Math.min(window.devicePixelRatio, 1));
+  
+  let maxPixelRatio = 1;
+  if (gameContext.qualityLevel >= QualityMode.High) {
+    maxPixelRatio = 2;
+  }
+  gameContext.renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxPixelRatio));
   gameContext.renderer.shadowMap.enabled = true;
   gameContext.renderer.shadowMap.type = THREE.PCFShadowMap;
+  gameContext.renderer.toneMapping = THREE.ACESFilmicToneMapping; // or whatever you pick
+  gameContext.renderer.toneMappingExposure = 1.0;
+
 }
 
 async function setupScene() {
@@ -129,7 +142,7 @@ async function setupScene() {
   gameContext.fog = new THREE.Fog(fogColor, 100, 800);
   gameContext.scene.fog = gameContext.fog;
 
-  gameContext.lightGroup = new CourseLight(lightColor);
+  gameContext.lightGroup = new CourseLight();
   gameContext.scene.add(gameContext.lightGroup);
 
   // Main Camera
@@ -249,7 +262,14 @@ async function setupCourse() {
   setupRenderer();
   
   // load course details and meshes
-  gameContext.course = new CourseLoader(app.world, app.rapier, gameContext.setupData, gameContext.loadingScreen?.manager);
+  gameContext.course = new CourseLoader(
+    app.world,
+    app.rapier,
+    {
+      setupData: gameContext.setupData,
+      manager: gameContext.loadingScreen?.manager
+    }
+  );
 
   await gameContext.course.load(gameContext.gameData.courseUrl);
   
@@ -309,16 +329,25 @@ async function setupCourse() {
  * Sets up loading screen and kicks off loading of the course and building the scene
  */
 function preLoad() {
+  // if (typeof gameContext.setupData?.qualityLevel !== 'undefined') {
+  //   gameContext.qualityLevel = gameContext.setupData?.qualityLevel;
+  // }
+  // allow override with query param
+  const qualityParam = (new URLSearchParams(window.location.search)).get('quality');
+  if (gameContext.setupData && qualityParam) {
+    gameContext.setupData.qualityLevel = parseInt(qualityParam, 10);
+  }
+
+  console.log('[debug] Setup Data', gameContext.setupData);
   gameContext.loadingScreen = new UILoadingScreen(document.body, { loadingPrefix: 'Loading Course' });
   gameContext.loadingScreen.on('load', (error) => {
-    console.log('POST LOAD', error);
+    gameContext.stats = new UIStats('#render-stats', { hidden: false, renderer: gameContext.renderer }); // start hidden (press S to toggle)
     if (!error) {
       requestAnimationFrame(animate);
     }
   });
   gameContext.loadingScreen.load(setupCourse);
   
-  gameContext.stats = new UIStats('#render-stats', { hidden: true }); // start hidden (press S to toggle)
   gameContext.timer.connect(document);  
 }
 
@@ -328,7 +357,7 @@ function animate(animDelta: number) {
 
   gameContext.stats?.begin();
   const delta = gameContext.timer.getDelta();
-
+  
   if (gameContext.golfBall) {
     gameContext.golfBall.update(delta);
   }
@@ -358,13 +387,17 @@ function animate(animDelta: number) {
     gameContext.shotData?.updateShotResult(gameContext.golfBall.stats);
     
     if (gameContext.scene) {
-      const aimChanged = gameContext.camera?.update(delta, gameContext.golfBall, gameContext.startPoint, gameContext.aimPoint);
-      if (aimChanged) {
-        aimPointUpdated();
+      if (gameContext.golfBall.isShotActive && gameContext.golfBall.object) {
+        gameContext.camera?.track(delta, gameContext.startPoint, gameContext.golfBall.object.position);
+      } else {
+        const aimChanged = gameContext.camera?.update(delta, gameContext.startPoint, gameContext.aimPoint);
+        if (aimChanged) {
+          aimPointUpdated();
+        }
       }
       gameContext.camera?.render(gameContext.scene, gameContext.fog);
     }
-  }  
+  }
 
   gameContext.visualAimPoint?.update(
     gameContext.aimPoint,

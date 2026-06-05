@@ -1,7 +1,9 @@
+import { type WebGLRenderer } from 'three';
 import styles from '@/css/ui.module.css';
 
 type UIStatsOptions = {
   hidden?: boolean;
+  renderer?: WebGLRenderer;
 }
 
 export class UIStatsPanel {
@@ -116,6 +118,8 @@ export class UIStats {
   mode = 0;
   msPanel: UIStatsPanel;
   fpsPanel: UIStatsPanel;
+  drawCallsPanel: UIStatsPanel;
+  renderer?: WebGLRenderer;
   #beginTime = 0;
   #prevTime = 0;
   #frames = 0;
@@ -130,6 +134,7 @@ export class UIStats {
       throw new Error('Unable to find UIRangeFinder root element');
     }    
     this.element.className = styles.uiStats;
+    this.renderer = options.renderer;
 
     this.container = document.createElement('div');
     // this.container.style.cssText = 'position:fixed;top:0;left:0;cursor:pointer;opacity:0.9;z-index:10000';
@@ -158,6 +163,8 @@ export class UIStats {
     this.container.append(this.fpsPanel.dom);
     this.msPanel = new UIStatsPanel( 'MS', 'rgb(255, 8, 0)', 'rgb(34, 11, 0)' );
     this.container.append(this.msPanel.dom);
+    this.drawCallsPanel = new UIStatsPanel( 'DRAWS', 'rgb(98, 0, 255)', 'rgb(34, 0, 50)' );
+    this.container.append(this.drawCallsPanel.dom);
     this.showPanel(0);
   }
   toggle() {
@@ -190,6 +197,10 @@ export class UIStats {
 
     }
 
+    if (this.renderer) {
+      this.drawCallsPanel.update(this.renderer.info.render.calls || 0, 100);
+    }
+
     return time;
     // return this.stats.end();
   }
@@ -204,7 +215,7 @@ export class UIStats {
   }
   
 	showPanel(id: number) {
-		const panels = [this.fpsPanel, this.msPanel];
+		const panels = [this.fpsPanel, this.msPanel, this.drawCallsPanel];
     for ( var i = 0; i < panels.length; i ++ ) {
 			panels[i].dom.style.display = i === id ? 'block' : 'none';
 		}

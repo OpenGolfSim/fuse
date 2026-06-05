@@ -37,6 +37,10 @@ export class UICourseMap extends EventEmitter {
   width: number;
   height: number;
 
+  #frameCount = 0;
+  #renderInterval = 6; // render every 6th frame
+
+
   constructor(options: UICourseMapOptions = {}) {
     super();
     // this.width = width;
@@ -99,6 +103,7 @@ export class UICourseMap extends EventEmitter {
     document.body.append(this.container);
 
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
+    this.renderer.setPixelRatio(0.5);
     // this.renderer.setSize(this.width, this.height);
 
     this._handleResize();
@@ -157,6 +162,9 @@ export class UICourseMap extends EventEmitter {
   }
 
   render(scene: THREE.Scene, currentHole: Hole, currentPositions: { ball?: THREE.Vector3, aim?: THREE.Vector3 } = {}) {
+    this.#frameCount++;
+    if (this.#frameCount % this.#renderInterval !== 0) return;
+
     scene.fog = null;
     this.renderer.render(scene, this.camera);
 
@@ -271,13 +279,17 @@ export class UICourseMap extends EventEmitter {
 
     // Center camera between tee and hole
     const mid = new THREE.Vector3().addVectors(startPoint, endPoint).multiplyScalar(0.5);
+    
     this.camera.position.set(mid.x, 200, mid.z);
 
     // Rotate so tee→hole runs bottom-to-top on screen
     const dir = new THREE.Vector3().subVectors(endPoint, startPoint);
     dir.y = 0;
-    const dist = dir.length();
+    let dist = dir.length();
     dir.normalize();
+    if (dist < 20) {
+      dist = 20;
+    }
 
     this.camera.up.set(dir.x, 0, dir.z);
     this.camera.lookAt(mid.x, 0, mid.z);
