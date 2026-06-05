@@ -224,7 +224,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
           child.material = new FlatGrassShaderMaterial(child.material, {
             blendNoiseScale: 0.1,
           });
-        } else if (surfaceType === 'rough') {
+        } else if (this.setupData?.qualityLevel !== QualityMode.Low && surfaceType === 'rough') {
           // const grass = new GrassSystem(child, this.grassTex);
           // this.scene.add(grass);
           // console.log('averageColor-child.material', child.material);
@@ -249,7 +249,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
           this.scene.add(grass.mesh);
           this.grasses.set(child.uuid, grass);
 
-        } else if (['deep_rough', 'base'].includes(surfaceType)) {
+        } else if (this.setupData?.qualityLevel !== QualityMode.Low && ['deep_rough', 'base'].includes(surfaceType)) {
           // const grass = new GrassSystem(child, this.grassTex);
           // this.scene.add(grass);
           const grass = new GrassShader(child, this.grassAssets!, {

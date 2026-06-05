@@ -1,5 +1,31 @@
 import { QualityMode } from "./constants";
 
+function getDeviceType() {
+  const ua = navigator.userAgent;
+
+  // 1. Check modern User-Agent Client Hints API (Chromium-based browsers)
+  // @ts-expect-error
+  if (navigator.userAgentData) {
+    // @ts-expect-error
+    return navigator.userAgentData.mobile ? 'mobile' : 'desktop';
+  }
+
+  // 2. Check for Mobile keywords in the legacy User-Agent string
+  if (/Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)) {
+    return 'mobile';
+  }
+
+  // 3. Handle modern iPads/tablets pretending to be Desktops (Touch + no 'Mobi')
+  // iPads running desktop Safari support multi-touch points but lack "Mobi" in UA.
+  if (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua)) {
+    return 'mobile'; // Handled as tablet/mobile
+  }
+
+  // 4. Default fallback to Desktop
+  return 'desktop';
+}
+
+
 /**
  * Generates setup data for testing
  */
@@ -18,12 +44,19 @@ export function generateSetupData(playerCount: number = 1, override: Partial<Ope
       clubs: [...clubs]
     });
   }
+
+  let qualityLevel = QualityMode.Low;
+  console.log('DEVICE', getDeviceType());
+  if (getDeviceType() === 'desktop') {
+    qualityLevel = QualityMode.Medium;
+  }
+
   return {
     units: 'imperial',
     players,
     cameraOffset: 0,
     practiceMode: false,
-    qualityLevel: QualityMode.High,
+    qualityLevel,
     // puttingEnabled: false,
     // gimmesEnabled: true,
     // gimmeDistances: [10, 20],
