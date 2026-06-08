@@ -7,6 +7,8 @@ import { colors } from '@/utils/colors';
 import { UIDropDownMenu } from '@/ui/UIDropDownMenu';
 
 type UICourseMapOptions = {
+  map: ImageBitmap;
+  worldSize: number;
   mapWidthPercent?: number;
   units?: OpenGolfSim.MeasurementUnits;
   holes?: Map<string, Hole>;
@@ -18,8 +20,9 @@ interface UICourseMapsEvents {
 
 export class UICourseMap extends EventEmitter {
   mapWidthPercent: number;
-  camera: THREE.OrthographicCamera;
-  renderer: THREE.WebGLRenderer;
+  // camera: THREE.OrthographicCamera;
+  // renderer: THREE.WebGLRenderer;
+  view: { cx: number; cz: number; halfW: number; halfH: number; angle: number };
   container: HTMLElement;
   canvasContainer: HTMLElement;
   header: HTMLElement;
@@ -36,38 +39,39 @@ export class UICourseMap extends EventEmitter {
   aspect: number;
   width: number;
   height: number;
+  mapImage: ImageBitmap;
+  worldSize: number;
 
   #frameCount = 0;
   #renderInterval = 6; // render every 6th frame
 
 
-  constructor(options: UICourseMapOptions = {}) {
+  constructor(options: UICourseMapOptions) {
     super();
     // this.width = width;
     // this.height = height;
     // this.course = course;
+    this.worldSize = options.worldSize;
+    this.mapImage = options.map;
     this.units = options.units ?? 'metric';
     this.mapWidthPercent = options.mapWidthPercent ?? 0.25;
     this.holes = options.holes || new Map();
-    
-    const mapSize = 40;
-    const nearField = 10;
-    const farField = 1000;
-    
-    // this.aspect = 3 / 2;
-    // this.width = window.innerWidth * 0.15; // 10%
-    // this.height = this.width * this.aspect; // 10%
-    
-    this.camera = new THREE.OrthographicCamera(-mapSize, mapSize, mapSize, -mapSize, nearField, farField);
-    this.camera.position.set(0, 100, 0);
-    this.camera.lookAt(0, 0, 0);
+
     this.aspect = 3 / 2;
     this.width = window.innerHeight * this.mapWidthPercent; // 10%
     this.height = this.width * this.aspect; // 10%    
 
+    // const mapSize = 40;
+    // const nearField = 10;
+    // const farField = 1000;
+    // this.camera = new THREE.OrthographicCamera(-mapSize, mapSize, mapSize, -mapSize, nearField, farField);
+    // this.camera.position.set(0, 100, 0);
+    // this.camera.lookAt(0, 0, 0);
+
+    this.view = { cx: 0, cz: 0, halfW: 100, halfH: 100, angle: 0 };
+
     this.container = document.createElement('div');
     this.container.className = styles.mapContainer;
-    // this.canvas.style = 'position: absolute; left: 10px; bottom: 10px;'
     this.header = document.createElement('div');
     this.header.className = styles.mapHeader;
     
@@ -102,8 +106,8 @@ export class UICourseMap extends EventEmitter {
 
     document.body.append(this.container);
 
-    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
-    this.renderer.setPixelRatio(0.5);
+    // this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
+    // this.renderer.setPixelRatio(0.5);
     // this.renderer.setSize(this.width, this.height);
 
     this._handleResize();
@@ -117,10 +121,6 @@ export class UICourseMap extends EventEmitter {
         secondary: `Par ${hole.par}`,
         action: () => console.log("EXIT")
       })),
-        // { label: 'Hole 1', action: () => console.log("EXIT") },
-        // { label: 'Hole 2', action: () => console.log("EXIT") },
-        // { label: 'Hole 3', action: () => console.log("EXIT") },
-      // ]
     });
   }
 
@@ -131,13 +131,8 @@ export class UICourseMap extends EventEmitter {
 
     this.container.style.display = this.width < 120 ? 'none' : 'block';
 
-    this.canvas.width = this.overlayCanvas.width = this.width;
-    this.canvas.height = this.overlayCanvas.height = this.height;
-    this.renderer.setSize(this.width, this.height);
-
-    if (window?.devicePixelRatio) {
-      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
-    }
+    this.canvas.width = this.width;
+    this.canvas.height = this.height;
   }
 
 
@@ -165,30 +160,45 @@ export class UICourseMap extends EventEmitter {
     this.#frameCount++;
     if (this.#frameCount % this.#renderInterval !== 0) return;
 
-    scene.fog = null;
-    this.renderer.render(scene, this.camera);
-
-    // render overlay
     const ctx = this.overlayCanvas.getContext('2d');
-    if (!ctx) {
-      throw new Error('Unable to get map overlay canvas context');
-    }
+    if (!ctx) throw new Error('Unable to get map overlay canvas context');
+
+    this.overlayCanvas.width = this.width;
+    this.overlayCanvas.height = this.height;
     ctx.clearRect(0, 0, this.width, this.height);
-    // const stsartPosition = currentHole?.waypoints?.get('pin');
+
+    // Draw the map image using canvas transforms
+    const { cx, cz, halfW, halfH, angle } = this.view;
+
+    const p00 = this._worldToMinimap(new THREE.Vector3(0, 0, 0));
+    const pX  = this._worldToMinimap(new THREE.Vector3(this.worldSize, 0, 0));
+    const pZ  = this._worldToMinimap(new THREE.Vector3(0, 0, this.worldSize));
+
+    const imgW = this.mapImage.width;
+    const imgH = this.mapImage.height;
+
+    ctx.save();
+    ctx.setTransform(
+      (pX.x - p00.x) / imgW, (pX.y - p00.y) / imgW,
+      (pZ.x - p00.x) / imgH, (pZ.y - p00.y) / imgH,
+      p00.x, p00.y
+    );
+    ctx.drawImage(this.mapImage, 0, 0);
+    ctx.restore();
+
+
+    // Overlays
     const ballPosition = currentPositions.ball ?? currentHole?.waypoints?.get('tee');
     const aimPosition = currentPositions.aim ?? currentHole?.waypoints?.get('aim');
     const pinPosition = currentHole?.waypoints?.get('pin');
 
-    if (ballPosition) {
-      this.#drawDot(ctx, ballPosition, colors.white);
-    }
+    if (ballPosition) this.#drawDot(ctx, ballPosition, colors.white);
     if (aimPosition) {
       const aimDist = ballPosition ? aimPosition.distanceTo(ballPosition) : 0;
       this.#drawDot(ctx, aimPosition, colors.yellow, aimDist);
     }
     if (pinPosition) {
-      const aimPinDist = aimPosition ? aimPosition.distanceTo(pinPosition) : 0;
-      const pinDist = aimPinDist > 20 && ballPosition ? pinPosition.distanceTo(ballPosition) : 0;
+      const pinDist = ballPosition ? pinPosition.distanceTo(ballPosition) : 0;
       this.#drawDot(ctx, pinPosition, colors.red, pinDist);
     }
   }
@@ -240,25 +250,35 @@ export class UICourseMap extends EventEmitter {
   }
 
   _worldToMinimap(position: THREE.Vector3) {
-    const v = position.clone().project(this.camera);
-    // project() gives normalized device coords (-1 to 1)
+    const { cx, cz, halfW, halfH, angle } = this.view;
+
+    const rx = position.x - cx;
+    const rz = position.z - cz;
+
+    const cos = Math.cos(-angle);
+    const sin = Math.sin(-angle);
+    const vx = rx * cos - rz * sin;
+    const vz = rx * sin + rz * cos;
+
     return {
-      x: (v.x * 0.5 + 0.5) * this.width,
-      y: (-v.y * 0.5 + 0.5) * this.height  // flip Y for canvas
+    x: (-vx / halfW * 0.5 + 0.5) * this.width,
+    y: (-vz / halfH * 0.5 + 0.5) * this.height,
     };
   }
-  
   _minimapToWorld(event: PointerEvent): THREE.Vector3 {
+    const { cx, cz, halfW, halfH, angle } = this.view;
     const rect = this.overlayCanvas.getBoundingClientRect();
-    // Convert click to normalized device coords (-1 to 1)
-    const ndc = new THREE.Vector3(
-      ((event.clientX - rect.left) / rect.width) * 2 - 1,
-      -((event.clientY - rect.top) / rect.height) * 2 + 1,
-      0
+
+    const vx = -((event.clientX - rect.left) / rect.width - 0.5) * 2 * halfW;
+    const vz = -((event.clientY - rect.top) / rect.height - 0.5) * 2 * halfH;
+
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    return new THREE.Vector3(
+      vx * cos - vz * sin + cx,
+      0,
+      vx * sin + vz * cos + cz,
     );
-    ndc.unproject(this.camera);
-    // Camera looks straight down, so just grab x/z and use ground height
-    return new THREE.Vector3(ndc.x, 0, ndc.z);
   }
 
   _handleCanvasClick(event: PointerEvent) {
@@ -274,37 +294,24 @@ export class UICourseMap extends EventEmitter {
   }
 
   updatePosition(startPoint: THREE.Vector3, endPoint: THREE.Vector3) {
-    // const tee = currentHole().waypoints.get('tee');
-    // const hole = currentHole().waypoints.get('hole');
+    const cx = (startPoint.x + endPoint.x) / 2;
+    const cz = (startPoint.z + endPoint.z) / 2;
 
-    // Center camera between tee and hole
-    const mid = new THREE.Vector3().addVectors(startPoint, endPoint).multiplyScalar(0.5);
-    
-    this.camera.position.set(mid.x, 200, mid.z);
+    const dx = endPoint.x - startPoint.x;
+    const dz = endPoint.z - startPoint.z;
+    let dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < 20) dist = 20;
 
-    // Rotate so tee→hole runs bottom-to-top on screen
-    const dir = new THREE.Vector3().subVectors(endPoint, startPoint);
-    dir.y = 0;
-    let dist = dir.length();
-    dir.normalize();
-    if (dist < 20) {
-      dist = 20;
-    }
-
-    this.camera.up.set(dir.x, 0, dir.z);
-    this.camera.lookAt(mid.x, 0, mid.z);
-
-    // Size the frustum to fit, respecting your minimap aspect ratio
-    const aspect = this.width / this.height; // 200/300
+    const angle = Math.atan2(-dx, dz);
     const padding = 1.2;
-    const halfH = (dist / 2) * padding;
+    const aspect = this.width / this.height;
+    
+    // minimum visible range in world units
+    const minHalfH = 40;
+    const halfH = Math.max((dist / 2) * padding, minHalfH);
     const halfW = halfH * aspect;
 
-    this.camera.left = -halfW;
-    this.camera.right = halfW;
-    this.camera.top = halfH;
-    this.camera.bottom = -halfH;
-    this.camera.updateProjectionMatrix();
-
+    this.view = { cx, cz, halfW, halfH, angle };
   }
+
 }

@@ -92,7 +92,8 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   surfaces: Map<string, LoadedCourseSurface>;
   grasses: Map<string, any>;
   greenGrids: Map<string, any>;
-
+  courseMap?: ImageBitmap;
+  courseSize: number;
   
   gltf?: GLTF;
   scene?: THREE.Group;
@@ -116,6 +117,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     this.rapier = rapier;
     this.meshLoader = new MeshLoader(options.manager);
     this.setupData = options.setupData || {};
+    this.courseSize = 1000;
 
     this.holes = new Map();
     this.waterSurfaces = new Map();
@@ -133,10 +135,17 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   async load(coursePath: string) {
     this.gltf = await this.meshLoader.gltfLoader.loadAsync(coursePath);
     this.scene = this.gltf.scene;
-    this.sceneSettings = this.gltf.userData?.sceneSettings || {};
-
+    if (this.gltf.userData?.courseSize) {
+      this.courseSize = this.gltf.userData.courseSize;
+    } else {
+      console.warn('Course missing world size! Defaulting to 1000');
+    }
+    this.sceneSettings = this.gltf.userData?.sceneSettings ?? {};
+    console.log(' ---- Loaded course ----');
+    console.dir(this.gltf.userData);
+    console.log(' ----               ----');
+    
     this.golfCup = await this.meshLoader.load(golfCupModel, true);
-    console.log('this.golfCup', this.golfCup);
 
     // load the model + textures once during init
     this.grassAssets = await GrassShader.loadAssets({
@@ -151,6 +160,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     this._addCourseColliders();
     this._addWater();
     await this._addTrees();
+    await this._parseMap();
 
     // if (this.options.debug) {
     //   this.debugLines = new THREE.LineSegments(
@@ -309,6 +319,21 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   //   return treeGroup;
   // }
 
+  async _parseMap() {
+    if (!this.gltf) {
+      throw new Error('Course file not loaded');
+    }
+    const parser = this.gltf.parser;
+    const courseMap = (parser.json?.images || []).find(
+      (img: any) => img.extras?.type === 'course_map'
+    );
+    const buffer = await parser.getDependency('bufferView', courseMap.bufferView);
+    const blob = new Blob([buffer], { type: 'image/jpeg' });
+    const bitmap = await window.createImageBitmap(blob, { premultiplyAlpha: 'none' });
+    this.courseMap = bitmap;
+    console.log('courseMap', buffer);
+  }
+
   async _addTrees() {
     if (!this.scene) {
       throw new Error('Course scene not loaded');
@@ -331,7 +356,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
 
     this.planter = new TreePlanter({
       scene: this.scene,
-      worldSize: 1000,
+      worldSize: this.courseSize,
       qualityLevel: this.setupData?.qualityLevel,
       // groundMeshes: this.getGroundMeshes(),
       world: this.world,

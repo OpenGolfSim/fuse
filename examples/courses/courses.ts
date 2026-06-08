@@ -168,9 +168,14 @@ async function setupScene() {
   gameContext.scene.add(gameContext.visualAimPoint.object);
 
   // Course Map
+  if (!gameContext.course.courseMap) {
+    throw new Error('Must pass a map image');
+  }
   gameContext.courseMap = new UICourseMap({
     units: gameContext.setupData?.units,
-    holes: gameContext.course?.holes
+    holes: gameContext.course?.holes,
+    map: gameContext.course.courseMap,
+    worldSize: gameContext.course.courseSize
   });
 
   // Controls

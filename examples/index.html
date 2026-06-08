@@ -20,8 +20,18 @@
             if (game.courseUrl) {
               uri += '?' + new URLSearchParams({ courseUrl: game.courseUrl});
             }
+            const gameItemPoster = document.createElement('img');
+            gameItemPoster.width = 160;
+            gameItemPoster.height = 90;
+            gameItemPoster.src = game.posterUrl;
+            
+            const gameItemTitle = document.createElement('div');
+            gameItemTitle.textContent = game.title;
+            gameItemLink.append(gameItemPoster, gameItemTitle);
+
+            // gameItemLink.textContent = game.title;
+
             gameItemLink.setAttribute('href', uri);
-            gameItemLink.textContent = game.title;
             gameItem.append(gameItemLink);
             games.append(gameItem);
           });
@@ -82,6 +92,22 @@
       .section {
         margin-bottom: 3rem;
       }
+      #game-list ul {
+        list-style: none;
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        flex-wrap: wrap;
+      }
+      #game-list ul li {
+
+      }
+      #game-list ul li a img {
+        margin-bottom: 10px;
+      }
+      #game-list ul li a {
+        color: #fff;
+      }
     </style>
   </head>
   <body>
@@ -110,21 +136,10 @@
 
         <div class="section">
           <h3>Examples</h3>
-          <p style="padding: 1rem; background-color: rgba(0, 200, 0, 0.2);">To use the examples: Press any number key (1-9) or the space bar to take a shot.</p>
           
           <div id="game-list"></div>
 
-          <!-- <ul>
-            <li>
-              <a href="./range/">Driving Range</a>
-            </li>
-            <li>
-              <a href="./courses/?courseUrl=https%3A%2F%2Fcoursedata.opengolfsim.com%2Fwebgl%2Fcourses%2Fmountain-vista%2Fv1%2Fmountain-vista-v1.1.glb">Mountain Vista 9-hole Course</a>
-            </li>
-            <li>
-              <a href="./cornhole/">CornHole</a>
-            </li>
-          </ul> -->
+          <p style="padding: 1rem; background-color: rgba(0, 200, 0, 0.2);">To use the examples: Press any number key (1-9) or the space bar to take a shot.</p>
         </div>
 
         <div class="section">

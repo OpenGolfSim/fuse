@@ -147,10 +147,6 @@ export class UIStats {
       right: '10px',
       zIndex: '9999'
     });
-    // this.stats = new ThreeStats();
-    // this.stats.dom.style.cssText = `position: relative;`;
-    // this.container.append(this.stats.dom);
-    // this.stats.dom.style.display = options.hidden ? 'none' : 'block';
     
     this.container.style.display = options.hidden ? 'none' : 'block';
     this.container.style.display = options.hidden ? 'none' : 'block';
@@ -163,7 +159,7 @@ export class UIStats {
     this.container.append(this.fpsPanel.dom);
     this.msPanel = new UIStatsPanel( 'MS', 'rgb(255, 8, 0)', 'rgb(34, 11, 0)' );
     this.container.append(this.msPanel.dom);
-    this.drawCallsPanel = new UIStatsPanel( 'DRAWS', 'rgb(98, 0, 255)', 'rgb(34, 0, 50)' );
+    this.drawCallsPanel = new UIStatsPanel( 'DRAWS', 'rgb(169, 115, 255)', 'rgb(34, 0, 50)' );
     this.container.append(this.drawCallsPanel.dom);
     this.showPanel(0);
   }
@@ -190,10 +186,6 @@ export class UIStats {
       this.#prevTime = time;
       this.#frames = 0;
 
-      // if ( this.memPanel ) {
-      //   var memory = performance.memory;
-      //   memPanel.update( memory.usedJSHeapSize / 1048576, memory.jsHeapSizeLimit / 1048576 );
-      // }
 
     }
 
@@ -202,7 +194,6 @@ export class UIStats {
     }
 
     return time;
-    // return this.stats.end();
   }
 
   update() {

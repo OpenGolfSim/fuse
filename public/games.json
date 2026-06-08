@@ -5,7 +5,7 @@
       "description": "A basic driving range set in the mountains",
       "url": "range/index.html",
       "gameMode": 0,
-      "posterUrl": "https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mountain-vista.jpg",
+      "posterUrl": "https://coursedata.opengolfsim.com/webgl/courses/posters/webgl-range-poster.jpg",
       "slug": "fuse_range"
     },
     {
@@ -14,7 +14,7 @@
       "url": "courses/index.html",
       "gameMode": 2,
 
-      "courseUrl": "https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mtn-vista-v1.2.glb",
+      "courseUrl": "https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mtn-vista-v1.4.glb",
       "posterUrl": "https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mountain-vista-poster.jpg",
       "slug": "fuse_mtn_vista"
     },
@@ -23,7 +23,7 @@
       "description": "A beach themed cornhole game",
       "url": "cornhole/index.html",
       "gameMode": 1,
-      "posterUrl": "https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mountain-vista-poster.jpg",
+      "posterUrl": "https://coursedata.opengolfsim.com/webgl/courses/posters/webgl-cornhole-poster.jpg",
       "slug": "fuse_cornhole"
     }
   ]
