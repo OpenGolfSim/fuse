@@ -57,3 +57,19 @@ button:hover {
   left: 50%;
   transform: translateX(-50%);
 }
+
+#top-left {
+  position: absolute;
+  left: var(--grid-size);
+  top: calc(var(--grid-size) / 4);
+
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: calc(var(--grid-size) / 2);
+
+}

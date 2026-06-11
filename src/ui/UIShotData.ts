@@ -6,7 +6,7 @@ type ShotDataGridOption = {
   id: keyof OpenGolfSim.Shot | keyof OpenGolfSim.ShotResult;
   precision: number;
   label: string;
-  units: string;
+  units: string | ((val: number) => string);
   _element?: HTMLElement;
   conversion?: (val: number) => number;
 }
@@ -83,8 +83,18 @@ export class UIShotData {
         id: 'total',
         precision: 0,
         label: 'Total',
-        units: this.#distanceUnit,
-        conversion: (val) => this.units === 'imperial' ? UnitConversions.metersToYards(val) : val,
+        units: (val) => {
+          if (this.units === 'imperial' && val < 5) {
+            return 'ft';
+          }
+          return this.#distanceUnit;
+        },
+        conversion: (val) => {
+          if (this.units === 'imperial') { 
+            return val < 5 ? UnitConversions.metersToFeet(val): UnitConversions.metersToYards(val);
+          }
+          return val
+        },
       },
       {
         id: 'carry',
@@ -138,15 +148,20 @@ export class UIShotData {
   #updateGrid(data: Partial<OpenGolfSim.Shot & OpenGolfSim.ShotResult>) {
     this.gridOptions.forEach(option => {
       if (option._element) {
-        let value = data[option.id];
-        if (typeof value === 'undefined') return;
+        let rawValue = data[option.id];
+        if (typeof rawValue === 'undefined') return;
+        let value = rawValue;
         const digit = option._element.querySelector('.grid-digit');
         if (typeof option.conversion === 'function') {
-          value = option.conversion(value);
+          value = option.conversion(rawValue);
         }
         if (digit) digit.textContent = value.toFixed(option.precision ?? 0);
         const unit = option._element.querySelector('.grid-unit');
-        if (unit) unit.textContent = option.units;
+        if (unit && typeof option.units === 'function') {
+          unit.textContent = option.units(rawValue);
+        } else if (unit && typeof option.units === 'string') {
+          unit.textContent = option.units;
+        }
       }
     });
   }
@@ -183,7 +198,11 @@ export class UIShotData {
       unit.classList.add(styles.shotDataItemUnit, 'grid-unit');
       // unit.className = styles.shotDataItemUnit;
       // TODO: change to metric based on user pref!
-      unit.textContent = option.units;
+      if (typeof option.units === 'function') {
+        unit.textContent = option.units(0);
+      } else {
+        unit.textContent = option.units;
+      }
       dataValue.append(digit, unit);
 
       option._element.append(dataLabel, dataValue);

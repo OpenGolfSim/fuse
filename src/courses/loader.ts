@@ -1,6 +1,8 @@
 import * as THREE from 'three';
+import { WebGPURenderer } from 'three/webgpu';
 import { type World } from '@dimforge/rapier3d-compat';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import EventEmitter from 'eventemitter3';
 
 import { getAverageTextureColor, getTextureImageData } from '@/utils/image';
@@ -18,7 +20,7 @@ import perlinNoise from '@/images/perlinnoise.webp?url';
 import { isMeshObject } from '@/utils/mesh';
 import grassBladesModel from '@/models/grassBlades.glb?url';
 import golfCupModel from '@/models/golfCup.glb?url';
-import { QualityMode } from '@/utils/constants';
+import { QualityMode } from '@/utils/quality';
 
 
 
@@ -50,9 +52,11 @@ interface CourseLoaderEvents {
 export class MeshLoader extends EventEmitter<CourseLoaderEvents> {
   gltfLoader: GLTFLoader;
   
-  constructor(manager?: THREE.LoadingManager) {
+  constructor(renderer: THREE.WebGLRenderer, manager?: THREE.LoadingManager) {
     super();
+    const ktx2Loader = new KTX2Loader().setTranscoderPath('/ktx2/').detectSupport(renderer);
     this.gltfLoader = new GLTFLoader(manager);
+    this.gltfLoader.setKTX2Loader(ktx2Loader);
   }
   
   async load(meshUri: string, firstMeshOnly?: false): Promise<THREE.Group>;
@@ -97,6 +101,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   
   gltf?: GLTF;
   scene?: THREE.Group;
+  setupData?: Partial<OpenGolfSim.SetupData>;
   golfCup?: THREE.Mesh;
   sceneSettings?: SceneSettings;
   grassAssets?: GrassAssets;
@@ -105,17 +110,18 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   #raycaster: THREE.Raycaster;
   #origin: THREE.Vector3;
   #direction: THREE.Vector3;
-  setupData?: Partial<OpenGolfSim.SetupData>;
+  #accumulator = 10;
 
   constructor(
     world: World,
     rapier: RapierInstance,
+    renderer: THREE.WebGLRenderer,
     options: CourseLoaderOptions
   ) {
     super();
     this.world = world;
     this.rapier = rapier;
-    this.meshLoader = new MeshLoader(options.manager);
+    this.meshLoader = new MeshLoader(renderer, options.manager);
     this.setupData = options.setupData || {};
     this.courseSize = 1000;
 
@@ -180,12 +186,19 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     return this.scene;
   }
 
-  update(dt: number, camera: ShotPerspectiveCamera) {
-    // update water and other animations
+  update(dt: number, camera: ShotPerspectiveCamera, isShotActive: boolean = false) {
+    // update water and other animations that happen each frame
     this.waterSurfaces.forEach(water => water.update(dt));
-    this.grasses.forEach(grass => grass.update(dt, camera));
-    this.greenGrids.forEach(grid => grid.update(camera));
-    this.planter?.update(camera);
+    
+
+    // planting / LOD logic only needs to happen every few frames
+    if (this.#accumulator >= 4) {
+      this.greenGrids.forEach(grid => grid.update(camera));
+      this.grasses.forEach(grass => grass.update(dt, camera));
+      this.planter?.update(camera, isShotActive);
+      this.#accumulator = 0;
+    }
+    this.#accumulator++;
   }
 
   _addCourseColliders() {
@@ -346,11 +359,6 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     const parser = this.gltf.parser;
     const treeMasks = (parser.json?.images || []).filter(
       (img: any) => img.extras?.type === 'tree_mask'
-      //  || img.extras?.id?.startsWith('tree-')
-    ) as TreeImage[];
-
-    const treeBillboards = (parser.json?.images || []).filter(
-      (img: any) => img.extras?.type === 'tree_billboard'
       //  || img.extras?.id?.startsWith('tree-')
     ) as TreeImage[];
 

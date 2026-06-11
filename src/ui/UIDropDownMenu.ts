@@ -10,7 +10,7 @@ interface UIDropDownMenuItem {
 }
 
 type UIDropDownMenuOptions = {
-  anchor: HTMLElement,
+  anchor: Element,
   menuItems?: UIDropDownMenuItem[],
   placement?: Placement
 }
@@ -21,7 +21,7 @@ export class UIDropDownMenu {
   menu: HTMLElement;
   menuItems?: UIDropDownMenuItem[];
   #cleanup: (() => void) | null = null;
-  #anchor: HTMLElement;
+  #anchor: Element;
   #placement: Placement;
 
   constructor(options: UIDropDownMenuOptions) {

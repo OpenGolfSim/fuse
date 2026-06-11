@@ -192,20 +192,60 @@ export class BallTrail {
   }
 
   update(collectPoints = false) {
+    let dirty = false;
+
     if (collectPoints && this.frameNum % 4 === 0 && this.points.length < this.maxPoints) {
       this.addPoint();
+      dirty = true;
     }
+
+    // During an active shot, also update for the live ball position
+    // but throttle to every other frame
+    if (collectPoints && this.frameNum % 2 === 0) {
+      dirty = true;
+    }
+
     this.frameNum++;
-    this._rebuild();
+
+    if (dirty) {
+      this._rebuild();
+    }
   }
+
+  // update(collectPoints = false) {
+
+  //   if (collectPoints && this.frameNum % 4 === 0 && this.points.length < this.maxPoints) {
+  //     this.addPoint();
+  //   }
+  //   this.frameNum++;
+  //   this._rebuild();
+  // }
 
   _rebuild() {
     if (this.trail) {
       this.scene.remove(this.trail);
-      if (this.geom) this.geom.dispose()
+      if (this.geom) {
+        this.geom.dispose();
+        // Force-clear MeshLineGeometry's internal arrays
+        (this.geom as any).positions = null;
+        (this.geom as any).previous = null;
+        (this.geom as any).next = null;
+        (this.geom as any).side = null;
+        (this.geom as any).width_ = null;
+        (this.geom as any).counters = null;
+        (this.geom as any).uvs = null;
+        (this.geom as any).indices_array = null;
+      }
       this.trail = null;
       this.geom = null;
     }
+
+    // if (this.trail) {
+    //   this.scene.remove(this.trail);
+    //   if (this.geom) this.geom.dispose()
+    //   this.trail = null;
+    //   this.geom = null;
+    // }
 
     const live = this.golfBall.position;
     const last = this.points[this.points.length - 1];
@@ -240,8 +280,41 @@ export class BallTrail {
     this.scene.add(this.trail);
   }
 
-
-  remove() {
-    if (this.trail) this.scene.remove(this.trail);
+  // Add to BallTrail class:
+  dispose() {
+    if (this.trail) {
+      this.scene.remove(this.trail);
+      this.trail = null;
+    }
+    if (this.geom) {
+      this.geom.dispose();
+      this.geom = null;
+    }
+    this.material.dispose();
+    this.#alphaTex.dispose();
   }
+  
+  reset(updatedTarget?: THREE.Object3D) {
+    if (updatedTarget) {
+      this.golfBall = updatedTarget;
+    }
+    // Remove current trail mesh from scene and dispose geometry
+    if (this.trail) {
+      console.log('REMOVE TRAIL');
+      this.scene.remove(this.trail);
+      this.trail = null;
+    }
+    if (this.geom) {
+      console.log('DISPOSE GEOM');
+      this.geom.dispose();
+      this.geom = null;
+    }
+    // Clear points but keep the material and texture alive
+    this.points = [];
+    this.frameNum = 0;
+  }
+
+  // remove() {
+  //   if (this.trail) this.scene.remove(this.trail);
+  // }
 }

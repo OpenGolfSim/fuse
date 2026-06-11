@@ -7,7 +7,7 @@ import {
 } from '@dimforge/rapier3d-compat';
 import EventEmitter from 'eventemitter3';
 import { UnitConversions } from '@/utils/units';
-import { CourseSurfaceProperties, CourseObjectType } from '@/courses/surfaces';
+import { CourseSurfaceProperties, CourseObjectType, CourseSurfaces } from '@/courses/surfaces';
 import { PhysicsLookupTable, GRAVITY, isColliderWithUserData, ColliderWithUserData } from './constants';
 
 interface BallPhysicsEvents {
@@ -40,6 +40,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   magnusCoeff = 0.00015;
   dragCoeff = 0.25;
   spinDecayRate = 0.987;
+  sideSpinDecayRate = 0.95;
   gripStrength = 2.8;
   
   // State flags
@@ -54,7 +55,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
 
   // Thresholds
   defaultEndThresholdSpeed = 0.15;   // m/s linear
-  defaultEndThresholdAngular = 4.0;  // rad/s
+  defaultEndThresholdAngular = 10.0;  // rad/s
   shotFrames = 0;
   groundedFrames = 0;
   groundedFramesRequired = 10; // consecutive grounded steps before "rolling"
@@ -150,6 +151,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
           magnusCoeff: l(a.magnusCoeff, b.magnusCoeff, t),
           dragCoeff: l(a.dragCoeff, b.dragCoeff, t),
           spinDecayRate: l(a.spinDecayRate, b.spinDecayRate, t),
+          sideSpinDecayRate: l(a.sideSpinDecayRate, b.sideSpinDecayRate, t),
         };
       }
     }
@@ -211,18 +213,18 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     // this.rigidBody.enableCcd(false);
     
     if (isPutt) {
-      this._launchPutt(ballSpeed, shot.horizontalLaunchAngle || 0);
+      this._launchPutt(ballSpeed, shot.horizontalLaunchAngle, shot.spinSpeed);
     } else {
       this._launchFull(
         ballSpeed, vla,
-        shot.horizontalLaunchAngle || 0,
-        shot.spinSpeed || 0,
-        shot.spinAxis || 0,
+        shot.horizontalLaunchAngle,
+        shot.spinSpeed,
+        shot.spinAxis,
       );
     }
   }
 
-  _launchPutt(speed: number, hla: number) {
+  _launchPutt(speed: number, hla: number = 0, spinRPM: number = 0) {
     const dir = new THREE.Vector3(0, 0, 1).applyQuaternion(this.mesh.quaternion);
     const qH = new THREE.Quaternion().setFromAxisAngle(
       new THREE.Vector3(0, 1, 0),
@@ -230,9 +232,27 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     );
     dir.applyQuaternion(qH).normalize().multiplyScalar(speed);
     this.rigidBody.setLinvel({ x: dir.x, y: dir.y, z: dir.z }, true);
+
+    // // Spin
+    // const spinRad = spinRPM * 2 * Math.PI / 60;
+    // console.log('APPLY SPIN', spinRad);
+    // // const axisRad = THREE.MathUtils.degToRad(spinAxisDeg * -1);
+    // // const localLeft = right.clone().multiplyScalar(-1);
+
+    // const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.mesh.quaternion);
+    // const spinVec = new THREE.Vector3()
+    //   // .addScaledVector(localLeft, Math.cos(axisRad))
+    //   .addScaledVector(up, 1)
+    //   .multiplyScalar(spinRad);
+
+    // this.rigidBody.setAngvel({ x: spinVec.x, y: spinVec.y, z: spinVec.z }, true);
+    const coeffs = this.interpolateBySpeed(speed);
+    this.dragCoeff = coeffs.dragCoeff;
+    this.spinDecayRate = coeffs.spinDecayRate;
+    this.sideSpinDecayRate = coeffs.sideSpinDecayRate;
   }
 
-  _launchFull(speed: number, vla: number, hla: number, spinRPM: number, spinAxisDeg: number) {
+  _launchFull(speed: number, vla: number, hla: number = 0, spinRPM: number = 0, spinAxisDeg: number = 0) {
     // Velocity
     const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.mesh.quaternion);
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.mesh.quaternion);
@@ -266,9 +286,9 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     this.magnusCoeff = coeffs.magnusCoeff;
     this.dragCoeff = coeffs.dragCoeff;
     this.spinDecayRate = coeffs.spinDecayRate;
+    this.sideSpinDecayRate = coeffs.sideSpinDecayRate;
   }
 
-  // ─── Per-frame forces ────────────────────────────────────────────
   _applyAirForces(dt: number) {
     const lv = this.rigidBody.linvel();
     const av = this.rigidBody.angvel();
@@ -296,13 +316,16 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     this.rigidBody.setLinvel({ x: vel.x, y: vel.y, z: vel.z }, true);
 
     // Spin decay
-    const decay = Math.pow(this.spinDecayRate, dt / 0.02);
-    spin.multiplyScalar(decay);
+    const decayBack = Math.pow(this.spinDecayRate, dt / 0.02);
+    const decaySide = Math.pow(this.sideSpinDecayRate, dt / 0.02);
+
+    spin.x *= decayBack;
+    spin.z *= decayBack;
+    spin.y *= decaySide;
+
     this.rigidBody.setAngvel({ x: spin.x, y: spin.y, z: spin.z }, true);
   }
 
-
-  // ─── Collision event processing ──────────────────────────────────
   _processCollisions() {
     this.shotFrames++;
 
@@ -413,8 +436,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
       const angSpeed = Math.sqrt(av.x * av.x + av.y * av.y + av.z * av.z);
 
       const endThresholdSpeed = this.currentSurface?.stopSpeed ?? this.defaultEndThresholdSpeed;
-      const endThresholdAngular = this.currentSurface?.stopAngular ?? this.defaultEndThresholdAngular;
-      if (speed < endThresholdSpeed && angSpeed < endThresholdAngular) {
+      if (speed < endThresholdSpeed) {
         this._endShot();
       }
     }
@@ -424,7 +446,6 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     this.isEnded = true;
     this.freeze();
     this.emit('shotEnded', this.currentSurface);
-    // if (this.onShotEnded) this.onShotEnded(this.currentSurface);
   }
 
   _checkTreeCollision(pos: Vector, vel: THREE.Vector3, spin: THREE.Vector3, dt: number) {
@@ -510,7 +531,6 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
         const descentAngle = Math.abs(vel.y) / speed;
 
         const restitutionRaw = this.currentSurface?.restitution ?? 0.25; // this._getRestitution(speed);
-        console.log('restitutionRaw', restitutionRaw);
         // Steep descent = more energy absorbed by turf
         const descentRestitution = THREE.MathUtils.lerp(1.0, 0.8, descentAngle);
         const restitution = restitutionRaw * descentRestitution;
@@ -572,8 +592,11 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
 
         // Rolling resistance
         // const resistance = this._getRollingResistance();
-        const resistance = this.currentSurface?.rollResistance ?? this._getRollingResistance();
-        const horizontalSpeedThreshold = this.currentSurface?.rollResistanceSpeedThreshold ?? 0.001;
+        let resistance = this.currentSurface?.rollResistance ?? CourseSurfaces.base.restitution;
+        // if (this.isPutt) {
+        //   resistance *= 0.25;
+        // }
+        const horizontalSpeedThreshold = this.currentSurface?.rollResistanceSpeedThreshold ?? CourseSurfaces.base.rollResistanceSpeedThreshold;
         const horizontalSpeed = vel.length();
         // if (horizontalSpeed > horizontalSpeedThreshold) {
           // const friction = Math.min(resistance * GRAVITY * dt, horizontalSpeed);
@@ -583,8 +606,10 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
           vel.addScaledVector(vel.clone().normalize(), -friction);
 
           // Viscous damping — dominates at low speed, prevents endless creep
-          const dampingFactor = Math.exp(-resistance * 8.0 * dt);
-          vel.multiplyScalar(dampingFactor);
+          if (!this.isPutt) {
+            const dampingFactor = Math.exp(-resistance * 8.0 * dt);
+            vel.multiplyScalar(dampingFactor);
+          }
 
         // }
         // Hard cutoff — anything below this is just numerical noise
@@ -604,13 +629,13 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
         );
         this.rigidBody.setLinvel({ x: vel.x, y: 0, z: vel.z }, true);
 
-        // Ground spin decay
-        const grassDampen = 4.5;
-        if (spin.length() > 3.0) {
-          const factor = THREE.MathUtils.clamp(1 - grassDampen * dt, 0, 1);
-          spin.multiplyScalar(factor);
-        }
-        this.rigidBody.setAngvel({ x: spin.x, y: spin.y, z: spin.z }, true);
+        // // Ground spin decay
+        // const grassDampen = 4.5;
+        // if (spin.length() > 3.0) {
+        //   const factor = THREE.MathUtils.clamp(1 - grassDampen * dt, 0, 1);
+        //   spin.multiplyScalar(factor);
+        // }
+        // this.rigidBody.setAngvel({ x: spin.x, y: spin.y, z: spin.z }, true);
       }
     } else {
       // Airborne between bounces
@@ -638,7 +663,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
 
   _getRollingResistance() {
     // TODO: query surface type at ball position
-    if (this.isPutt) return 0.65;
+    // if (this.isPutt) return 0.65;
     return 0.45;
   }
 

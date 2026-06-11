@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { type World } from '@dimforge/rapier3d-compat';
 import { ColliderWithUserData } from '@/physics/constants';
 import { GROUP_BALL, GROUP_TERRAIN } from '@/physics/ballPhysics';
+import { CourseColliderType, CourseSurfaceType } from '@/courses/surfaces';
 
 const _raycaster = new THREE.Raycaster();
 const _origin = new THREE.Vector3();
@@ -9,6 +10,7 @@ const _direction = new THREE.Vector3(0, -1, 0);
 
 type GroundPhysicsOptions = {
   friction: number,
+  type: CourseColliderType,
   restitution: number,
   rollResistance: number
 }
@@ -19,6 +21,7 @@ export class GroundPhysics {
   rapier: RapierInstance;
   options: GroundPhysicsOptions = {
     friction: 0.4,
+    type: CourseSurfaceType.Base,
     restitution: 0.4,
     rollResistance: 0.15
   }

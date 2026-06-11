@@ -17,14 +17,22 @@
 }
 
 .shotData {
-  position: absolute;
+  position: fixed;
+  max-width: 30vw;
   top: var(--grid-size);
   right: var(--grid-size);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .shotDataContainer {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  /* flex-wrap: wrap; */
+  /* justify-content: flex-end; */
+  /* flex-direction: var(--shot-data-direction); */
+  grid-template-columns: var(--shot-data-grid);            /* Creates 3 columns of equal fraction width */
+  grid-template-rows: auto;                  /* First row is 100px, second scales automatically */
+
   gap: calc(var(--grid-size) / 2);
 }
 
@@ -58,7 +66,7 @@
   gap: calc(var(--base-padding) / 2);
   flex: 1;
   padding: var(--base-padding);
-  min-width: calc(var(--base-padding) * 10);
+  min-width: calc(var(--base-padding) * 9);
 }
 
 .shotDataItemDigit {
@@ -115,13 +123,27 @@
   font-size: var(--unit-font-size);
 }
 
+.mainMenu {
+  background-color: var(--bg-color);
+  border-radius: 50%;
+  overflow: hidden;
+  display: block;
+}
+.mainMenu a {
+  width: calc(var(--base-padding) * 4);
+  height: calc(var(--base-padding) * 4);
+  display: block;
+  padding: calc(var(--base-padding) / 2);
+}
+.mainMenuIcon {
+  width: 100%;
+}
 .playerMenu {
   background-color: var(--bg-color);
   border-radius: var(--border-radius);
   overflow: hidden;
-  position: fixed;
-  left: var(--grid-size);
-  top: var(--grid-size);
+  flex-grow: 1;
+  flex-shrink: 0;
   /* min-width: 200px; */
   /* width: calc(var(--grid-size) * 20); */
 }
@@ -141,7 +163,7 @@
 .playerMenuClub,
 .playerMenuScore {
   display: flex;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-color);
   align-items: center;
   justify-content: center;
@@ -156,7 +178,7 @@
   min-width: 10vw;
   display: flex;
   flex-direction: row;
-  padding-left: var(--base-padding);
+  /* padding-left: var(--base-padding); */
 }
 .playerMenuNameAvatar {
   width: var(--medium-font-size);

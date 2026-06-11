@@ -4,7 +4,7 @@ import { seededRandom } from '@/utils/random';
 import { isMeshObject } from '@/utils/mesh';
 import { GROUP_BALL, GROUP_OBJECT } from './physics/ballPhysics';
 import { GroundUtils } from './physics/groundPhysics';
-import { QualityMode } from './utils/constants';
+import { QualityMode } from './utils/quality';
 
 export type TreePlanterOptions = {
   groundMeshes?: THREE.Object3D | THREE.Object3D[];
@@ -87,6 +87,8 @@ export class TreePlanter {
   treeGroup: THREE.Group;
   #raycaster: THREE.Raycaster;
   lodEntries: LODEntry[] = [];
+  #init: boolean = false;
+  #frameNum = 0;
 
   constructor(options: TreePlanterOptions) {
     const { scene, worldSize, groundMeshes, world, rapier } = options;
@@ -374,7 +376,7 @@ export class TreePlanter {
 
         if (level === maxLevel) {
           const mat = instanced.material as THREE.Material;
-          mat.alphaTest = 0;
+          mat.alphaTest = 0.0;
           mat.alphaToCoverage = true;
           mat.transparent = false;
           mat.depthWrite = true;
@@ -463,7 +465,7 @@ export class TreePlanter {
     return treeGroup;
   }
   
-  update(camera: THREE.Camera) {
+  #updateLODs(camera: THREE.Camera) {
     const camPos = camera.position;
     const pos = new THREE.Vector3();
 
@@ -500,6 +502,17 @@ export class TreePlanter {
           mesh.instanceMatrix.needsUpdate = true;
         }
       }
+    }
+
+  }
+  update(camera: THREE.Camera, isShotActive: boolean) {
+    // if (camera && (!this.#init || isShotActive)) {
+    //   this.#init = true;
+    //   this.#updateLODs(camera);
+    // }
+    this.#frameNum++;
+    if (this.#frameNum % 4 === 0) {
+      this.#updateLODs(camera);
     }
   }
 

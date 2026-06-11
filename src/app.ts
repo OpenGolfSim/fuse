@@ -32,6 +32,7 @@ interface EventMap {
  * Sets up physics and communication with external apps.
  */
 export class AppBridge extends EventEmitter<EventMap> {
+  appType: 'mobile' | 'desktop' | 'web';
   isReady: boolean;
   rapier: RapierInstance;
   world?: RAPIER.World;
@@ -39,12 +40,19 @@ export class AppBridge extends EventEmitter<EventMap> {
   constructor() {
     super();
     this.isReady = false;
-
+    this.appType = 'web';
     if (typeof window.ReactNativeWebView !== 'undefined') {
-      window.addEventListener("message", this.#handleReactNativeMessage.bind(this));
+      this.appType = 'mobile';
     } else if (typeof window.ogsElectron !== 'undefined') {
+       this.appType = 'desktop';
+    }
+
+    if (this.appType === 'mobile') {
+      window.addEventListener("message", this.#handleReactNativeMessage.bind(this));
+    } else if (this.appType === 'desktop') {
       window.ogsElectron!.onMessage(this.#handleElectronMessage.bind(this));
     }
+
     this.rapier = RAPIER;
     this.rapier.init().then(() => {
       this.world = new RAPIER.World(GRAVITY_VECTOR);
@@ -90,17 +98,25 @@ export class AppBridge extends EventEmitter<EventMap> {
     this.sendMessage({ type: 'ready' });
   }
 
-  sendMessage(payload: ReadyMessage | PlayerUpdateMessage) {
-    if (typeof window.ReactNativeWebView !== 'undefined') {
+  exit() {
+    if (this.appType === 'web') {
+      window.navigation.back();
+    } else {
+      this.sendMessage({ type: 'exit' });
+    }
+  }
+
+  sendMessage(payload: any) {
+    if (this.appType === 'mobile') {
       console.log('Sending to react native: ', payload);
-      window.ReactNativeWebView.postMessage(JSON.stringify(payload));
-    } else if (typeof window.ogsElectron !== 'undefined') {
+      window.ReactNativeWebView?.postMessage(JSON.stringify(payload));
+    } else if (this.appType === 'desktop') {
       console.log('Sending to electron: ', payload);
-      window.ogsElectron.postMessage(payload);
+      window.ogsElectron?.postMessage(payload);
     } else if (payload.type === 'ready') {
       this.emit('ready');
     } else {
-      console.warn('No parent to send message to!', payload);
+      console.warn('No parent to send message to!', JSON.stringify(payload, null, 1));
       // TODO: use a cloud-based websocket here to sync for web play?
     }
   }

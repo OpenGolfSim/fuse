@@ -178,7 +178,7 @@ export class VolumetricClouds {
     this.object.position.copy(position);
   }
 
-  update(dt: number) {
+  update(dt?: number) {
     // this.cloudMaterial.uniforms.time.value += 0.01; // increment each frame
     // keep sphere centered on camera so horizon stays level
     this.object.position.x = this.camera.position.x;

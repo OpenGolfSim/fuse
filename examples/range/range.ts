@@ -20,7 +20,9 @@ import {
   CourseSurfaces,
   generateSetupData,
   CoursePlayer,
-  UIPlayerMenu
+  UIPlayerMenu,
+  UIMainMenu,
+  CourseSurfaceType
 } from '@opengolfsim/fuse';
 import rangeMtnsModel from './models/rangeMtns.glb?url';
 import fairwayTexture from './textures/gen_fairway_tex.png?url';
@@ -40,8 +42,8 @@ const gameContext: {
   currentPlayer?: CoursePlayer,
   // Environment
   timer: THREE.Timer,
-  world?: World;
-  scene?: THREE.Scene;
+  world?: World,
+  scene?: THREE.Scene,
   renderer?: THREE.WebGLRenderer,
   golfBall?: GolfBall,
   lightGroup?: CourseLight,
@@ -62,10 +64,11 @@ const gameContext: {
   rangeFinder?: UIRangeFinder,
   stats?: UIStats,
   playerMenu?: UIPlayerMenu,
+  mainMenu?: UIMainMenu,
   
   // Controls
   camera?: ShotPerspectiveCamera,
-  controls?: CourseKeyboardControls
+  controls?: CourseKeyboardControls,
   visualAimPoint?: AimPoint,
 
   meshLoader?: MeshLoader,
@@ -162,7 +165,7 @@ async function createGroundPlane() {
 
   
   gameContext.groundCollider = new GroundPhysics(gameContext.ground, app.world, app.rapier, {
-    type: 'fairway',
+    type: CourseSurfaceType.Fairway,
     ...CourseSurfaces.fairway
   });  
 
@@ -226,7 +229,6 @@ async function loadMountain(
 
 async function setupRange() {
   setupWorld();
-  
   const player = gameContext.setupData?.players?.[0];
   if (!player) throw new Error('No player found in setup data');
   if (!player.clubs?.length) throw new Error('No clubs found for player');
@@ -234,8 +236,10 @@ async function setupRange() {
   gameContext.currentPlayer = new CoursePlayer(player);
   console.log('gameContext.currentPlayer', gameContext.currentPlayer)
 
-
-  gameContext.meshLoader = new MeshLoader(gameContext.loadingScreen?.manager);
+  if (!gameContext.renderer) {
+    throw new Error('Renderer must be created first');
+  }
+  gameContext.meshLoader = new MeshLoader(gameContext.renderer, gameContext.loadingScreen?.manager);
 
   gameContext.scene = new THREE.Scene();
   gameContext.scene.background = skyColor;
@@ -295,6 +299,8 @@ async function setupRange() {
   
   console.log('gameContext.setupData?.players', gameContext.setupData?.players);
 
+  gameContext.mainMenu = new UIMainMenu('#top-left');
+  gameContext.mainMenu.on('exit', () => app.exit())
   gameContext.playerMenu = new UIPlayerMenu('#top-left', {
     // setupData: gameContext.setupData,
     players: [gameContext.currentPlayer]
@@ -314,11 +320,31 @@ async function preLoad() {
     requestAnimationFrame(animate);
   });
   gameContext.loadingScreen.load(setupRange);
+  document.body.style.opacity = '1';
 }
 
 function onShotEnded() {
   console.log('Shot ended!');
   setupNextShot();
+
+  const update: OpenGolfSim.ShotResultEvent = {
+    type: 'result',
+    data: gameContext.golfBall?.stats,
+    shot: gameContext.golfBall?.lastShot,
+    playerId: gameContext.currentPlayer?.id,
+    club: gameContext.currentPlayer?.currentClub,
+
+    startPosition: gameContext.startPoint.toArray(),
+    endPosition: gameContext.golfBall?.stats.endPosition?.toArray(),
+    landPosition: gameContext.golfBall?.stats.landPosition?.toArray(),
+    ballTrail: gameContext.golfBall?.getTrailPoints(),
+    lateralSamples: gameContext.golfBall?.stats.lateralSamples,
+    heightSamples: gameContext.golfBall?.stats.heightSamples,
+    distanceSamples: gameContext.golfBall?.stats.distanceSamples,
+  }
+  console.log('update', update);
+  app.sendMessage(update);
+
 }
 
 async function initializeSetup(payload: any) {
@@ -440,3 +466,5 @@ app.initialize(initializeDebug);
 app.on('setup', initializeSetup);
 // sent by OpenGolfSim Desktop/Mobile apps
 app.on('shot', shot => launchShot(shot));
+
+// document.addEventListener('DOMContentLoaded', () => document.body.style.opacity = '1')

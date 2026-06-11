@@ -1,7 +1,8 @@
+import EventEmitter from 'eventemitter3';
 import { CoursePlayer } from '@/courses/player';
 import styles from '@/css/ui.module.css';
 import { UIDropDownMenu } from '@/ui/UIDropDownMenu';
-import EventEmitter from 'eventemitter3';
+import { UIElementBase } from './UIElementBase';
 
 type UIPlayerMenuOptions = {
   players: CoursePlayer[]
@@ -13,8 +14,7 @@ interface UIPlayerMenuEvents {
   showScorecard: () => void;
 }
 
-export class UIPlayerMenu extends EventEmitter<UIPlayerMenuEvents> {
-  element: Element | null;
+export class UIPlayerMenu extends UIElementBase<UIPlayerMenuEvents> {
   playerDropdown?: UIDropDownMenu;
   clubDropdown?: UIDropDownMenu;
   wrapper?: HTMLElement;
@@ -24,19 +24,11 @@ export class UIPlayerMenu extends EventEmitter<UIPlayerMenuEvents> {
   playerScore?: HTMLElement;
   allPlayers: CoursePlayer[];
 
-  constructor(element: string | Element, options: UIPlayerMenuOptions) {
-    super();
-    if (typeof element === 'string') {
-      this.element = document.querySelector(element);
-    } else {
-      this.element = element;
-    }
-    if (!this.element) {
-      throw new Error('Unable to find UIPlayerMenu root element');
-    }    
+  constructor(parent: string | Element, options: UIPlayerMenuOptions) {
+    super(parent);
+    console.log(options);
     this.element.className = styles.playerMenu;
 
-    console.log(options);
     if (!options.players?.length) {
       throw new Error('No players found in options');
     }
@@ -58,15 +50,16 @@ export class UIPlayerMenu extends EventEmitter<UIPlayerMenuEvents> {
     this.wrapper.setAttribute('id', 'ui-player-menu');
     this.wrapper.className = styles.playerMenuContainer;
     
-    this.playerNameAvatar = document.createElement('div');
-    this.playerNameAvatar.className = styles.playerMenuNameAvatar;
+    // this.playerNameAvatar = document.createElement('div');
+    // this.playerNameAvatar.className = styles.playerMenuNameAvatar;
+    // playerName.append(this.playerNameAvatar);
     this.playerNameText = document.createElement('div');
     this.playerNameText.className = styles.playerMenuNameText;
 
     const playerName = document.createElement('a');
     playerName.className = styles.playerMenuName;
     this.playerNameText.textContent = firstPlayer.name || '(No Player)';
-    playerName.append(this.playerNameAvatar, this.playerNameText);
+    playerName.append(this.playerNameText);
     
     this.playerClub = document.createElement('div');
     this.playerClub.className = styles.playerMenuClub;

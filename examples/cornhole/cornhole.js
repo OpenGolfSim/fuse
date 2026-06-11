@@ -1,7 +1,18 @@
 import '@/css/base.css';
 import './cornhole.css';
 
-import { CourseKeyboardControls, MeshLoader, ShotPerspectiveCamera, THREE, UIStats, VolumetricClouds, app, generateSetupData } from '@opengolfsim/fuse';
+import {
+  CourseKeyboardControls,
+  MeshLoader,
+  ShotPerspectiveCamera,
+  THREE,
+  UIMainMenu,
+  UIStats,
+  VolumetricClouds,
+  app,
+  generateSetupData,
+  UILoadingScreen
+} from '@opengolfsim/fuse';
 import { Water } from 'three/examples/jsm/Addons.js';
 import groundBeachModel from './models/GroundBeach.glb?url';
 import cornHoleBoardModel from './models/CornHoleBoard.glb?url';
@@ -25,7 +36,6 @@ const textureLoader = new THREE.TextureLoader();
 
 const gameContext = {
   timer: new THREE.Timer(),
-  meshLoader: new MeshLoader(),
   aimPoint: new THREE.Vector3(0, 0, -10),
   startPoint: new THREE.Vector3(0, 0.25, 0),
   round: {
@@ -434,8 +444,8 @@ function startRound() {
   console.log(`Round ${gameContext.round.number} — ${first} throws all 4, then ${second}`);
 }
 
-async function loadGame() {
-  gameContext.timer.connect(document);  
+async function setupGame() {
+
   const boardOffset = window.localStorage.getItem('boardOffset') || 0;
   if (boardOffset) {
     boardZOffset = parseFloat(boardOffset);
@@ -455,7 +465,9 @@ async function loadGame() {
     if (gameContext.camera) gameContext.camera.aimKeys = aimKeys;
   });
   gameContext.controls.on('toggleStats', () => gameContext.stats?.toggle());
-  gameContext.controls.on('testShot', shot => launchShot(shot));
+  gameContext.controls.on('testShot', shot => {
+    launchShot({ ballSpeed: 12 + (Math.random() * 2), verticalLaunchAngle: 35, horizontalLaunchAngle: -5 + (Math.random() * 10) });
+  });
 
   gameContext.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
   gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -463,7 +475,8 @@ async function loadGame() {
   gameContext.renderer.shadowMap.enabled = true;
   gameContext.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   
-  
+  gameContext.meshLoader = new MeshLoader(gameContext.renderer);
+
   // window.addEventListener('resize', () => {
   //   if (gameContext.camera) {
   //     gameContext.camera.aspect = window.innerWidth / window.innerHeight;
@@ -492,6 +505,8 @@ async function loadGame() {
 
   gameContext.camera?.setPositions(gameContext.startPoint, gameContext.aimPoint);
   createSky();
+
+
   await loadGameBoards();
   await loadModels();
   
@@ -516,9 +531,22 @@ async function loadGame() {
     gameContext.scene.add(debugLines);
   }
 
+  gameContext.mainMenu = new UIMainMenu('#top-left');
+  gameContext.mainMenu.on('exit', () => app.exit())
+}
 
-  gameContext.clock.start();
-  requestAnimationFrame(animate);
+function loadGame() {
+  gameContext.timer.connect(document);  
+
+  gameContext.loadingScreen = new UILoadingScreen(document.body, { loadingPrefix: 'Filling the bags' });
+  gameContext.loadingScreen.on('load', () => {
+    gameContext.clock.start();
+    requestAnimationFrame(animate);
+  });
+  gameContext.loadingScreen.load(setupGame);
+
+
+  // requestAnimationFrame(animate);
 }
 
 function getActiveBag() {

@@ -82,6 +82,23 @@ namespace OpenGolfSim {
     gameMode: number;
     courseUrl?: string;
   }
+
+  
+  interface ShotResultEvent {
+    type: 'result';
+    data?: ShotResult;
+    shot?: Shot;
+    club?: Club;
+    playerId?: string;
+    startPosition?: [number, number, number];
+    landPosition?: [number, number, number];
+    endPosition?: [number, number, number];
+    ballTrail?: [number, number, number][];
+    heightSamples?: number[];
+    distanceSamples?: number[];
+    lateralSamples?: number[];
+  }
+
 }
 
 type TreeImage = {

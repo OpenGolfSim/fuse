@@ -1,4 +1,4 @@
-import { QualityMode } from '@/utils/constants';
+import { QualityMode } from '@/utils/quality';
 import { type World } from '@dimforge/rapier3d-compat';
 import {
   THREE,
@@ -18,10 +18,12 @@ import {
   UILoadingScreen,
   VolumetricClouds,
   generateSetupData,
+  UIMainMenu,
  } from '@opengolfsim/fuse';
 
 
 const gameContext: {
+  isReady: boolean,
   startPoint: THREE.Vector3,
   aimPoint: THREE.Vector3,
   qualityLevel: QualityMode,
@@ -50,6 +52,7 @@ const gameContext: {
   shotData?: UIShotData,
   courseMap?: UICourseMap,
   playerMenu?: UIPlayerMenu,
+  mainMenu?: UIMainMenu,
   loadingScreen?: UILoadingScreen,
   rangeFinder?: UIRangeFinder,
   stats?: UIStats,
@@ -58,6 +61,7 @@ const gameContext: {
   distanceToAim: number,
   heightToAim: number,
 } = {
+  isReady: false,
   timer: new THREE.Timer(),
   startPoint: new THREE.Vector3(0, 0, 0),
   aimPoint: new THREE.Vector3(0, 0, 0),
@@ -97,11 +101,14 @@ function setupNextShot() {
   gameContext.golfBall?.reset(gameContext.aimPoint, gameContext.startPoint);  
 
   aimPointUpdated(true);
-  
+
+  gameContext.clouds?.update();
+
   gameContext.courseMap?.updatePosition(gameContext.startPoint, gameContext.game.pinPoint());
   gameContext.courseMap?.updateHole(gameContext.game.activeHole);
 
   gameContext.playerMenu?.update(gameContext.game.activePlayer);
+
 }
 
 function setupRenderer() {
@@ -110,19 +117,29 @@ function setupRenderer() {
   
   THREE.ColorManagement.enabled = true;
 
-  gameContext.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  app.sendMessage({ type: 'log', message: `qualityLevel: ${gameContext.qualityLevel}` });
+
+  gameContext.renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true // gameContext.qualityLevel >= QualityMode.Medium
+  });
   gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
-  console.log('window.devicePixelRatio', Math.min(window.devicePixelRatio, 1));
-  
-  let maxPixelRatio = 1;
+
+  let maxPixelRatio = Math.min(window.devicePixelRatio, 1);
   if (gameContext.qualityLevel >= QualityMode.High) {
-    maxPixelRatio = 2;
+    maxPixelRatio = Math.min(window.devicePixelRatio, 2);
   }
-  gameContext.renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxPixelRatio));
-  gameContext.renderer.shadowMap.enabled = true;
+
+  app.sendMessage({ type: 'log', message: `maxPixelRatio: ${maxPixelRatio}` });
+  
+  gameContext.renderer.setPixelRatio(maxPixelRatio);
+  gameContext.renderer.shadowMap.enabled = gameContext.qualityLevel >= QualityMode.Medium;
   gameContext.renderer.shadowMap.type = THREE.PCFShadowMap;
-  gameContext.renderer.toneMapping = THREE.ACESFilmicToneMapping; // or whatever you pick
-  gameContext.renderer.toneMappingExposure = 1.0;
+  
+  if (gameContext.qualityLevel >= QualityMode.Medium) {
+    gameContext.renderer.toneMapping = THREE.ACESFilmicToneMapping; // or whatever you pick
+    gameContext.renderer.toneMappingExposure = 1.0;
+  }
 
 }
 
@@ -227,7 +244,8 @@ function adjustAimPoint(newPosition: THREE.Vector3) {
     newPosition.y = ground.y;
   }
   gameContext.aimPoint.copy(newPosition);
-  gameContext.camera?.setPositions(gameContext.game.startPoint(), gameContext.aimPoint);  
+  gameContext.camera?.setPositions(gameContext.game.startPoint(), gameContext.aimPoint);
+
   aimPointUpdated(true);
 }
 
@@ -258,18 +276,25 @@ async function setupCourse() {
   if (!app.world) {
     throw new Error('Physics world does not exist');
   }
+  
   if (!gameContext?.setupData) {
     throw new Error('Missing setupData!');
   }
   if (!gameContext?.gameData?.courseUrl) {
     throw new Error('Missing a courseUrl to a GLB in the gameData object');
   }
+  if (typeof gameContext.setupData?.qualityLevel !== 'undefined') {
+    gameContext.qualityLevel = gameContext.setupData.qualityLevel;
+  }
   setupRenderer();
-  
+  if (!gameContext.renderer) {
+    throw new Error('Missing renderer!');
+  }
   // load course details and meshes
   gameContext.course = new CourseLoader(
     app.world,
     app.rapier,
+    gameContext.renderer,
     {
       setupData: gameContext.setupData,
       manager: gameContext.loadingScreen?.manager
@@ -305,6 +330,9 @@ async function setupCourse() {
 
   gameContext.shotData = new UIShotData('#shot-data', { units: gameContext.setupData?.units });
   gameContext.rangeFinder = new UIRangeFinder('#top-center', { units: gameContext.setupData?.units });
+  gameContext.mainMenu = new UIMainMenu('#top-left');
+  gameContext.mainMenu.on('exit', () => app.exit())
+
   gameContext.playerMenu = new UIPlayerMenu('#top-left', { players: gameContext.game?.players || [] });
   gameContext.playerMenu.on('selectPlayer', player => {
     // handle player changed
@@ -339,8 +367,8 @@ function preLoad() {
   // }
   // allow override with query param
   const qualityParam = (new URLSearchParams(window.location.search)).get('quality');
-  if (gameContext.setupData && qualityParam) {
-    gameContext.setupData.qualityLevel = parseInt(qualityParam, 10);
+  if (qualityParam) {
+    gameContext.qualityLevel = parseInt(qualityParam, 10);
   }
 
   console.log('[debug] Setup Data', gameContext.setupData);
@@ -349,10 +377,11 @@ function preLoad() {
     gameContext.stats = new UIStats('#render-stats', { hidden: false, renderer: gameContext.renderer }); // start hidden (press S to toggle)
     if (!error) {
       requestAnimationFrame(animate);
+      gameContext.isReady = true;
     }
   });
   gameContext.loadingScreen.load(setupCourse);
-  
+  document.body.style.opacity = '1';
   gameContext.timer.connect(document);  
 }
 
@@ -372,7 +401,9 @@ function animate(animDelta: number) {
   gameContext.controls?.update(delta);
   gameContext.clouds?.update(delta);
 
-  if (gameContext.camera) gameContext.course?.update(delta, gameContext.camera);
+  if (gameContext.camera && gameContext.isReady) {
+    gameContext.course?.update(delta, gameContext.camera, gameContext.golfBall?.isShotActive);
+  }
 
   gameContext.game?.update(delta);
 

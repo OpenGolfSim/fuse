@@ -1,4 +1,4 @@
-import { QualityMode } from "./constants";
+import { QualityMode } from "./quality";
 
 function getDeviceType() {
   const ua = navigator.userAgent;

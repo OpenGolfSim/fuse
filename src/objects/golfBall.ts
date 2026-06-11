@@ -7,9 +7,6 @@ import { CourseSurfaceProperties } from '@/courses/surfaces';
 
 const FIXED_DT = 1 / 120;
 
-const defaultStats = { apex: 0, lateral: 0, carry: 0, total: 0, roll: 0 };
-// const defaultOptions = { waitTime: 3000 };
-
 export interface GolfBallEvents {
   shotEnded: (details: { surface?: CourseSurfaceProperties }) => void
 }
@@ -23,15 +20,29 @@ type GolfBallOptions = {
   clearTrail?: BallTrailClearMode;
 }
 
+type ShotStats = {
+  apex: number;
+  lateral: number;
+  carry: number;
+  total: number;
+  roll: number;
+  landPosition?: THREE.Vector3;
+  endPosition?: THREE.Vector3;
+  heightSamples: number[];
+  distanceSamples: number[];
+  lateralSamples: number[];
+}
+
+const defaultStats: ShotStats = {
+  apex: 0, lateral: 0, carry: 0, total: 0, roll: 0,
+  heightSamples: [],
+  distanceSamples: [],
+  lateralSamples: []
+};
+
 export class GolfBall extends EventEmitter<GolfBallEvents> {
   radius: number;
-  stats: {
-    apex: number;
-    lateral: number;
-    carry: number;
-    total: number;
-    roll: number;
-  };
+  stats: ShotStats;
   isShotActive: boolean;
   isShotWaiting: boolean;
   startPoint: THREE.Vector3;
@@ -47,7 +58,9 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
   #world: World;
   #rapier: RapierInstance;  
   #accumulator: 0;
-  #lastShot?: OpenGolfSim.Shot;
+  #frameNum: 0;
+  lastShot?: OpenGolfSim.Shot;
+  ballMaterial: THREE.MeshBasicMaterial;
 
   constructor(scene: THREE.Scene, world: World, R: RapierInstance, options: GolfBallOptions = {}) {
     super();
@@ -60,23 +73,36 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     this.#world = world;
     this.#rapier = R;
     this.#accumulator = 0;
+    this.#frameNum = 0;
     this.startPoint = new THREE.Vector3(0, 0, 0);
     this.aimPoint = new THREE.Vector3(0, 0, 0);
     this.isShotActive = false;
     this.isShotWaiting = false;
+
+    this.ballMaterial = new THREE.MeshBasicMaterial( { color: 0xffffff } );
+
   }
 
   reset(aimPoint: THREE.Vector3, startPoint: THREE.Vector3) {
     if (this.object) {
       // remove existing ball object and physics
       this.#scene.remove(this.object);
+      if (this.object instanceof THREE.Mesh) {
+        this.object.geometry.dispose();
+        // if (this.object.material) {
+        //   (this.object.material as THREE.Material).dispose();
+        // }
+      }
     }
-    if (this.physics) this.physics.remove();
+    if (this.physics) {
+      this.physics.removeAllListeners(); // clean up old event listener
+      this.physics.remove();
+    }
     this.isShotWaiting = false;
     // const geometry = new THREE.SphereGeometry( this.radius, 32, 16 );
     const geometry = new THREE.IcosahedronGeometry(this.radius, 5);
-    const material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
-    this.object = new THREE.Mesh( geometry, material );
+    // const material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
+    this.object = new THREE.Mesh( geometry, this.ballMaterial );
     this.object.castShadow = false;
     this.object.frustumCulled = false;
     if (startPoint) {
@@ -94,6 +120,8 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     if (aimPoint) {
       this.aimAt(aimPoint)
     }
+    
+    this.#frameNum = 0;
 
     this.physics = new BallPhysics(this.object, this.#world, this.#rapier, this.radius);
     this.physics.on('shotEnded', surface => this._onShotEnded(surface));
@@ -105,8 +133,11 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
       console.warn('No ball object to add trail to');
       return;
     }
-    if (this.trail) this.trail.remove();
-    this.trail = new BallTrail(this.#scene, this.object, { lineWidth: 0.2 });
+    if (this.trail) {
+      this.trail.reset(this.object);  // reuse existing instance
+    } else {
+      this.trail = new BallTrail(this.#scene, this.object, { lineWidth: 0.2 });
+    }
   }
 
   getPosition() {
@@ -128,6 +159,10 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
 
   _onShotEnded(surface: CourseSurfaceProperties | undefined) {
     console.log('RAW SHOT END');
+    if (!this.stats.endPosition) {
+      this.stats.endPosition = this.object?.position.clone();
+    }
+
     clearTimeout(this.#timeout);
     this.#timeout = setTimeout(() => {
       this.isShotActive = false;
@@ -153,15 +188,19 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     this.object.rotation.set(0, yaw, 0);  
   }
 
+  getTrailPoints() {
+    return this.trail?.points.map(point => point.toArray())
+  }
+
   launchShot(shot: OpenGolfSim.Shot) {
     if (this.isShotActive) {
       return;
     }
     if (this.clearTrail === 'start') {
       this.#resetBallTrail();
-    }    
+    }
     this.isShotActive = true;
-    this.#lastShot = shot;
+    this.lastShot = shot;
     const isPutt = shot.verticalLaunchAngle < 1;
     this.stats = { ...defaultStats };
     // if (this.physics) {
@@ -177,6 +216,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
       this.physics.launchShot(shot, isPutt);
     }
   }
+
 
   update(delta: number) {
     const frameDelta = Math.min(delta, 0.1);
@@ -194,6 +234,8 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     }
 
     if (this.isShotActive && this.object) {
+      const height = this.object.position.y - this.startPoint.y;
+
       if (this.object.position.y > this.stats.apex) {
         this.stats.apex = this.object.position.y;
       }
@@ -205,6 +247,17 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
         this.stats.roll = this.stats.total - this.stats.carry;
       }
       this.stats.lateral = this.getLateralDistance(this.startPoint, this.aimPoint, this.object.position);
+
+      if (this.physics?.isLanded && !this.stats.landPosition) {
+        this.stats.landPosition = this.object.position.clone();
+      }
+
+      if (this.#frameNum % 4 === 0) {
+        this.stats.heightSamples.push(this.object.position.y);
+        this.stats.lateralSamples.push(this.stats.lateral);
+        this.stats.distanceSamples.push(this.stats.total);
+      }
+      this.#frameNum++;
     }
   }
   
