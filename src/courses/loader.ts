@@ -49,12 +49,16 @@ interface CourseLoaderEvents {
   progress: (progress: CourseLoaderProgressEvent) => void
 }
 
+type MeshLoaderOptions = {
+  ktx2Path?: string;
+}
 export class MeshLoader extends EventEmitter<CourseLoaderEvents> {
   gltfLoader: GLTFLoader;
   
-  constructor(renderer: THREE.WebGLRenderer, manager?: THREE.LoadingManager) {
+  constructor(renderer: THREE.WebGLRenderer, manager?: THREE.LoadingManager, options: MeshLoaderOptions = {}) {
     super();
-    const ktx2Loader = new KTX2Loader().setTranscoderPath('/ktx2/').detectSupport(renderer);
+    const ktx2Path = options.ktx2Path ?? '/ktx2/';
+    const ktx2Loader = new KTX2Loader().setTranscoderPath(ktx2Path).detectSupport(renderer);
     this.gltfLoader = new GLTFLoader(manager);
     this.gltfLoader.setKTX2Loader(ktx2Loader);
   }
@@ -84,7 +88,8 @@ interface LoadedCourseSurface extends CourseSurfaceProperties {
 
 type CourseLoaderOptions = {
   manager?: THREE.LoadingManager,
-  setupData: Partial<OpenGolfSim.SetupData>
+  setupData: Partial<OpenGolfSim.SetupData>,
+  meshLoaderOptions?: MeshLoaderOptions
 }
 
 export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
@@ -121,7 +126,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     super();
     this.world = world;
     this.rapier = rapier;
-    this.meshLoader = new MeshLoader(renderer, options.manager);
+    this.meshLoader = new MeshLoader(renderer, options.manager, options.meshLoaderOptions);
     this.setupData = options.setupData || {};
     this.courseSize = 1000;
 

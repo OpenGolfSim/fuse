@@ -297,7 +297,8 @@ async function setupCourse() {
     gameContext.renderer,
     {
       setupData: gameContext.setupData,
-      manager: gameContext.loadingScreen?.manager
+      manager: gameContext.loadingScreen?.manager,
+      meshLoaderOptions: { ktx2Path: '../ktx2/' }
     }
   );
 
