@@ -11,7 +11,8 @@ import {
   VolumetricClouds,
   app,
   generateSetupData,
-  UILoadingScreen
+  UILoadingScreen,
+  FuseRenderer
 } from '@opengolfsim/fuse';
 import { Water } from 'three/examples/jsm/Addons.js';
 import groundBeachModel from './models/GroundBeach.glb?url';
@@ -201,7 +202,7 @@ async function loadGameBoards() {
   setupBoard('red', boardMeshOriginal);
 }
 
-function setupScene() {
+async function setupScene() {
   gameContext.scene = new THREE.Scene();
   gameContext.scene.background = new THREE.Color(skyColor);
   gameContext.scene.fog = new THREE.Fog(fogColor, 10, 140);
@@ -222,8 +223,6 @@ function setupScene() {
   directionalLight.shadow.camera.bottom = -50;
   gameContext.scene.add(directionalLight);
   directionalLight.target.position.set(0, 0, 0);
-
-
 
   const waterGroup = new THREE.Group();
   const underwaterGeometry = new THREE.PlaneGeometry(300, 100);
@@ -278,6 +277,7 @@ function setupScene() {
   gameContext.scene.add(waterGroup);
 
 
+
 }
 
 function createSky() {
@@ -309,7 +309,7 @@ async function createGround(width = 100, depth = 100) {
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(100, 100); // tile 50x across, 100x down the 100x200 plane
   tex.colorSpace = THREE.SRGBColorSpace; // correct color rendering
-  tex.anisotropy = gameContext.renderer.capabilities.getMaxAnisotropy();
+  tex.anisotropy = gameContext.renderer.getMaxAnisotropy();
 
   const floorMaterial = new THREE.MeshStandardMaterial({
     map: tex,
@@ -321,6 +321,7 @@ async function createGround(width = 100, depth = 100) {
   // const groundMesh = await loadMesh('models/GroundBeach.glb', true);
   const groundMesh = await gameContext.meshLoader?.load(groundBeachModel, true);
   console.log('groundMesh', groundMesh.geometry);
+  // const geo = new THREE.PlaneGeometry(100, 100);
 
   const mesh = new THREE.Mesh(groundMesh.geometry, floorMaterial);
   // floor.rotation.x = -Math.PI / 2;
@@ -469,14 +470,22 @@ async function setupGame() {
     launchShot({ ballSpeed: 12 + (Math.random() * 2), verticalLaunchAngle: 35, horizontalLaunchAngle: -5 + (Math.random() * 10) });
   });
 
-  gameContext.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
-  gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
-  gameContext.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-  gameContext.renderer.shadowMap.enabled = true;
-  gameContext.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const canvas = document.getElementById('canvas');
+  if (!canvas) {
+    throw new Error('Missing canvas!');
+  }
+  gameContext.renderer = new FuseRenderer({
+    canvas,
+    antialias: true
+    // renderMode: 'webgpu'
+  });
+  // gameContext.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
+  // gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
+  // gameContext.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  // gameContext.renderer.shadowMap.enabled = true;
+  // gameContext.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   
-  gameContext.meshLoader = new MeshLoader(gameContext.renderer);
-
+  
   // window.addEventListener('resize', () => {
   //   if (gameContext.camera) {
   //     gameContext.camera.aspect = window.innerWidth / window.innerHeight;
@@ -486,13 +495,22 @@ async function setupGame() {
   // });
 
 
-  setupScene();
-  await createGround();
-  gameContext.camera = new ShotPerspectiveCamera(gameContext.renderer, gameContext.ground.mesh, {
+  await setupScene();
+  
+  gameContext.camera = new ShotPerspectiveCamera({
+    canvas,
     fov: 30,
     cameraOffsetX: 0,
     cameraOffsetYZ: [1.5, 1],
   });
+
+  await gameContext.renderer.init();
+
+  gameContext.meshLoader = new MeshLoader(gameContext.renderer.renderer);  
+
+  await createGround();
+
+  gameContext.camera.setScene(gameContext.ground.mesh);
 
   const geo = new THREE.BoxGeometry(0.06, 2, 0.06);
   const mat = new THREE.MeshBasicMaterial({ color: 'red', transparent: true, opacity: 0.8 });
@@ -504,7 +522,7 @@ async function setupGame() {
   gameContext.scene.add(gameContext.aimMesh);
 
   gameContext.camera?.setPositions(gameContext.startPoint, gameContext.aimPoint);
-  createSky();
+  // createSky();
 
 
   await loadGameBoards();
@@ -539,12 +557,13 @@ function loadGame() {
   gameContext.timer.connect(document);  
 
   gameContext.loadingScreen = new UILoadingScreen(document.body, { loadingPrefix: 'Filling the bags' });
-  gameContext.loadingScreen.on('load', () => {
+  gameContext.loadingScreen.on('load', async () => {
     gameContext.clock.start();
     requestAnimationFrame(animate);
   });
   gameContext.loadingScreen.load(setupGame);
 
+  document.body.style.opacity = '1';
 
   // requestAnimationFrame(animate);
 }
@@ -768,7 +787,7 @@ function animate(animDelta) {
   gameContext.timer.update(animDelta);
 
   app.world.step(gameContext.eventQueue);
-  gameContext.clouds.update();
+  gameContext.clouds?.update();
 
   gameContext.eventQueue.drainCollisionEvents((h1, h2, started) => {
     if (!started) return; // only care about entering, not leaving
@@ -815,9 +834,9 @@ function animate(animDelta) {
   }
 
   
-  if (gameContext.water.object) {
-    gameContext.water.object.material.uniforms['time'].value += gameContext.water.speed / 60.0;
-  }
+  // if (gameContext.water.object) {
+  //   gameContext.water.object.material.uniforms['time'].value += gameContext.water.speed / 60.0;
+  // }
 
   if (gameContext.debug.enabled) {
     const { vertices, colors } = app.world.debugRender();
@@ -841,7 +860,8 @@ function animate(animDelta) {
   
   if (gameContext.aimMesh) gameContext.aimMesh.position.copy(gameContext.aimPoint);
 
-  gameContext.camera?.render(gameContext.scene, gameContext.fog);
+  // gameContext.camera?.render(gameContext.scene, gameContext.fog);
+  gameContext.renderer?.render(gameContext.scene, gameContext.camera, gameContext.fog);
 
   gameContext.stats?.end();
 }

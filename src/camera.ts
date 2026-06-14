@@ -12,11 +12,14 @@ type ShotPerspectiveCameraOptions = {
   cameraOffsetX?: number;
   cameraOffsetYZ?: [number, number];
   cameraTrackingOffsetYZ?: [number, number];
+  canvas?: HTMLCanvasElement;
+  scene?: THREE.Object3D | THREE.Object3D[];
 }
 
 export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
-  scene: THREE.Object3D | THREE.Object3D[];
-  renderer: THREE.WebGLRenderer;
+  scene?: THREE.Object3D | THREE.Object3D[];
+  // renderer: THREE.WebGLRenderer;
+  canvas?: HTMLCanvasElement;
   shotDirection: THREE.Vector3;
   staticCamPos: THREE.Vector3;
   staticLookAt: THREE.Vector3;
@@ -44,8 +47,6 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
 
 
   constructor(
-    renderer: THREE.WebGLRenderer,
-    scene: THREE.Object3D | THREE.Object3D[],
     options: ShotPerspectiveCameraOptions = {}
   ) {
     const aspect = (window.innerWidth / window.innerHeight);
@@ -53,8 +54,8 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     const near = options.near ?? 0.75;
     const far = options.far ?? 500;
     super(fov, aspect, near, far);
-    this.scene = scene;
-    this.renderer = renderer;
+    this.scene = options.scene;
+    this.canvas = options.canvas;
 
     // defaults
     this.cameraOffsetX = options.cameraOffsetX ?? 0;
@@ -87,16 +88,25 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     this.aimKeys = { left: false, right: false, forward: false, backward: false };    
     this.trackingDelay = options.trackingDelay ?? 3000;
     this.#trackTimeout = 0;
-    
+
     window.addEventListener('resize', this._handleResize.bind(this));
   }
+
+  setScene(scene?: THREE.Object3D | THREE.Object3D[]) {
+    this.scene = scene;
+  }
+
   _handleResize() {
-    this.aspect = window.innerWidth / window.innerHeight;
+    // const size = new THREE.Vector2(0, 0);
+    // this.renderer.getSize(size);
+    const width = this.canvas?.width || window.innerWidth;
+    const height = this.canvas?.height || window.innerHeight;
+    this.aspect = width / height;
     this.updateProjectionMatrix();
     this.projectionMatrix.elements[8] = this.#activeFrustumOffset;
-    if (this.renderer) {
-      this.renderer.setSize(window.innerWidth, window.innerHeight);  
-    }
+    // if (this.renderer) {
+    //   this.renderer.setSize(window.innerWidth, window.innerHeight);  
+    // }
   }
   
   applyFrustumOffset(dt: number, target: number, smooth: boolean) {
@@ -184,10 +194,14 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     const dx = aimPoint.x - this.#lastGroundCheck.x;
     const dz = aimPoint.z - this.#lastGroundCheck.z;
     const threshold = dist * 0.01; // 1% of distance to aim point
+    // this.#groundY = 0;
     if (dx * dx + dz * dz > threshold * threshold) {
-      const ground = GroundUtils.getGroundYFromScene(this.scene, aimPoint.x, aimPoint.z);
-      if (ground) {
-        this.#groundY = ground.y;
+      if (!!this.scene) {
+        const ground = GroundUtils.getGroundYFromScene(this.scene, aimPoint.x, aimPoint.z);
+        console.log('ground', ground);
+        if (ground) {
+          this.#groundY = ground.y;
+        }
       }
       this.#lastGroundCheck.set(aimPoint.x, 0, aimPoint.z);
     }
@@ -197,12 +211,12 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     return true;
   }
 
-  render(scene: THREE.Scene, fog?: THREE.Fog) {
-    if (fog) {
-      scene.fog = fog;
-    }
-    this.renderer.render(scene, this);
-  }
+  // render(scene: THREE.Scene, fog?: THREE.Fog) {
+  //   if (fog) {
+  //     scene.fog = fog;
+  //   }
+  //   this.renderer.render(scene, this);
+  // }
 
   track(dt: number, startPoint: THREE.Vector3, targetPosition: THREE.Vector3) {
     if (dt && this.isTracking) {

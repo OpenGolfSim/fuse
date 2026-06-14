@@ -22,7 +22,8 @@ import {
   CoursePlayer,
   UIPlayerMenu,
   UIMainMenu,
-  CourseSurfaceType
+  CourseSurfaceType,
+  FuseRenderer
 } from '@opengolfsim/fuse';
 import rangeMtnsModel from './models/rangeMtns.glb?url';
 import fairwayTexture from './textures/gen_fairway_tex.png?url';
@@ -44,7 +45,7 @@ const gameContext: {
   timer: THREE.Timer,
   world?: World,
   scene?: THREE.Scene,
-  renderer?: THREE.WebGLRenderer,
+  renderer?: FuseRenderer,
   golfBall?: GolfBall,
   lightGroup?: CourseLight,
   fog?: THREE.Fog,  
@@ -100,13 +101,13 @@ function setupWorld() {
   gameContext.timer.connect(document);
 
   const canvas = document.getElementById('canvas');
-  if (!canvas) throw new Error('Unable to find canvas in HTML. Make sure you create a root canvas element (e.g. <canvas id="canvas"></canvas>)');
+  if (!canvas || !(canvas instanceof HTMLCanvasElement)) throw new Error('Unable to find canvas in HTML. Make sure you create a root canvas element (e.g. <canvas id="canvas"></canvas>)');
   
-  gameContext.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
-  gameContext.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
-  gameContext.renderer.shadowMap.enabled = true;
-  gameContext.renderer.shadowMap.type = THREE.PCFShadowMap;
+  gameContext.renderer = new FuseRenderer({ canvas, antialias: true });
+  // gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
+  // gameContext.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
+  // gameContext.renderer.shadowMap.enabled = true;
+  // gameContext.renderer.shadowMap.type = THREE.PCFShadowMap;
 
 }
 
@@ -126,14 +127,14 @@ async function createGroundPlane() {
   grassTexture.wrapT = THREE.RepeatWrapping;
   grassTexture.repeat.set(grassScale, grassScale * widthRatio); // tile 50x across, 100x down the 100x200 plane
   grassTexture.colorSpace = THREE.SRGBColorSpace; // correct color rendering
-  grassTexture.anisotropy = gameContext.renderer?.capabilities.getMaxAnisotropy() || 1;
+  grassTexture.anisotropy = gameContext.renderer?.getMaxAnisotropy() || 1;
   
   const grassNormalMap = textureLoader.load(fairwayMap);
   grassNormalMap.wrapS = THREE.RepeatWrapping;
   grassNormalMap.wrapT = THREE.RepeatWrapping;
   grassNormalMap.repeat.set(grassScale, grassScale * widthRatio); // tile 50x across, 100x down the 100x200 plane
   grassNormalMap.colorSpace = THREE.SRGBColorSpace; // correct color rendering
-  grassNormalMap.anisotropy = gameContext.renderer?.capabilities.getMaxAnisotropy() || 1;
+  grassNormalMap.anisotropy = gameContext.renderer?.getMaxAnisotropy() || 1;
     
   let floorMaterial = new THREE.MeshStandardMaterial({
     name: 'floor',
@@ -239,7 +240,7 @@ async function setupRange() {
   if (!gameContext.renderer) {
     throw new Error('Renderer must be created first');
   }
-  gameContext.meshLoader = new MeshLoader(gameContext.renderer, gameContext.loadingScreen?.manager);
+  gameContext.meshLoader = new MeshLoader(gameContext.renderer.renderer, gameContext.loadingScreen?.manager);
 
   gameContext.scene = new THREE.Scene();
   gameContext.scene.background = skyColor;
@@ -253,7 +254,8 @@ async function setupRange() {
 
   if (!gameContext.renderer) throw new Error('Renderer should exist before creating camera');
   if (!gameContext.ground) throw new Error('Ground physics should exist before creating camera');
-  gameContext.camera = new ShotPerspectiveCamera(gameContext.renderer, gameContext.ground, {
+  gameContext.camera = new ShotPerspectiveCamera({
+    scene: gameContext.ground,
     far: 900,
     cameraOffsetX: gameContext.setupData?.cameraOffset ? -(gameContext.setupData.cameraOffset / 100) : 0
   });
@@ -446,10 +448,14 @@ function animate(animDelta: number) {
         updateAimPoint();
       }
     }
-    gameContext.camera?.render(gameContext.scene, gameContext.fog);
-
+    
     // should come after the camera update
     gameContext.visualAimPoint?.update(gameContext.aimPoint, gameContext.distanceToAim, gameContext.heightToAim, gameContext.golfBall.isShotActive);
+  }
+  
+  if (gameContext.camera && gameContext.scene) {
+    // gameContext.camera?.render(gameContext.scene, gameContext.fog);
+    gameContext.renderer?.render(gameContext.scene, gameContext.camera, gameContext.fog);
   }
   
   if (gameContext.shotData && gameContext.golfBall) {
