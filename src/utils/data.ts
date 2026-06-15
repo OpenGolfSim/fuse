@@ -47,7 +47,9 @@ export function generateSetupData(playerCount: number = 1, override: Partial<Ope
   }
 
   let qualityLevel = QualityMode.Low;
-  console.log('DEVICE', getDeviceType());
+  
+  console.log('Detected device', getDeviceType());
+
   if (getDeviceType() === 'desktop') {
     qualityLevel = QualityMode.Medium;
   }

@@ -18,7 +18,6 @@ type ShotPerspectiveCameraOptions = {
 
 export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
   scene?: THREE.Object3D | THREE.Object3D[];
-  // renderer: THREE.WebGLRenderer;
   canvas?: HTMLElement | null;
   shotDirection: THREE.Vector3;
   staticCamPos: THREE.Vector3;
@@ -26,10 +25,9 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
   currentLookAt: THREE.Vector3;
   desiredCamPos: THREE.Vector3;
   desiredLookAt: THREE.Vector3;
-  // cameraOffset: THREE.Vector3;
+  cameraOffsetX: number;
   cameraOffsetYZ: [number, number];
   cameraTrackingOffsetYZ: [number, number];
-  cameraOffsetX: number;
   isTracking: boolean;
   aimVelocity: { lateral: number, longitudinal: number };
   aimSpeed: number;
@@ -61,7 +59,6 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     this.cameraOffsetX = options.cameraOffsetX ?? 0;
     this.cameraOffsetYZ = options.cameraOffsetYZ ?? [1.5, 10];
     this.cameraTrackingOffsetYZ = options.cameraTrackingOffsetYZ ?? [4.5, 15];
-    // this.cameraOffset = new THREE.Vector3(this.cameraOffsetX, this.cameraOffsetYZ[0], this.cameraOffsetYZ[1]);
 
     this.#activeFrustumOffset = this.cameraOffsetX;
     this.projectionMatrix.elements[8] = this.#activeFrustumOffset;
@@ -103,23 +100,15 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
   }
 
   _handleResize() {
-    console.log('canvas resized!');
-    // const size = new THREE.Vector2(0, 0);
-    // this.renderer.getSize(size);
     let width = window.innerWidth;
     let height = window.innerHeight;
     if (this.canvas instanceof HTMLCanvasElement) {
-      console.log('Using canvas size!');
       width = this.canvas.width;
       height = this.canvas.height;
     }
     this.aspect = width / height;
-    console.log(`RESIZE CAMERA: ${width} x ${height}`);
     this.updateProjectionMatrix();
     this.projectionMatrix.elements[8] = this.#activeFrustumOffset;
-    // if (this.renderer) {
-    //   this.renderer.setSize(window.innerWidth, window.innerHeight);  
-    // }
   }
   
   applyFrustumOffset(dt: number, target: number, smooth: boolean) {
@@ -146,13 +135,9 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
   }
   
   setPositions(startPoint: THREE.Vector3, aimPoint: THREE.Vector3) {
-    // const back = new THREE.Vector3().subVectors(startPoint, aimPoint).normalize();
     const back = this.#tmpBack.subVectors(startPoint, aimPoint).normalize();
     back.y = 0;
     back.normalize();
-
-    // const right = new THREE.Vector3().crossVectors(this.#up, back).normalize();
-    // const right = this.#tmpRight.crossVectors(this.#up, back).normalize();
 
     // z = behind ball, y = height above ball
     this.staticCamPos.copy(startPoint)
@@ -160,14 +145,6 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     this.staticCamPos.y += this.cameraOffsetYZ[0];
 
     this.staticLookAt.copy(aimPoint);
-
-    // x = lateral dolly: shift BOTH camera and lookAt by the same amount
-    // so the whole frame slides left/right without changing the view angle
-    // if (this.cameraOffset.x !== 0) {
-    //   const lateralShift = right.clone().multiplyScalar(this.cameraOffset.x);
-    //   this.staticCamPos.add(lateralShift);
-    //   this.staticLookAt.add(lateralShift);
-    // }
 
     this.shotDirection.subVectors(aimPoint, startPoint);
     this.shotDirection.y = 0;
@@ -224,22 +201,13 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     return true;
   }
 
-  // render(scene: THREE.Scene, fog?: THREE.Fog) {
-  //   if (fog) {
-  //     scene.fog = fog;
-  //   }
-  //   this.renderer.render(scene, this);
-  // }
-
   track(dt: number, startPoint: THREE.Vector3, targetPosition: THREE.Vector3) {
     if (dt && this.isTracking) {
       const posSmooth  = 1 - Math.exp(-dt * 2.5);
       const lookSmooth = 1 - Math.exp(-dt * 3.5);
       const tmpBack = this.#tmpBack.copy(this.shotDirection).negate();
 
-      this.staticCamPos.copy(startPoint)
-    //   .addScaledVector(back, this.cameraOffsetYZ[1]);
-    // this.staticCamPos.y += this.cameraOffsetYZ[0];
+      this.staticCamPos.copy(startPoint);
 
       this.desiredCamPos.copy(targetPosition).addScaledVector(tmpBack, this.cameraTrackingOffsetYZ[1]);
       this.desiredCamPos.y += this.cameraTrackingOffsetYZ[0];
