@@ -7,6 +7,7 @@ export * from '@/controls';
 export * from '@/trees';
 export * from '@/lights';
 export * from '@/sky';
+export * from '@/renderer';
 
 // Objects
 export * from '@/objects/aimPoint';

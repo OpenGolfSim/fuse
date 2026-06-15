@@ -5,7 +5,8 @@ import { UIDropDownMenu } from '@/ui/UIDropDownMenu';
 import { UIElementBase } from './UIElementBase';
 
 type UIPlayerMenuOptions = {
-  players: CoursePlayer[]
+  players: CoursePlayer[],
+  disablePutting?: boolean
 };
 
 interface UIPlayerMenuEvents {
@@ -22,12 +23,15 @@ export class UIPlayerMenu extends UIElementBase<UIPlayerMenuEvents> {
   playerNameText?: HTMLElement;
   playerClub?: HTMLElement;
   playerScore?: HTMLElement;
+  disablePutting: boolean;
   allPlayers: CoursePlayer[];
 
   constructor(parent: string | Element, options: UIPlayerMenuOptions) {
     super(parent);
     console.log(options);
     this.element.className = styles.playerMenu;
+
+    this.disablePutting = !!options.disablePutting;
 
     if (!options.players?.length) {
       throw new Error('No players found in options');
@@ -88,10 +92,13 @@ export class UIPlayerMenu extends UIElementBase<UIPlayerMenuEvents> {
 
     this.clubDropdown = new UIDropDownMenu({
       anchor: this.playerClub,
-        menuItems: firstPlayer.clubs.map(club => ({
-          label: club.name,
-          action: () => this.emit('selectClub', club)
-        }))
+        menuItems: firstPlayer.clubs
+          .filter(club => this.disablePutting ? club.id !== 'PT' : true)
+          .map(club => ({
+            label: club.name,
+            disabled: this.disablePutting && club.distance === 0,
+            action: () => this.emit('selectClub', club)
+          }))
     });
   }
 
@@ -112,7 +119,9 @@ export class UIPlayerMenu extends UIElementBase<UIPlayerMenuEvents> {
     );
 
     this.clubDropdown?.setMenuItems(
-      player.clubs.map(club => ({
+      player.clubs
+      .filter(club => this.disablePutting ? club.id !== 'PT' : true)
+      .map(club => ({
         label: club.name,
         action: () => this.emit('selectClub', club)
       }))

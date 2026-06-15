@@ -8,7 +8,7 @@ const _raycaster = new THREE.Raycaster();
 const _origin = new THREE.Vector3();
 const _direction = new THREE.Vector3(0, -1, 0);
 
-type GroundPhysicsOptions = {
+export type GroundPhysicsOptions = {
   friction: number,
   type: CourseColliderType,
   restitution: number,
@@ -69,6 +69,10 @@ export class GroundPhysics {
       (GROUP_TERRAIN << 16) | GROUP_BALL  // member of TERRAIN, interacts with BALL
     );
     this.collider.userData = this.options;
+  }
+  
+  dispose() {
+    this.world.removeCollider(this.collider, true);
   }
 
 }

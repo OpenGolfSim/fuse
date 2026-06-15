@@ -33,12 +33,12 @@ type ShotStats = {
   lateralSamples: number[];
 }
 
-const defaultStats: ShotStats = {
+const createDefaultStats = (): ShotStats => ({
   apex: 0, lateral: 0, carry: 0, total: 0, roll: 0,
   heightSamples: [],
   distanceSamples: [],
-  lateralSamples: []
-};
+  lateralSamples: [],
+});
 
 export class GolfBall extends EventEmitter<GolfBallEvents> {
   radius: number;
@@ -65,7 +65,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
   constructor(scene: THREE.Scene, world: World, R: RapierInstance, options: GolfBallOptions = {}) {
     super();
     this.radius = 0.0213;
-    this.stats = { ...defaultStats };
+    this.stats = createDefaultStats();
     this.clearTrail = options.clearTrail || 'end';
     this.#setupData = options.setupData;
     this.#waitTime = options.waitTime ?? 3000;
@@ -202,11 +202,8 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     this.isShotActive = true;
     this.lastShot = shot;
     const isPutt = shot.verticalLaunchAngle < 1;
-    this.stats = { ...defaultStats };
-    // if (this.physics) {
-    //   this.physics.isGrounded = isPutt;
-    //   this.physics.isLanded = isPutt;
-    // }
+    this.stats = createDefaultStats();
+
     this.#accumulator = 0;
     if (this.trail) {
       // add first point

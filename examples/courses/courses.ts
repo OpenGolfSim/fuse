@@ -19,6 +19,7 @@ import {
   VolumetricClouds,
   generateSetupData,
   UIMainMenu,
+  FuseRenderer,
  } from '@opengolfsim/fuse';
 
 
@@ -31,7 +32,7 @@ const gameContext: {
   timer: THREE.Timer,
   world?: World;
   scene?: THREE.Scene;
-  renderer?: THREE.WebGLRenderer,
+  renderer?: FuseRenderer,
   golfBall?: GolfBall,
   lightGroup?: CourseLight,
   fog?: THREE.Fog,  
@@ -112,18 +113,19 @@ function setupNextShot() {
 }
 
 function setupRenderer() {
-  const canvas = document.getElementById('canvas');
-  if (!canvas) throw new Error('Unable to find canvas in HTML. Make sure you create a root canvas element (e.g. <canvas id="canvas"></canvas>)');
   
   THREE.ColorManagement.enabled = true;
-
+  
   app.sendMessage({ type: 'log', message: `qualityLevel: ${gameContext.qualityLevel}` });
-
-  gameContext.renderer = new THREE.WebGLRenderer({
+  
+  const canvas = document.getElementById('canvas');
+  if (!canvas || !(canvas instanceof HTMLCanvasElement)) throw new Error('Unable to find canvas in HTML. Make sure you create a root canvas element (e.g. <canvas id="canvas"></canvas>)');
+  gameContext.renderer = new FuseRenderer({
     canvas,
+    qualityLevel: gameContext.qualityLevel,
     antialias: true // gameContext.qualityLevel >= QualityMode.Medium
   });
-  gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
+  // gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
 
   let maxPixelRatio = Math.min(window.devicePixelRatio, 1);
   if (gameContext.qualityLevel >= QualityMode.High) {
@@ -132,14 +134,10 @@ function setupRenderer() {
 
   app.sendMessage({ type: 'log', message: `maxPixelRatio: ${maxPixelRatio}` });
   
-  gameContext.renderer.setPixelRatio(maxPixelRatio);
-  gameContext.renderer.shadowMap.enabled = gameContext.qualityLevel >= QualityMode.Medium;
-  gameContext.renderer.shadowMap.type = THREE.PCFShadowMap;
+  // gameContext.renderer.setPixelRatio(maxPixelRatio);
+  // gameContext.renderer.shadowMap.enabled = gameContext.qualityLevel >= QualityMode.Medium;
+  // gameContext.renderer.shadowMap.type = THREE.PCFShadowMap;
   
-  if (gameContext.qualityLevel >= QualityMode.Medium) {
-    gameContext.renderer.toneMapping = THREE.ACESFilmicToneMapping; // or whatever you pick
-    gameContext.renderer.toneMappingExposure = 1.0;
-  }
 
 }
 
@@ -169,10 +167,11 @@ async function setupScene() {
   if (!gameContext.course) {
     throw new Error('Course object does not exist!');
   }
+  const ground = gameContext.course.getGroundMeshes();
+  console.log('ground', ground);
   gameContext.camera = new ShotPerspectiveCamera(
-    gameContext.renderer,
-    gameContext.course.getGroundMeshes(),
     {
+      scene: ground,
       cameraOffsetX: (gameContext.setupData?.cameraOffset ? -(gameContext.setupData.cameraOffset / 100) : 0),
     }
   );
@@ -218,6 +217,8 @@ async function setupScene() {
   });
   gameContext.scene.add(gameContext.clouds.object);
   
+
+
 }
 
 /**
@@ -294,9 +295,10 @@ async function setupCourse() {
   gameContext.course = new CourseLoader(
     app.world,
     app.rapier,
-    gameContext.renderer,
+    gameContext.renderer.renderer,
     {
       setupData: gameContext.setupData,
+      qualityLevel: gameContext.qualityLevel,
       manager: gameContext.loadingScreen?.manager,
       meshLoaderOptions: { ktx2Path: '../ktx2/' }
     }
@@ -352,6 +354,7 @@ async function setupCourse() {
   });
 
   
+  // gameContext.camera?.setScene(gameContext.course.getGroundMeshes());
   setupNextShot();
 
   gameContext.courseMap?.on('updateAim', adjustAimPoint);
@@ -375,7 +378,7 @@ function preLoad() {
   console.log('[debug] Setup Data', gameContext.setupData);
   gameContext.loadingScreen = new UILoadingScreen(document.body, { loadingPrefix: 'Loading Course' });
   gameContext.loadingScreen.on('load', (error) => {
-    gameContext.stats = new UIStats('#render-stats', { hidden: false, renderer: gameContext.renderer }); // start hidden (press S to toggle)
+    gameContext.stats = new UIStats('#render-stats', { hidden: false, renderer: gameContext.renderer?.renderer }); // start hidden (press S to toggle)
     if (!error) {
       requestAnimationFrame(animate);
       gameContext.isReady = true;
@@ -432,7 +435,10 @@ function animate(animDelta: number) {
           aimPointUpdated();
         }
       }
-      gameContext.camera?.render(gameContext.scene, gameContext.fog);
+      // gameContext.camera?.render(gameContext.scene, gameContext.fog);
+      if (gameContext.camera) {
+        gameContext.renderer?.render(gameContext.scene, gameContext.camera, gameContext.fog);
+      }
     }
   }
 

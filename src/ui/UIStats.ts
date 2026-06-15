@@ -1,9 +1,10 @@
 import { type WebGLRenderer } from 'three';
 import styles from '@/css/ui.module.css';
+import { WebGPURenderer } from 'three/webgpu';
 
 type UIStatsOptions = {
   hidden?: boolean;
-  renderer?: WebGLRenderer;
+  renderer?: WebGLRenderer | WebGPURenderer;
 }
 
 export class UIStatsPanel {
@@ -119,7 +120,7 @@ export class UIStats {
   msPanel: UIStatsPanel;
   fpsPanel: UIStatsPanel;
   drawCallsPanel: UIStatsPanel;
-  renderer?: WebGLRenderer;
+  renderer?: WebGLRenderer | WebGPURenderer;
   #beginTime = 0;
   #prevTime = 0;
   #frames = 0;

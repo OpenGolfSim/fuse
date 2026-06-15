@@ -31,7 +31,7 @@ export const PhysicsLookupTable: PhysicsLookUpTableRecord[] = [
     magnusCoeff: 0.00038,
     dragCoeff: 0.27,
     spinDecayRate: 0.985,
-    sideSpinDecayRate: 0.97
+    sideSpinDecayRate: 0.986
   },
   {
     // ballSpeed: 60,
@@ -40,7 +40,7 @@ export const PhysicsLookupTable: PhysicsLookUpTableRecord[] = [
     magnusCoeff: 0.00035,
     dragCoeff: 0.30,
     spinDecayRate: 0.985,
-    sideSpinDecayRate: 0.999
+    sideSpinDecayRate: 0.986
   },
   {
     // ballSpeed: 54,
@@ -49,7 +49,7 @@ export const PhysicsLookupTable: PhysicsLookUpTableRecord[] = [
     magnusCoeff: 0.0001,
     dragCoeff: 0.31,
     spinDecayRate: 0.985,
-    sideSpinDecayRate: 0.95
+    sideSpinDecayRate: 0.985
   },
   {
     // ballSpeed: 48, // ~107 mph
@@ -58,7 +58,7 @@ export const PhysicsLookupTable: PhysicsLookUpTableRecord[] = [
     magnusCoeff: 0.00005,
     dragCoeff: 0.32,
     spinDecayRate: 0.98,
-    sideSpinDecayRate: 0.95
+    sideSpinDecayRate: 0.984
   },
   {
     // ballSpeed: 42, // ~94 MPH
@@ -67,7 +67,7 @@ export const PhysicsLookupTable: PhysicsLookUpTableRecord[] = [
     magnusCoeff: 0.00005,
     dragCoeff: 0.34,
     spinDecayRate: 0.98,
-    sideSpinDecayRate: 0.95
+    sideSpinDecayRate: 0.97
   },
   {
     // ballSpeed: 40, // ~89.5 MPH
@@ -76,7 +76,7 @@ export const PhysicsLookupTable: PhysicsLookUpTableRecord[] = [
     magnusCoeff: 0.00005,
     dragCoeff: 0.34,
     spinDecayRate: 0.97,
-    sideSpinDecayRate: 0.95
+    sideSpinDecayRate: 0.97
   },
   {
     // ballSpeed: 20, // ~45 MPH
@@ -84,7 +84,7 @@ export const PhysicsLookupTable: PhysicsLookUpTableRecord[] = [
     magnusCoeff: 0.00001,
     dragCoeff: 0.34,
     spinDecayRate: 0.9,
-    sideSpinDecayRate: 0.95
+    sideSpinDecayRate: 0.97
   },
 ];
 
