@@ -104,11 +104,6 @@ function setupWorld() {
   if (!canvas || !(canvas instanceof HTMLCanvasElement)) throw new Error('Unable to find canvas in HTML. Make sure you create a root canvas element (e.g. <canvas id="canvas"></canvas>)');
   
   gameContext.renderer = new FuseRenderer({ canvas, antialias: true });
-  // gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
-  // gameContext.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
-  // gameContext.renderer.shadowMap.enabled = true;
-  // gameContext.renderer.shadowMap.type = THREE.PCFShadowMap;
-
 }
 
 
@@ -326,7 +321,6 @@ async function preLoad() {
 }
 
 function onShotEnded() {
-  console.log('Shot ended!');
   setupNextShot();
 
   const update: OpenGolfSim.ShotResultEvent = {
@@ -454,7 +448,6 @@ function animate(animDelta: number) {
   }
   
   if (gameContext.camera && gameContext.scene) {
-    // gameContext.camera?.render(gameContext.scene, gameContext.fog);
     gameContext.renderer?.render(gameContext.scene, gameContext.camera, gameContext.fog);
   }
   
@@ -472,5 +465,3 @@ app.initialize(initializeDebug);
 app.on('setup', initializeSetup);
 // sent by OpenGolfSim Desktop/Mobile apps
 app.on('shot', shot => launchShot(shot));
-
-// document.addEventListener('DOMContentLoaded', () => document.body.style.opacity = '1')

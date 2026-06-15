@@ -155,7 +155,8 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       console.warn('Course missing world size! Defaulting to 1000');
     }
     this.sceneSettings = this.gltf.userData?.sceneSettings ?? {};
-    console.log(' ---- Loaded course ----');
+
+    console.log(' ---- Loaded FUSE course ----');
     console.dir(this.gltf.userData);
     console.log(' ----               ----');
     
@@ -175,20 +176,6 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     this._addWater();
     await this._addTrees();
     await this._parseMap();
-
-    // if (this.options.debug) {
-    //   this.debugLines = new THREE.LineSegments(
-    //     new THREE.BufferGeometry(),
-    //     new THREE.LineBasicMaterial({ color: 0x00ff00, vertexColors: true })
-    //   );
-    //   this.debugLines.frustumCulled = false;
-    //   this.scene.add(this.debugLines);
-    //   if (this.debugLines) {
-    //     const buffers = this.world.debugRender();
-    //     this.debugLines.geometry.setAttribute('position', new THREE.BufferAttribute(buffers.vertices, 3));
-    //     this.debugLines.geometry.setAttribute('color', new THREE.BufferAttribute(buffers.colors, 4));
-    //   }
-    // }
 
 
     return this.scene;
@@ -233,12 +220,6 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         child.material.needsUpdate = true;
       }
 
-      // if (this.groundLayerMask) {
-      //   console.log(`Enabling layer ${this.groundLayerMask} on ${child.name}`);
-      //   child.layers.enable(this.groundLayerMask);
-      //   console.log('ground layers:', child.layers.mask.toString(2));
-      // }
-
       const { surfaceType, surfaceSettings } = this._detectSurface(child);
       if (surfaceType) {
         const surfaceOptions = { type: surfaceType, ...surfaceSettings };
@@ -248,20 +229,13 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         // this.surfaceByCollider.set(ground.collider.handle, { type: surfaceType, ...surfaceSettings, mesh: child });
         if (surfaceType === 'sand') {
           child.material = new SandShaderMaterial(child.material);
-          // const mat = new SandShaderMaterial(child.material);
-          // child.material = mat;
-          // child.material.vertexColors = true;
+
         } else if (['fringe', 'fairway', 'first_cut'].includes(surfaceType)) {
           child.material = new FlatGrassShaderMaterial(child.material, {
             blendNoiseScale: 0.1,
           });
-        } else if (this.qualityLevel > QualityMode.Low && surfaceType === 'rough') {
-          // const grass = new GrassSystem(child, this.grassTex);
-          // this.scene.add(grass);
-          // console.log('averageColor-child.material', child.material);
-          // console.log('averageColor', averageColor.base.getHexString());
-          // const averageColor = getAverageTextureColor(child.material);
 
+        } else if (this.qualityLevel > QualityMode.Low && surfaceType === 'rough') {
           const grassOptions = {
             density: 18,
             renderDistance: 25,
@@ -286,8 +260,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
           this.grasses.set(child.uuid, grass);
 
         } else if (this.qualityLevel !== QualityMode.Low && ['deep_rough', 'base'].includes(surfaceType)) {
-          // const grass = new GrassSystem(child, this.grassTex);
-          // this.scene.add(grass);
+          
           const grass = new GrassShader(child, this.grassAssets!, {
             density: 10,
             renderDistance: 60,
@@ -329,22 +302,6 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     return [...this.surfaces.values()].map(surface => surface.mesh).filter(Boolean);
   }
 
-  // _loadTree(tree: THREE.Object3D) {
-  //   const treeGroup = new THREE.Group();
-  //   tree.scale.set(1, 1, 1);
-  //   tree.updateMatrixWorld(true);
-  //   console.log('loading tree', tree.name);
-  //   tree.traverse((child) => {
-  //     console.log('loading tree-child', child.name);
-  //     if (child instanceof THREE.Mesh && child.isMesh) {
-  //       const mesh = child.clone();
-  //       child.matrixWorld.decompose(mesh.position, mesh.quaternion, mesh.scale);
-  //       treeGroup.add(mesh);
-  //     }
-  //   });
-  //   return treeGroup;
-  // }
-
   async _parseMap() {
     if (!this.gltf) {
       throw new Error('Course file not loaded');
@@ -357,7 +314,6 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     const blob = new Blob([buffer], { type: 'image/jpeg' });
     const bitmap = await window.createImageBitmap(blob, { premultiplyAlpha: 'none' });
     this.courseMap = bitmap;
-    console.log('courseMap', buffer);
   }
 
   async _addTrees() {
@@ -372,24 +328,21 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     const parser = this.gltf.parser;
     const treeMasks = (parser.json?.images || []).filter(
       (img: any) => img.extras?.type === 'tree_mask'
-      //  || img.extras?.id?.startsWith('tree-')
     ) as TreeImage[];
 
     this.planter = new TreePlanter({
       scene: this.scene,
       worldSize: this.courseSize,
       qualityLevel: this.qualityLevel,
-      // groundMeshes: this.getGroundMeshes(),
       world: this.world,
       rapier: this.rapier
     });
 
     const treeConfigs: Record<string, TreeGroup[]> = {};
     this.scene.traverse((child) => {
-      // console.log('child.userData.type', child.userData.type);
       if (child.userData?.type === 'tree_template') {
         const layerId = child.userData?.treeLayerId;
-        // console.log('child.userData.type', child.children);
+
         const group = TreePlanter.loadTree(child);
 
         let lodDistances = [50, 100];
@@ -413,7 +366,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
           meshGroup: group,
           ...child.userData
         };
-        console.log('configure tree', config);
+
         if (!treeConfigs?.[layerId]) {
           treeConfigs[layerId] = [config];
         } else {
@@ -536,7 +489,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
               const hole = this.holes.get(holeNum);
               hole.green = this._setupGreen(hits[0], position, hole.number);
             }
-            // this._greens.set(holeNum, green);
+
           }
         }
         if (this.holes.has(holeNum)) {
@@ -552,7 +505,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     const flag = new FlagStick(position, holeNumber, this.golfCup);
     const target = new TargetShaderMaterial(hit.object, position);
     this.scene.add(flag.object);
-    // this.golfCup
+
     return { object: hit.object, flag, target };
   }
 }
