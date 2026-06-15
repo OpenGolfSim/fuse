@@ -10,6 +10,7 @@ export type TargetShaderMaterialOptions = {
 
 export class TargetShaderMaterial {
   holeWorldPos: THREE.Vector3;
+  ringSizes: THREE.Vector3;
   currentActive: THREE.Vector3;
   // higher = faster response, lower = smoother
   lerpSpeed = 4.0;
@@ -26,11 +27,12 @@ export class TargetShaderMaterial {
     const outer = options.outer ?? 80;
     const ringWidth = options.ringWidth ?? 0.1;
 
+    this.ringSizes = new THREE.Vector3(inner, middle, outer);
     // Store uniform refs so we can update them later
     this.customUniforms = {
       holePos:       { value: new THREE.Vector3(holeWorldPos.x, 0, holeWorldPos.z) },
       holeRadius:    { value: 0.054 },   // 108mm diameter
-      ringRadii:     { value: new THREE.Vector3(inner, middle, outer) },
+      ringRadii:     { value: this.ringSizes },
       ringWidth:     { value: ringWidth },
       ringActive:    { value: new THREE.Vector3(0, 0, 0) },
       activeColor:   { value: new THREE.Vector4(1.0, 0.95, 0.0, 0.15) },
@@ -149,6 +151,16 @@ export class TargetShaderMaterial {
     }
   }
 
+  setPosition(position: THREE.Vector3) {
+    this.customUniforms.holePos.value = new THREE.Vector3(position.x, 0, position.z);
+    if (this.material) this.material.needsUpdate = true;
+  }
+  dispose() {
+    if (this.material) {
+      this.material.dispose();
+      this.material = undefined;
+    }
+  }
   update(golfBall: GolfBall, dt: number) {
     if (!golfBall.object) {
       return;
@@ -159,10 +171,11 @@ export class TargetShaderMaterial {
         golfBall.object.position.x - this.holeWorldPos.x,
         golfBall.object.position.z - this.holeWorldPos.z
       );
+      
       target.set(
-        dist <= 2.0 ? 1.0 : 0.0,
-        dist > 2.0 && dist <= 4.0 ? 1.0 : 0.0,
-        dist > 4.0 ? 1.0 : 0.0
+        dist <= this.ringSizes.x ? 1.0 : 0.0,
+        dist > this.ringSizes.x && dist <= this.ringSizes.y ? 1.0 : 0.0,
+        dist > this.ringSizes.y ? 1.0 : 0.0
       );
     }
     // Smooth toward target — never snaps

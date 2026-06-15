@@ -31,9 +31,10 @@ function getDeviceType() {
  */
 export function generateSetupData(playerCount: number = 1, override: Partial<OpenGolfSim.SetupData> = {}): OpenGolfSim.SetupData {
   const clubs = [
-    { fullName: 'Driver', name: 'DR', id: 'DR', distance: 180 },
+    { fullName: 'Driver', name: 'DR', id: 'DR', distance: 228 },
     { fullName: '5 Iron', name: '5i', id: '5I', distance: 150 },
     { fullName: 'Pitching Wedge', name: 'PW', id: 'PW', distance: 100 },
+    { fullName: 'Sand Wedge', name: 'SW', id: 'SW', distance: 50 },
     { fullName: 'Putter', name: 'P', id: 'PT', distance: 0 }
   ];
   const players = [];

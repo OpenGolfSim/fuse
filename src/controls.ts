@@ -1,5 +1,7 @@
 import EventEmitter from 'eventemitter3';
 import { type AimKeys } from './camera';
+import { app } from '@/index';
+import { OGSKeyCommands } from './app';
 
 interface CourseKeyboardControlEvents {
   testShot: (shot: OpenGolfSim.Shot) => void;
@@ -29,6 +31,24 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
 
     document.addEventListener('touchend', this.#touchEnd.bind(this));
 
+    app.on('command', (key, state) => {
+      console.log('COMMAND', key, state);
+
+      if (key.ogs_code === OGSKeyCommands.AimLeft) {
+        this.aimKeys.left = state === 'down';
+        this.emit('aim', this.aimKeys);
+      } else if (key.ogs_code === OGSKeyCommands.AimRight) {
+        this.aimKeys.right = state === 'down';
+        this.emit('aim', this.aimKeys);
+      } else if (key.ogs_code === OGSKeyCommands.DistanceIncrease) {
+        this.aimKeys.forward = state === 'down';
+        this.emit('aim', this.aimKeys);
+      } else if (key.ogs_code === OGSKeyCommands.DistanceDecrease) {
+        this.aimKeys.backward = state === 'down';
+        this.emit('aim', this.aimKeys);
+      }
+
+    });
   }
 
   #touchEnd(event: TouchEvent) {
@@ -126,16 +146,17 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
       case 'Space':
         const range = (min: number, max: number) => (Math.floor(Math.random() * (max - min + 1)) + min);
         this.emit('testShot', {
-          ballSpeed: range(90, 120),
+          ballSpeed: range(90, 140),
           verticalLaunchAngle: range(14, 20),
           horizontalLaunchAngle: range(-2, 2),
           spinSpeed: range(2000, 6000),
-          spinAxis: range(2, 2),
+          spinAxis: range(-12, 12),
         });
         break;
       case 'Digit1':
       case 'Numpad1':
-        this.emit('testShot', { ballSpeed: 150, verticalLaunchAngle: 11, horizontalLaunchAngle: 0, spinSpeed: 2000, spinAxis: 0 });
+        // this.emit('testShot', { ballSpeed: 150, verticalLaunchAngle: 11, horizontalLaunchAngle: 0, spinSpeed: 2000, spinAxis: 0 });
+        this.emit('testShot', { ballSpeed: 136, verticalLaunchAngle: 14, horizontalLaunchAngle: -1, spinSpeed: 4699, spinAxis: 7 });
         break;
       case 'Digit2':
       case 'Numpad2':
@@ -143,7 +164,7 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
         break;
       case 'Digit3':
       case 'Numpad3':
-        this.emit('testShot', { ballSpeed: 100, verticalLaunchAngle: 22, horizontalLaunchAngle: 0, spinSpeed: 5000, spinAxis: 0 });
+        this.emit('testShot', { ballSpeed: 108, verticalLaunchAngle: 22, horizontalLaunchAngle: -1, spinSpeed: 5000, spinAxis: 8 });
         break;
       case 'Digit4':
       case 'Numpad4':

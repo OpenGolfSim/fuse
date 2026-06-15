@@ -89,6 +89,7 @@ interface LoadedCourseSurface extends CourseSurfaceProperties {
 type CourseLoaderOptions = {
   manager?: THREE.LoadingManager,
   setupData: Partial<OpenGolfSim.SetupData>,
+  qualityLevel: QualityMode,
   meshLoaderOptions?: MeshLoaderOptions
 }
 
@@ -103,6 +104,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   greenGrids: Map<string, any>;
   courseMap?: ImageBitmap;
   courseSize: number;
+  qualityLevel: QualityMode;
   
   gltf?: GLTF;
   scene?: THREE.Group;
@@ -126,6 +128,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     super();
     this.world = world;
     this.rapier = rapier;
+    this.qualityLevel = options.qualityLevel;
     this.meshLoader = new MeshLoader(renderer, options.manager, options.meshLoaderOptions);
     this.setupData = options.setupData || {};
     this.courseSize = 1000;
@@ -252,14 +255,14 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
           child.material = new FlatGrassShaderMaterial(child.material, {
             blendNoiseScale: 0.1,
           });
-        } else if (this.setupData?.qualityLevel !== QualityMode.Low && surfaceType === 'rough') {
+        } else if (this.qualityLevel > QualityMode.Low && surfaceType === 'rough') {
           // const grass = new GrassSystem(child, this.grassTex);
           // this.scene.add(grass);
           // console.log('averageColor-child.material', child.material);
           // console.log('averageColor', averageColor.base.getHexString());
           // const averageColor = getAverageTextureColor(child.material);
 
-          const grass = new GrassShader(child, this.grassAssets!, {
+          const grassOptions = {
             density: 18,
             renderDistance: 25,
             cellSize: 5,
@@ -269,15 +272,20 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
             scaleXZ: 0.8,
             scaleY: 0.75,
             layer: 2,
-
             baseColor: new THREE.Color('#3a4a13'),
-            tipColor1: new THREE.Color('#668a34'),
+            tipColor1: new THREE.Color('#5c7c2e'),
             tipColor2: new THREE.Color('#ffffff'),
-          });
+          };
+          
+          if (this.qualityLevel > QualityMode.Medium) {
+            grassOptions.renderDistance = 50;
+          }
+          
+          const grass = new GrassShader(child, this.grassAssets!, grassOptions);
           this.scene.add(grass.mesh);
           this.grasses.set(child.uuid, grass);
 
-        } else if (this.setupData?.qualityLevel !== QualityMode.Low && ['deep_rough', 'base'].includes(surfaceType)) {
+        } else if (this.qualityLevel !== QualityMode.Low && ['deep_rough', 'base'].includes(surfaceType)) {
           // const grass = new GrassSystem(child, this.grassTex);
           // this.scene.add(grass);
           const grass = new GrassShader(child, this.grassAssets!, {
@@ -370,7 +378,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     this.planter = new TreePlanter({
       scene: this.scene,
       worldSize: this.courseSize,
-      qualityLevel: this.setupData?.qualityLevel,
+      qualityLevel: this.qualityLevel,
       // groundMeshes: this.getGroundMeshes(),
       world: this.world,
       rapier: this.rapier
@@ -383,14 +391,14 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         const layerId = child.userData?.treeLayerId;
         // console.log('child.userData.type', child.children);
         const group = TreePlanter.loadTree(child);
-        console.log('Loaded', group);
 
-        let lodDistances = [80, 120];
-        if (this.setupData?.qualityLevel === QualityMode.Medium) {
-          lodDistances = [120, 250];
-        } else if (this.setupData?.qualityLevel === QualityMode.High) {
-          lodDistances = [200, 450];
+        let lodDistances = [50, 100];
+        if (this.qualityLevel === QualityMode.Medium) {
+          lodDistances = [100, 200];
+        } else if (this.qualityLevel === QualityMode.High) {
+          lodDistances = [200, 400];
         }
+        console.log(`Planting trees with LODs: ${lodDistances.join(',')}`)
 
         const config: TreeGroup = {
           collider: {

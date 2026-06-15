@@ -2,6 +2,22 @@ import * as RAPIER from '@dimforge/rapier3d-compat';
 import EventEmitter from 'eventemitter3';
 import { GRAVITY_VECTOR } from './physics/constants';
 
+export enum OGSKeyCommands {
+  AimLeft = 0,
+  AimRight = 1,
+  DistanceIncrease = 2,
+  DistanceDecrease = 3,
+  ClubUp = 4,
+  ClubDown = 5,
+  PlayerUp = 6,
+  PlayerDown = 7,
+  Drop = 8,
+  ReHit = 9,
+  Mulligan = 10,
+  Scorecard = 11,
+  ToggleMap = 12
+};
+
 export type SetupMessage = {
   type: 'setup',
   setupData: OpenGolfSim.SetupData,
@@ -11,6 +27,16 @@ export type SetupMessage = {
 export type ShotMessage = {
   type: 'shot',
   shot: OpenGolfSim.Shot
+};
+
+export type CommandMessage = {
+  type: 'command',
+  key: {
+    ogs_code?: OGSKeyCommands;
+    name: string;
+    code: number;
+  },
+  state: 'down' | 'up' | 'press'
 };
 
 export type ReadyMessage = {
@@ -24,6 +50,7 @@ export type PlayerUpdateMessage = {
 
 interface EventMap {
   ready: () => void;
+  command: (key: CommandMessage['key'], state: CommandMessage['state']) => void;
   shot: (shotData: OpenGolfSim.Shot) => void;
   setup: (message: Omit<SetupMessage, 'type'>) => void;
 }
@@ -74,13 +101,16 @@ export class AppBridge extends EventEmitter<EventMap> {
     this.#handleEvent(data);
   }
 
-  #handleEvent(data: ShotMessage | SetupMessage) {
+  #handleEvent(data: CommandMessage | ShotMessage | SetupMessage) {
     switch (data.type) {
       case 'shot':
         this.emit('shot', data.shot);
         break;
       case 'setup':
         this.emit('setup', data);
+        break;
+      case 'command':
+        this.emit('command', data.key, data.state);
         break;
     }
   }
@@ -116,7 +146,7 @@ export class AppBridge extends EventEmitter<EventMap> {
     } else if (payload.type === 'ready') {
       this.emit('ready');
     } else {
-      console.warn('No parent to send message to!', JSON.stringify(payload, null, 1));
+      console.warn('No parent to send message to!', payload);
       // TODO: use a cloud-based websocket here to sync for web play?
     }
   }

@@ -10,7 +10,7 @@ import { QualityMode } from './utils/quality';
 import { WebGPURenderer } from 'three/webgpu';
 
 type FuseRendererOptions = {
-  canvas: HTMLCanvasElement;
+  canvas: HTMLElement | null;
   antialias?: boolean;
   width?: number;
   height?: number;
@@ -28,7 +28,9 @@ export class FuseRenderer {
   qualityLevel: QualityMode;
 
   constructor(options: FuseRendererOptions) {
-
+    if (!options.canvas || !(options.canvas instanceof HTMLCanvasElement)) {
+      throw new Error('Must provide a valid canvas element');
+    }
     this.container = options.container ?? options.canvas.parentElement ?? document.body;
     this.width = this.container.offsetWidth;
     this.height = this.container.offsetHeight;
@@ -51,6 +53,12 @@ export class FuseRenderer {
     }
 
     window.addEventListener('resize', this._handleResize.bind(this));
+
+    const resizeObserver = new ResizeObserver((entries) => this._handleResize());
+    resizeObserver.observe(this.container);
+    
+    // setTimeout(() => this._handleResize(), 4000);
+    // requestAnimationFrame(() => this._handleResize());
   }
   
   _handleResize() {  

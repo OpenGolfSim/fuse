@@ -12,14 +12,14 @@ type ShotPerspectiveCameraOptions = {
   cameraOffsetX?: number;
   cameraOffsetYZ?: [number, number];
   cameraTrackingOffsetYZ?: [number, number];
-  canvas?: HTMLCanvasElement;
+  canvas?: HTMLElement | null;
   scene?: THREE.Object3D | THREE.Object3D[];
 }
 
 export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
   scene?: THREE.Object3D | THREE.Object3D[];
   // renderer: THREE.WebGLRenderer;
-  canvas?: HTMLCanvasElement;
+  canvas?: HTMLElement | null;
   shotDirection: THREE.Vector3;
   staticCamPos: THREE.Vector3;
   staticLookAt: THREE.Vector3;
@@ -89,7 +89,13 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     this.trackingDelay = options.trackingDelay ?? 3000;
     this.#trackTimeout = 0;
 
-    window.addEventListener('resize', this._handleResize.bind(this));
+    if (this.canvas) {
+      const resizeObserver = new ResizeObserver((_entries) => this._handleResize());
+      resizeObserver.observe(this.canvas);
+    } else {
+      window.addEventListener('resize', this._handleResize.bind(this));
+    }
+    requestAnimationFrame(() => this._handleResize());
   }
 
   setScene(scene?: THREE.Object3D | THREE.Object3D[]) {
@@ -97,11 +103,18 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
   }
 
   _handleResize() {
+    console.log('canvas resized!');
     // const size = new THREE.Vector2(0, 0);
     // this.renderer.getSize(size);
-    const width = this.canvas?.width || window.innerWidth;
-    const height = this.canvas?.height || window.innerHeight;
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    if (this.canvas instanceof HTMLCanvasElement) {
+      console.log('Using canvas size!');
+      width = this.canvas.width;
+      height = this.canvas.height;
+    }
     this.aspect = width / height;
+    console.log(`RESIZE CAMERA: ${width} x ${height}`);
     this.updateProjectionMatrix();
     this.projectionMatrix.elements[8] = this.#activeFrustumOffset;
     // if (this.renderer) {

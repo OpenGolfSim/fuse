@@ -31,10 +31,11 @@ button {
   padding: 10px;
   font-size: 12px;
   font-weight: 800;
-  background-color: #242728;
+  background-color: var(--bg-color-solid);
   border: 0;
   border-radius: 1vh;
   color: #fff;
+  user-select: none;
 }
 button:hover {
   cursor: pointer;

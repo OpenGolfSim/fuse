@@ -14,6 +14,11 @@ type ShotDataGridOption = {
 export type UIShotDataOptions = {
   gridOptionsEnabled?: (keyof OpenGolfSim.Shot | keyof OpenGolfSim.ShotResult)[];
   units?: OpenGolfSim.SetupData['units'];
+  columns?: number;
+  style?: {
+    container?: string;
+    gridItem?: string;
+  };
 }
 
 export class UIShotData {
@@ -132,7 +137,14 @@ export class UIShotData {
     }
 
     this.element.className = styles.shotData;
+    if (options.style?.container) {
+      this.element.setAttribute('style', options.style.container);
+    }
+
     this.wrapper = document.createElement('div');
+    if (options.columns) {
+      this.wrapper.setAttribute('style', `grid-template-columns: repeat(${options.columns}, 1fr);`);
+    }
 
     this._build();
   }

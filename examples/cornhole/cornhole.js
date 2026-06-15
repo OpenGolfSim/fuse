@@ -1,6 +1,9 @@
 import '@/css/base.css';
 import './cornhole.css';
 
+const FIXED_DT = 1 / 60;
+const MAX_SUBSTEPS = 5; // cap to prevent "spiral of death"
+
 import {
   CourseKeyboardControls,
   MeshLoader,
@@ -29,7 +32,7 @@ const stopThreshold = 0.05;
 const baseBoardDistance = 7;
 let boardZOffset = 10;
 
-const fogColor = new THREE.Color('#fffcee');
+const fogColor = new THREE.Color('#bddefc');
 const skyColor = new THREE.Color('#bddefc');
 
 const textureLoader = new THREE.TextureLoader();
@@ -238,8 +241,8 @@ async function setupScene() {
   const waterGeometry = new THREE.PlaneGeometry(300, 100);
 
   gameContext.water.object = new Water(waterGeometry, {
-    textureWidth: 512,
-    textureHeight: 512,
+    textureWidth: 256,
+    textureHeight: 256,
     waterNormals: textureLoader.load(
       waterNormals,
       (texture) => {
@@ -786,25 +789,36 @@ function animate(animDelta) {
   const delta = gameContext.timer.getDelta();
   gameContext.timer.update(animDelta);
 
-  app.world.step(gameContext.eventQueue);
-  gameContext.clouds?.update();
+  // fixed-rate physics
+  gameContext.accumulator += delta;
 
-  gameContext.eventQueue.drainCollisionEvents((h1, h2, started) => {
-    if (!started) return; // only care about entering, not leaving
-    const blueHole = gameContext.boards.blue.colliderHole.handle;
-    const redHole = gameContext.boards.red.colliderHole.handle;
+  // Clamp so a long hitch doesn't queue dozens of steps
+  if (gameContext.accumulator > FIXED_DT * MAX_SUBSTEPS) {
+    gameContext.accumulator = FIXED_DT * MAX_SUBSTEPS;
+  }
 
-    let holeTeam = null;
-    if (h1 === blueHole || h2 === blueHole) holeTeam = 'blue';
-    else if (h1 === redHole || h2 === redHole) holeTeam = 'red';
-    if (!holeTeam) return;
+  while (gameContext.accumulator >= FIXED_DT) {
+    app.world.timestep = FIXED_DT;
+    app.world.step(gameContext.eventQueue);
+    gameContext.accumulator -= FIXED_DT;
 
-    const bagHandle = (h1 === blueHole || h1 === redHole) ? h2 : h1;
-    const bag = gameContext.bags.find(b => b.collider.handle === bagHandle);
-    if (bag) {
-      bag.inHole = holeTeam;
-    }
-  });
+    // Drain collision events *inside* the loop so you don't
+    // miss events from intermediate substeps
+    gameContext.eventQueue.drainCollisionEvents((h1, h2, started) => {
+      if (!started) return;
+      const blueHole = gameContext.boards.blue.colliderHole.handle;
+      const redHole  = gameContext.boards.red.colliderHole.handle;
+
+      let holeTeam = null;
+      if (h1 === blueHole || h2 === blueHole) holeTeam = 'blue';
+      else if (h1 === redHole || h2 === redHole) holeTeam = 'red';
+      if (!holeTeam) return;
+
+      const bagHandle = (h1 === blueHole || h1 === redHole) ? h2 : h1;
+      const bag = gameContext.bags.find(b => b.collider.handle === bagHandle);
+      if (bag) bag.inHole = holeTeam;
+    });
+  }
 
   // Sync meshes to physics
   for (const bag of gameContext.bags) {
@@ -834,9 +848,9 @@ function animate(animDelta) {
   }
 
   
-  // if (gameContext.water.object) {
-  //   gameContext.water.object.material.uniforms['time'].value += gameContext.water.speed / 60.0;
-  // }
+  if (gameContext.water.object) {
+    gameContext.water.object.material.uniforms['time'].value += gameContext.water.speed / 60.0;
+  }
 
   if (gameContext.debug.enabled) {
     const { vertices, colors } = app.world.debugRender();
@@ -854,9 +868,6 @@ function animate(animDelta) {
     gameContext.startPoint,
     gameContext.aimPoint
   );
-  if (aimChanged) {
-    // gameContext.aimPoint.copy();
-  }
   
   if (gameContext.aimMesh) gameContext.aimMesh.position.copy(gameContext.aimPoint);
 

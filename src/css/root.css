@@ -24,7 +24,6 @@
   --large-font-size: 14px;
   --unit-font-size: 7px;
 
-  --shot-data-direction: row;
   --shot-data-grid: repeat(2, 1fr);
 }
 
@@ -41,7 +40,6 @@
     --medium-font-size: 1.7vh;
     --large-font-size: 2.1vh;
     --unit-font-size: 0.9vh;
-    --shot-data-direction: column;
     --shot-data-grid: repeat(1, 1fr);
   }
 }
