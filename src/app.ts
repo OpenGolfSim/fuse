@@ -185,13 +185,15 @@ export class AppBridge extends EventEmitter<EventMap> {
   }
 
   sendMessage(payload: any) {
+    console.log('send', this.appType, payload);
     if (this.appType === 'mobile') {
       console.log('Sending to react native: ', payload);
       window.ReactNativeWebView?.postMessage(JSON.stringify(payload));
     } else if (this.appType === 'desktop') {
       console.log('Sending to electron: ', payload);
       window.ogsElectron?.postMessage(payload);
-    } else if (window?.parent?.postMessage) {
+    } else if (this.appType === 'webapp' && window.parent?.postMessage) {
+      console.log('Sending to iframe: ', payload);
       window.parent.postMessage(payload, '*');
     } else if (payload.type === 'ready') {
       this.emit('ready');
