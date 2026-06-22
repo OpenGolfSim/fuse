@@ -86,10 +86,11 @@ namespace OpenGolfSim {
   
   interface ShotResultEvent {
     type: 'result';
-    data?: ShotResult;
+    data?: Partial<ShotResult>;
     shot?: Shot;
     club?: Club;
-    playerId?: string;
+    surface?: string;
+    player?: Player;
     startPosition?: [number, number, number];
     landPosition?: [number, number, number];
     endPosition?: [number, number, number];

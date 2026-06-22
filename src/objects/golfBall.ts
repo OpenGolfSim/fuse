@@ -3,7 +3,7 @@ import { type World } from '@dimforge/rapier3d-compat';
 import EventEmitter from 'eventemitter3';
 import { BallPhysics } from '@/physics/ballPhysics';
 import { BallTrail } from '@/objects/ballTrail';
-import { CourseSurfaceProperties } from '@/courses/surfaces';
+import { CourseColliderType, CourseSurfaceProperties, CourseSurfaceType } from '@/courses/surfaces';
 
 const FIXED_DT = 1 / 120;
 
@@ -20,12 +20,14 @@ type GolfBallOptions = {
   clearTrail?: BallTrailClearMode;
 }
 
-type ShotStats = {
+export type ShotStats = {
   apex: number;
   lateral: number;
   carry: number;
   total: number;
   roll: number;
+  surface: CourseColliderType;
+  startPosition?: THREE.Vector3;
   landPosition?: THREE.Vector3;
   endPosition?: THREE.Vector3;
   heightSamples: number[];
@@ -35,6 +37,7 @@ type ShotStats = {
 
 const createDefaultStats = (): ShotStats => ({
   apex: 0, lateral: 0, carry: 0, total: 0, roll: 0,
+  surface: CourseSurfaceType.Base,
   heightSamples: [],
   distanceSamples: [],
   lateralSamples: [],
@@ -162,6 +165,9 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     if (!this.stats.endPosition) {
       this.stats.endPosition = this.object?.position.clone();
     }
+    if (surface?.type) {
+      this.stats.surface = surface.type;
+    }
 
     clearTimeout(this.#timeout);
     this.#timeout = setTimeout(() => {
@@ -209,6 +215,8 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
       // add first point
       this.trail.addPoint();
     }
+    this.stats.startPosition = this.object?.position.clone();
+
     if (this.physics) {
       this.physics.launchShot(shot, isPutt);
     }

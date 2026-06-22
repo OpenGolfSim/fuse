@@ -323,23 +323,14 @@ async function preLoad() {
 function onShotEnded() {
   setupNextShot();
 
-  const update: OpenGolfSim.ShotResultEvent = {
-    type: 'result',
-    data: gameContext.golfBall?.stats,
-    shot: gameContext.golfBall?.lastShot,
-    playerId: gameContext.currentPlayer?.id,
-    club: gameContext.currentPlayer?.currentClub,
-
-    startPosition: gameContext.startPoint.toArray(),
-    endPosition: gameContext.golfBall?.stats.endPosition?.toArray(),
-    landPosition: gameContext.golfBall?.stats.landPosition?.toArray(),
-    ballTrail: gameContext.golfBall?.getTrailPoints(),
-    lateralSamples: gameContext.golfBall?.stats.lateralSamples,
-    heightSamples: gameContext.golfBall?.stats.heightSamples,
-    distanceSamples: gameContext.golfBall?.stats.distanceSamples,
-  }
-  console.log('update', update);
-  app.sendMessage(update);
+  app.sendShotResult(
+    {
+      shot: gameContext.golfBall?.lastShot,
+      stats: gameContext.golfBall?.stats,
+      player: gameContext.currentPlayer?.player,
+      club: gameContext.currentPlayer?.currentClub,
+    }
+  );
 
 }
 

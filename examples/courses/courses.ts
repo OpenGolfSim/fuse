@@ -323,6 +323,16 @@ async function setupCourse() {
   gameContext.golfBall = new GolfBall(gameContext.scene, app.world, app.rapier, {
     setupData: gameContext.setupData,
   });
+  gameContext.golfBall.on('shotEnded', () => {
+    app.sendShotResult(
+      {
+        shot: gameContext.golfBall?.lastShot,
+        stats: gameContext.golfBall?.stats,
+        player: gameContext.game?.activePlayer.player,
+        club: gameContext.game?.activePlayer?.currentClub,
+      }
+    );
+  });
   
   // setup course game controller
   gameContext.game = new CourseGame(gameContext.course, gameContext.golfBall, gameContext.setupData);
