@@ -1,6 +1,7 @@
 import * as RAPIER from '@dimforge/rapier3d-compat';
 import EventEmitter from 'eventemitter3';
-import { GRAVITY_VECTOR } from './physics/constants';
+import { GRAVITY_VECTOR } from '@/physics/constants';
+import { ShotStats } from '@/objects/golfBall';
 
 export enum OGSKeyCommands {
   AimLeft = 0,
@@ -59,7 +60,7 @@ interface EventMap {
  * Sets up physics and communication with external apps.
  */
 export class AppBridge extends EventEmitter<EventMap> {
-  appType: 'mobile' | 'desktop' | 'web';
+  appType: 'mobile' | 'desktop' | 'web' | 'webapp';
   isReady: boolean;
   rapier: RapierInstance;
   world?: RAPIER.World;
@@ -73,11 +74,10 @@ export class AppBridge extends EventEmitter<EventMap> {
     } else if (typeof window.ogsElectron !== 'undefined') {
        this.appType = 'desktop';
     }
-
-    if (this.appType === 'mobile') {
-      window.addEventListener("message", this.#handleReactNativeMessage.bind(this));
-    } else if (this.appType === 'desktop') {
+    if (this.appType === 'desktop') {
       window.ogsElectron!.onMessage(this.#handleElectronMessage.bind(this));
+    } else {
+      window.addEventListener("message", this.#handleWindowMessage.bind(this));
     }
 
     this.rapier = RAPIER;
@@ -87,9 +87,9 @@ export class AppBridge extends EventEmitter<EventMap> {
     });
   }
 
-  #handleReactNativeMessage(event: MessageEvent<any>) {
+  #handleWindowMessage(event: MessageEvent<any>) {
     try {
-      const data = JSON.parse(event.data);
+      const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
       this.#handleEvent(data);
     } catch (error) {
       console.log('Could not parse ReactNative message', error);
@@ -128,11 +128,59 @@ export class AppBridge extends EventEmitter<EventMap> {
     this.sendMessage({ type: 'ready' });
   }
 
+  sendShotResult(options: {
+    shot?: OpenGolfSim.Shot,
+    stats?: ShotStats,
+    player?: OpenGolfSim.Player,
+    club?: OpenGolfSim.Club
+  }) {
+    const { shot, stats, player, club } = options;
+    if (!shot) throw new Error('Missing shot data');
+    if (!stats) throw new Error('Missing result stats');
+    if (!player) throw new Error('Missing player');
+    if (!club) throw new Error('Missing club');
+
+    const {
+      startPosition,
+      landPosition,
+      endPosition,
+      lateralSamples,
+      heightSamples,
+      distanceSamples,
+      surface,
+      apex,
+      lateral,
+      carry,
+      total,
+      roll
+    } = stats || {};
+
+    const update: OpenGolfSim.ShotResultEvent = {
+      type: 'result',
+      data: { apex, lateral, carry, total, roll },
+      shot,
+      player,
+      club,
+      surface,
+      startPosition: startPosition?.toArray(),
+      endPosition: endPosition?.toArray(),
+      landPosition: landPosition?.toArray(),
+      lateralSamples,
+      heightSamples,
+      distanceSamples,
+    }
+    this.sendMessage(update);
+  }
   exit() {
+
+    this.sendMessage({ type: 'exit' });
+
     if (this.appType === 'web') {
-      window.navigation.back();
-    } else {
-      this.sendMessage({ type: 'exit' });
+      try {
+        window.navigation.back();
+      } catch (error) {
+        console.log(error);
+      }
     }
   }
 
@@ -143,6 +191,8 @@ export class AppBridge extends EventEmitter<EventMap> {
     } else if (this.appType === 'desktop') {
       console.log('Sending to electron: ', payload);
       window.ogsElectron?.postMessage(payload);
+    } else if (window?.parent?.postMessage) {
+      window.parent.postMessage(payload, '*');
     } else if (payload.type === 'ready') {
       this.emit('ready');
     } else {

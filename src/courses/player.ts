@@ -3,9 +3,9 @@ import * as THREE from 'three';
 export interface CoursePlayer extends OpenGolfSim.Player {}
 
 export class CoursePlayer {
-  // all properties of OpenGolfSim.Player + 
   strokes = 0;
   disabled: boolean;
+  player: OpenGolfSim.Player;
   currentClub: OpenGolfSim.Club;
   previousStart?: THREE.Vector3;
   originalStart?: THREE.Vector3;
@@ -16,7 +16,7 @@ export class CoursePlayer {
   scorecard: Map<string, number>;
 
   constructor(player: OpenGolfSim.Player) {
-    // how could I just set these?
+    this.player = player;
     this.name = player.name;
     this.id = player.id;
     this.clubs = player.clubs;
