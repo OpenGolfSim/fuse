@@ -7,7 +7,6 @@ interface Window {
     onMessage: (callback: (data: any) => void) => {},
     postMessage: (payload: any) => {}
   }
-  // whatever else you're attaching
 }
 
 interface WindowEventMap {

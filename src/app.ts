@@ -73,6 +73,8 @@ export class AppBridge extends EventEmitter<EventMap> {
       this.appType = 'mobile';
     } else if (typeof window.ogsElectron !== 'undefined') {
        this.appType = 'desktop';
+    } else if (window.self !== window.top) {
+      this.appType = 'webapp';
     }
     if (this.appType === 'desktop') {
       window.ogsElectron!.onMessage(this.#handleElectronMessage.bind(this));
