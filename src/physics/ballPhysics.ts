@@ -193,8 +193,16 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   launchShot(shot: OpenGolfSim.Shot, isPutt = false) {
     const ballSpeed = UnitConversions.milesPerHourToMetersPerSecond(shot.ballSpeed);
     
+    // clamp spin between 0 and 13,000 RPM
+    const spinSpeed = THREE.MathUtils.clamp(shot.spinSpeed, 0, 13_000);
+    // clamp spin axis between -45 and +45
+    const spinAxis = THREE.MathUtils.clamp(shot.spinAxis, -45, 45);
+    // clamp HLA between -45 and +45
+    const hla = THREE.MathUtils.clamp(shot.horizontalLaunchAngle, -45, 45);
+
+    // clamp VLA between 0/1 and +50
     const vlaMin = isPutt ? 0 : 1;
-    const vla = Math.min(Math.max(shot.verticalLaunchAngle || 0, vlaMin), 45);
+    const vla = THREE.MathUtils.clamp(shot.verticalLaunchAngle, vlaMin, 50);
 
     // Reset state
     this.hasBeenAirborne = false;
@@ -213,13 +221,14 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     // this.rigidBody.enableCcd(false);
     
     if (isPutt) {
-      this._launchPutt(ballSpeed, shot.horizontalLaunchAngle, shot.spinSpeed);
+      this._launchPutt(ballSpeed, hla, spinSpeed);
     } else {
       this._launchFull(
-        ballSpeed, vla,
-        shot.horizontalLaunchAngle,
-        shot.spinSpeed,
-        shot.spinAxis,
+        ballSpeed,
+        vla,
+        hla,
+        spinSpeed,
+        spinAxis,
       );
     }
   }
