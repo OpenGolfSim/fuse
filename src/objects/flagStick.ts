@@ -69,7 +69,7 @@ class FlagConstraint {
  */
 export class FlagStick {
   object: THREE.Group;
-  holeNumber: number;
+  holeNumber: string;
   elapsed = 0;
   particles: FlagParticle[];
   constraints: FlagConstraint[];
@@ -83,7 +83,7 @@ export class FlagStick {
   #tmpForce: THREE.Vector3;
   #restPositions: THREE.TypedArray;
 
-  constructor(position: THREE.Vector3, holeNumber: number, golfCup?: THREE.Mesh) {
+  constructor(position: THREE.Vector3, holeNumber: string, golfCup?: THREE.Mesh) {
     this.object = new THREE.Group();
     this.holeNumber = holeNumber;
 

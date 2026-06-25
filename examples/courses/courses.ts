@@ -1,3 +1,4 @@
+import { UIHazardDialog } from '@/ui/UIHazardDialog';
 import { QualityMode } from '@/utils/quality';
 import { type World } from '@dimforge/rapier3d-compat';
 import {
@@ -20,6 +21,7 @@ import {
   generateSetupData,
   UIMainMenu,
   FuseRenderer,
+  UIScorecard,
  } from '@opengolfsim/fuse';
 
 
@@ -57,7 +59,10 @@ const gameContext: {
   loadingScreen?: UILoadingScreen,
   rangeFinder?: UIRangeFinder,
   stats?: UIStats,
-
+  dialogs: {
+    scorecard?: UIScorecard,
+    hazard?: UIHazardDialog,
+  },
   // State
   distanceToAim: number,
   heightToAim: number,
@@ -68,7 +73,8 @@ const gameContext: {
   aimPoint: new THREE.Vector3(0, 0, 0),
   qualityLevel: QualityMode.Medium,
   distanceToAim: 0,
-  heightToAim: 0
+  heightToAim: 0,
+  dialogs: {}
 };
 
 const defaultSkyColor = 'rgb(192, 215, 241)';
@@ -92,6 +98,7 @@ function launchShot(shot: OpenGolfSim.Shot) {
 
 function setupNextShot() {
   if (!gameContext.game) return;
+  
   gameContext.camera?.setTracking(false);
   gameContext.startPoint.copy(gameContext.game.startPoint());
   gameContext.aimPoint.copy(gameContext.game.aimPoint());
@@ -108,6 +115,7 @@ function setupNextShot() {
   gameContext.courseMap?.updatePosition(gameContext.startPoint, gameContext.game.pinPoint());
   gameContext.courseMap?.updateHole(gameContext.game.activeHole);
 
+  gameContext.game.autoSelectClub();
   gameContext.playerMenu?.update(gameContext.game.activePlayer);
 
 }
@@ -192,6 +200,11 @@ async function setupScene() {
     holes: gameContext.course?.holes,
     map: gameContext.course.courseMap,
     worldSize: gameContext.course.courseSize
+  });
+  gameContext.courseMap.on('holeChange', (hole) => {
+    console.log('CHANGE HOLE', hole);
+    gameContext.game?.switchHole(hole);
+    setupNextShot();
   });
 
   // Controls
@@ -335,18 +348,33 @@ async function setupCourse() {
   });
   
   // setup course game controller
-  gameContext.game = new CourseGame(gameContext.course, gameContext.golfBall, gameContext.setupData);
+  gameContext.game = new CourseGame(gameContext.course, gameContext.golfBall, { setupData: gameContext.setupData });
   gameContext.game?.on('nextShot', (player) => {
     console.log(`A new player (${player.name}) is up!`);
     setupNextShot();
+  });
+  gameContext.game?.on('roundEnded', () => {
+    console.log(`The round is over!`);
+    gameContext.dialogs.scorecard?.open();
   });
 
   gameContext.shotData = new UIShotData('#shot-data', { units: gameContext.setupData?.units });
   gameContext.rangeFinder = new UIRangeFinder('#top-center', { units: gameContext.setupData?.units });
   gameContext.mainMenu = new UIMainMenu('#top-left');
+  
+  gameContext.dialogs.scorecard = new UIScorecard('#scorecard', {
+    players: gameContext.game?.players || [],
+    holes: gameContext.course.holes
+  });
+  gameContext.dialogs.hazard = new UIHazardDialog('#hazard', {});
+
   gameContext.mainMenu.on('exit', () => app.exit())
 
   gameContext.playerMenu = new UIPlayerMenu('#top-left', { players: gameContext.game?.players || [] });
+  gameContext.playerMenu.on('showScorecard', () => {
+    // gameContext.dialogs.scorecard?.updateScores();
+    gameContext.dialogs.scorecard?.open();
+  });
   gameContext.playerMenu.on('selectPlayer', player => {
     // handle player changed
     console.log('select player', player);

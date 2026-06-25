@@ -74,6 +74,7 @@ namespace OpenGolfSim {
     units?: MeasurementUnits;
     cameraOffset?: number;
     qualityLevel?: number;
+    gimmeDistances?: number[];
   }
 
   type GameData = {

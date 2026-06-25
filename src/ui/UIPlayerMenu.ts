@@ -69,9 +69,11 @@ export class UIPlayerMenu extends UIElementBase<UIPlayerMenuEvents> {
     this.playerClub.className = styles.playerMenuClub;
     this.playerClub.textContent = 'DR';
     
-    this.playerScore = document.createElement('div');
-    this.playerScore.className = styles.playerMenuScore;
+    this.playerScore = document.createElement('a');
+    // this.playerScore.className = styles.playerMenuScore;
     this.playerScore.textContent = 'E';
+    this.playerScore.classList.add(styles.playerMenuScore, styles.clickableArea);
+    this.playerScore.addEventListener('click', () => this.emit('showScorecard'));
     
     this.wrapper.append(playerName, this.playerClub, this.playerScore);
   
@@ -105,7 +107,10 @@ export class UIPlayerMenu extends UIElementBase<UIPlayerMenuEvents> {
   update(player: CoursePlayer) {
     if (this.playerNameText) this.playerNameText.textContent = player.name;
     if (this.playerClub) this.playerClub.textContent = player.currentClub?.name || 'NA';
-    if (this.playerScore) this.playerScore.textContent = `${player.strokes || 0}`;
+    if (this.playerScore) {
+      const val = !player.toPar ? 'E' : `${player.toPar > 0 ? '+' + player.toPar : player.toPar}`;
+      this.playerScore.textContent = val;
+    }
 
     // this.playerDropdown.menuItems?.find(item => item.id === player.id)
 

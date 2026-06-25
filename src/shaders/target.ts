@@ -2,9 +2,7 @@ import { GolfBall } from '@/objects/golfBall';
 import * as THREE from 'three';
 
 export type TargetShaderMaterialOptions = {
-  inner?: number,
-  middle?: number,
-  outer?: number,
+  gimmeDistances: number[],
   ringWidth?: number
 };
 
@@ -17,14 +15,15 @@ export class TargetShaderMaterial {
   customUniforms: Record<string, { value: any }>;
   material?: THREE.Material;
 
-  constructor(object: THREE.Object3D, holeWorldPos: THREE.Vector3, options: TargetShaderMaterialOptions = {}) {
+  constructor(object: THREE.Object3D, holeWorldPos: THREE.Vector3, options: TargetShaderMaterialOptions) {
     this.holeWorldPos = holeWorldPos;
 
     this.currentActive = new THREE.Vector3(0, 0, 0);
 
-    const inner = options.inner ?? 2;
-    const middle = options.middle ?? 4;
-    const outer = options.outer ?? 80;
+    const [ inner, middle, outer ] = options.gimmeDistances;
+    // const inner = options.inner;
+    // const middle = options.middle;
+    // const outer = options.outer;
     const ringWidth = options.ringWidth ?? 0.1;
 
     this.ringSizes = new THREE.Vector3(inner, middle, outer);

@@ -380,7 +380,7 @@ export class TreePlanter {
           mat.alphaToCoverage = true;
           mat.transparent = false;
           mat.depthWrite = true;
-          mat.side = THREE.DoubleSide;
+          // mat.side = THREE.DoubleSide;
         }
 
         instanced.instanceMatrix.needsUpdate = true;

@@ -149,8 +149,8 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     }
   }
   
-  isOnGreen() {
-    return this.physics?.isGrounded && this.physics?.currentSurface?.type === 'green';
+  isOnGreen(preShot = false) {
+    return (preShot || this.physics?.isGrounded) && this.physics?.currentSurface?.type === 'green';
   }
 
   // aimAt(aimPoint) {

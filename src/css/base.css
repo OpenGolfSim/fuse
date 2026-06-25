@@ -13,6 +13,9 @@ a {
   color: var(--primary-color);
   text-decoration: none;
 }
+a:hover {
+  color: var(--hover-color);
+}
 ol, ul {
   margin: 0 0 0 1rem;
   padding: 0;

@@ -4,6 +4,7 @@ export interface CoursePlayer extends OpenGolfSim.Player {}
 
 export class CoursePlayer {
   strokes = 0;
+  toPar = 0;
   disabled: boolean;
   player: OpenGolfSim.Player;
   currentClub: OpenGolfSim.Club;
@@ -28,7 +29,7 @@ export class CoursePlayer {
   }
 
   hasFinishedHole(holeNumber: string) {
-    return this.scorecard.has(holeNumber);
+    return this.scorecard.has(`${holeNumber}`);
   }
 
   resetPositions(holeStart: THREE.Vector3, holePin: THREE.Vector3, holeAim?: THREE.Vector3) {

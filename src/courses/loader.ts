@@ -21,6 +21,8 @@ import { isMeshObject } from '@/utils/mesh';
 import grassBladesModel from '@/models/grassBlades.glb?url';
 import golfCupModel from '@/models/golfCup.glb?url';
 import { QualityMode } from '@/utils/quality';
+import { DefaultGimmeDistances } from '@/utils/data';
+import { Hole } from './types';
 
 
 
@@ -93,11 +95,24 @@ type CourseLoaderOptions = {
   meshLoaderOptions?: MeshLoaderOptions
 }
 
+
+type CourseGreen = {
+  flag: FlagStick;
+  target: TargetShaderMaterial;
+  object: THREE.Object3D;
+}
+
+export type CourseHole = {
+  green?: CourseGreen;
+} & Hole;
+
+export type CourseHoleMap = Map<number, CourseHole>;
+
 export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   world: World;
   rapier: RapierInstance;
   meshLoader: MeshLoader;
-  holes: Map<string, any>;
+  holes: CourseHoleMap;
   waterSurfaces: Map<string, any>;
   surfaces: Map<string, LoadedCourseSurface>;
   grasses: Map<string, any>;
@@ -267,12 +282,12 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
             cellSize: 10,
             lean: 0.03,
             layer: 2,
-            heightVariation: 0.05,
+            heightVariation: 0.1,
             maxNewCellsPerFrame: 10,
             scaleXZ: 1.2,
-            scaleY: 2,
-            baseColor: '#395220',   // match your terrain's green
-            tipColor1: '#65792d',
+            scaleY: 1.25,
+            baseColor: '#354310',   // match your terrain's green
+            tipColor1: '#486124',
             tipColor2: '#59792d',
           });
           this.scene.add(grass.mesh);
@@ -442,14 +457,13 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   }
 
   _detectSurface(mesh: THREE.Object3D) {
-    // Prefer explicit userData (set this in Blender's Custom Properties on the object)
-    if (!mesh.userData?.surface) {
-      return {};
-    }
     const surfaceType = mesh.userData.surface;
+    if (!surfaceType) {
+      return { surfaceType: 'default', surfaceSettings: CourseSurfaces.default };
+    }
     const surfaceSettings = isCourseSurfaceType(surfaceType) && CourseSurfaces[surfaceType];
     if (!surfaceSettings) {
-      throw new Error(`No settings defined for '${mesh.userData.surface}'`);
+      return { surfaceType, surfaceSettings: CourseSurfaces.default };
     }    
     return { surfaceType, surfaceSettings };
   }
@@ -473,7 +487,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       if (type === 'hole_group') {
         const { holeNum, par } = node.userData;
         if (!this.holes.has(holeNum)) {
-          this.holes.set(holeNum, { number: holeNum, par, waypoints: new Map() });
+          this.holes.set(holeNum, { number: `${holeNum}`, par, waypoints: new Map() });
         }
       } else if (type === 'waypoint') {
         // ['tee','aim','pin'].includes(type)
@@ -487,23 +501,26 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
             // add flagstick and target material
             if (this.holes.has(holeNum)) {
               const hole = this.holes.get(holeNum);
-              hole.green = this._setupGreen(hits[0], position, hole.number);
+              if (hole) {
+                hole.green = this._setupGreen(hits[0], position, hole.number);
+              }
             }
 
           }
         }
-        if (this.holes.has(holeNum)) {
-          this.holes.get(holeNum).waypoints.set(waypointType, position);
+        const hole = this.holes.get(holeNum);
+        if (hole) {
+          hole.waypoints.set(waypointType, position);
         }
       }
     });
   }
   
-  _setupGreen(hit: THREE.Intersection, position: THREE.Vector3, holeNumber: number) {
+  _setupGreen(hit: THREE.Intersection, position: THREE.Vector3, holeNumber: string) {
     if (!this.scene) throw new Error('Scene missing');
 
     const flag = new FlagStick(position, holeNumber, this.golfCup);
-    const target = new TargetShaderMaterial(hit.object, position);
+    const target = new TargetShaderMaterial(hit.object, position, { gimmeDistances: this.setupData?.gimmeDistances || DefaultGimmeDistances });
     this.scene.add(flag.object);
 
     return { object: hit.object, flag, target };
