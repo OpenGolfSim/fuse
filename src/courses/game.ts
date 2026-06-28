@@ -123,27 +123,23 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     this.activePlayer.strokes += strokes;
     const holeKey = `${this.activeHole.number}`;
     const existingHoleScore = this.activePlayer.scorecard.get(holeKey);
-    console.log('existing', holeKey, existingHoleScore, this.activePlayer.scorecard);
     // finalize player hole score
     const newHoleScore = existingHoleScore ? existingHoleScore + strokes : strokes;
     this.activePlayer.scorecard.set(holeKey, newHoleScore);
     
     if (endOfHole) {
       const diff = (newHoleScore - this.activeHole.par);
-      console.log('ADD TO PAR', diff);
+      console.log(`Adding diff to par score: ${diff}`);
       this.activePlayer.toPar += diff;
     }
   }
 
   _onShotEnded(...[details]: Parameters<GolfBallEvents['shotEnded']>) {
     const { surface } = details;
-    // let playerState = this.#playerData.get(this.activePlayer.id);
-    console.log('SHOT ENDED', this.activePlayer);
     if (!this.activePlayer) {
       throw new Error('No player found!');
     }
     this._addStrokes();
-    // this.activePlayer.strokes++;
 
     // store for mulligans
     if (!this.activePlayer.previousStart) {
@@ -151,7 +147,6 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     }
     this.activePlayer.previousStart.copy(this.activePlayer.start);
   
-    console.log('playerState', this.activePlayer);
     if (!this.practiceMode) {
       if (!this.golfBall.object) {
         throw new Error('GolfBall object not found');
@@ -173,22 +168,12 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
         } else if (distanceToHole <= this.gimmeDistances[1]) {
           autoPutt = 2;
         }
-        console.log(`Distance to hole: ${distanceToHole}m, auto-putt: ${autoPutt}`);
+        console.log(`Distance to hole: ${distanceToHole}m, auto-putt score: ${autoPutt}`);
         this._addStrokes(autoPutt, true);
-        // hole score
-        // const holeKey = `${this.activeHole.number}`;
-        // const existingHoleScore = this.activePlayer.scorecard.get(holeKey);
-        // console.log('existing', holeKey, existingHoleScore, this.activePlayer.scorecard);
-        // // finalize player hole score
-        // this.activePlayer.scorecard.set(holeKey, existingHoleScore ? existingHoleScore + 1 : 1);
         
-        // disable player when they finish a hole, so it's not selectable in UI
+        // disable player when they finish a hole (so they are not selectable in UI)
         this.activePlayer.disabled = true;
         this._nextPlayer();
-        // const p = this.#playerData.get(this.activePlayer.id);
-        // if (p) {
-        //   playerState = p;
-        // }
       }
     }
 
@@ -199,7 +184,6 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
 
   switchHole(hole: Hole) {
     this.currentHoleIndex = this.#orderedHoles.findIndex(h => h.number === hole.number);
-    console.log('change to index', this.currentHoleIndex);
     this.activeHole = this.#orderedHoles[this.currentHoleIndex]
     this._setupHole();
   }
@@ -217,13 +201,11 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
   }
 
   #findNextPlayerUp() {
-    // standard rotation type
+    // default rotation type
     // loop through until we find the next player that hasn't finished the hole
     for (let i = 1; i <= this.players.length; i++) {
       const index = (this.currentPlayerIndex + i) % this.players.length;
-      // const playerState = this.#playerData.get(this.players[index].id);
       const finished = this.players[index].hasFinishedHole(this.activeHole.number);
-      console.log(`index: ${index}, finished: ${finished}`);
       if (!finished) {
         return index;
       }
@@ -236,7 +218,6 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
   }
 
   _nextPlayer() {
-    const allDone = this.#allPlayersFinishedHole();
     if (this.#allPlayersFinishedHole()) {
       console.log('All players have finished hole');
       // TODO: respect honors of last hole?
@@ -284,7 +265,6 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     }
     const holePos = this.activeHole.waypoints.get('pin');
     const distanceToHole = holePos?.distanceTo(this.golfBall.object.position) || Infinity;    
-      console.log(`Auto-selecting club for distanceToHole: ${distanceToHole}`);
 
     // sort by shortest distance (minus putter)...
     const sortedClubs = [...this.activePlayer.clubs.slice(0, -1)].sort((a, b) => a.distance > b.distance ? -1 : 1);
@@ -299,10 +279,6 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
   }
   
   selectClub(club: OpenGolfSim.Club) {
-    // let playerState = this.#playerData.get(this.activePlayer.id);
-    // if (!playerState) {
-    //   throw new Error('No player found!');
-    // }
     this.activePlayer.currentClub = club;
   }
 

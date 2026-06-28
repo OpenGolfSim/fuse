@@ -208,7 +208,6 @@ async function setupScene() {
     worldSize: gameContext.course.courseSize
   });
   gameContext.courseMap.on('holeChange', (hole) => {
-    console.log('CHANGE HOLE', hole);
     gameContext.game?.switchHole(hole);
     setupNextShot();
   });
@@ -349,7 +348,6 @@ async function setupCourse() {
     setupData: gameContext.setupData,
   });
   gameContext.golfBall.on('landed', (velocity: number) => {
-    console.log('velocity', velocity);
     gameContext.audioPlayer?.play(GroundThudSound, velocity);
   });
   gameContext.golfBall.on('holedOut', () => {
