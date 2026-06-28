@@ -70,6 +70,7 @@ namespace OpenGolfSim {
   type SetupData = {
     players: OpenGolfSim.Player[],
     practiceMode: boolean;
+    puttingEnabled?: boolean;
     elevation?: number;
     units?: MeasurementUnits;
     cameraOffset?: number;

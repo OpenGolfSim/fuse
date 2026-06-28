@@ -458,7 +458,12 @@
   text-align: left;
   font-size: var(--base-font-size);
 }
-
+.scoreCardRoundOver {
+  display: none;
+}
+.scoreCardRoundOver.show {
+  display: flex;
+}
 
 .hazardButtons {
   display: flex;
@@ -482,3 +487,4 @@
 .hazardButton img {
   width: 5vh;
 }
+

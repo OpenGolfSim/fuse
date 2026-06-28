@@ -15,6 +15,7 @@ export class UIScorecard extends UIDialog {
   holeData?: CourseHoleMap;
   players: CoursePlayer[];
   playerContainer?: Element;
+  roundOverContainer?: Element;
   frontNine?: Element;
   backNine?: Element;
 
@@ -84,8 +85,11 @@ export class UIScorecard extends UIDialog {
     
   }
 
-  open() {
+  open(roundOver = false) {
     this.updateScores();
+    if (roundOver) {
+
+    }
     super.open();
   }
 
@@ -177,6 +181,11 @@ export class UIScorecard extends UIDialog {
     this.playerContainer = document.createElement('div');
     this.playerContainer.classList.add(styles.playerContainer)
     this.content.append(this.playerContainer);
+    
+    
+    this.roundOverContainer = document.createElement('div');
+    this.roundOverContainer.classList.add(styles.scoreCardRoundOver);
+    this.content.append(this.roundOverContainer);
 
   }
 }

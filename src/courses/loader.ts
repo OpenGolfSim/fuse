@@ -235,8 +235,9 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         child.material.needsUpdate = true;
       }
 
-      const { surfaceType, surfaceSettings } = this._detectSurface(child);
-      if (surfaceType) {
+      const detected = this._detectSurface(child);
+      if (detected?.surfaceType && detected?.surfaceSettings) {
+        const { surfaceType, surfaceSettings } = detected;
         const surfaceOptions = { type: surfaceType, ...surfaceSettings };
         // console.log('set', surfaceOptions);
         const ground = new GroundPhysics(child, this.world, this.rapier, surfaceOptions);
@@ -293,6 +294,8 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
           this.scene.add(grass.mesh);
           this.grasses.set(child.uuid, grass);
         }
+        console.log('add surface', child.name);
+
         this.surfaces.set(child.uuid, { ...surfaceOptions, mesh: child, ground });
       }
     });
@@ -459,10 +462,11 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   _detectSurface(mesh: THREE.Object3D) {
     const surfaceType = mesh.userData.surface;
     if (!surfaceType) {
-      return { surfaceType: 'default', surfaceSettings: CourseSurfaces.default };
+      return;
     }
     const surfaceSettings = isCourseSurfaceType(surfaceType) && CourseSurfaces[surfaceType];
     if (!surfaceSettings) {
+      console.warn(`Missing settings for surface type: ${surfaceType}`);
       return { surfaceType, surfaceSettings: CourseSurfaces.default };
     }    
     return { surfaceType, surfaceSettings };

@@ -62,7 +62,7 @@ export function generateSetupData(playerCount: number = 1, override: Partial<Ope
     cameraOffset: 0,
     practiceMode: false,
     qualityLevel,
-    // puttingEnabled: false,
+    puttingEnabled: true,
     // gimmesEnabled: true,
     gimmeDistances: [...DefaultGimmeDistances],
     elevation: 0,

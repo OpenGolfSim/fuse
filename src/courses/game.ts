@@ -30,6 +30,7 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
   currentHoleIndex: number;
   activePlayer: CoursePlayer;
   activeHole: Hole;
+  puttingEnabled: boolean;
   gimmeDistances: number[];
   #orderedHoles: Hole[];
   // #playerData: Map<string, PlayerState>;
@@ -41,6 +42,7 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     this.practiceMode = !!options?.setupData.practiceMode;
     this.golfBall = golfBall;
     this.gimmeDistances = options?.setupData.gimmeDistances || DefaultGimmeDistances;
+    this.puttingEnabled = !!options?.setupData.puttingEnabled;
 
     this.currentPlayerIndex = 0;
     this.currentHoleIndex = 0;
@@ -118,7 +120,7 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
   }
 
   _addStrokes(strokes = 1, endOfHole = false) {
-    this.activePlayer.strokes++;
+    this.activePlayer.strokes += strokes;
     const holeKey = `${this.activeHole.number}`;
     const existingHoleScore = this.activePlayer.scorecard.get(holeKey);
     console.log('existing', holeKey, existingHoleScore, this.activePlayer.scorecard);
@@ -156,7 +158,11 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
       }
       this.activePlayer.start.copy(this.golfBall.object.position);
       // hack greens as done
-      if (surface?.type === 'green') {
+      if (this.golfBall.physics?.isHoled) {
+        this.activePlayer.disabled = true;
+        this._nextPlayer();
+        this._addStrokes(0, true);
+      } else if (surface?.type === 'green' && !this.puttingEnabled) {
         // total score
         // TODO: change to add auto-putt number
         const holePos = this.activeHole.waypoints.get('pin');

@@ -22,8 +22,12 @@ import {
   UIMainMenu,
   FuseRenderer,
   UIScorecard,
+  AudioPlayer,
  } from '@opengolfsim/fuse';
 
+const HoleOutSound = '../sounds/holeout.wav';
+const GroundThudSound = '../sounds/thud.wav';
+const Ktx2Path = '../ktx2/';
 
 const gameContext: {
   isReady: boolean,
@@ -51,6 +55,8 @@ const gameContext: {
   controls?: CourseKeyboardControls
   visualAimPoint?: AimPoint,
   
+  // Audio
+  audioPlayer?: AudioPlayer,
   // UI
   shotData?: UIShotData,
   courseMap?: UICourseMap,
@@ -106,7 +112,7 @@ function setupNextShot() {
   gameContext.camera?.setPositions(gameContext.startPoint, gameContext.aimPoint);
 
   // recreate ball after each shot to ensure physics are fully reset
-  gameContext.golfBall?.reset(gameContext.aimPoint, gameContext.startPoint);  
+  gameContext.golfBall?.reset(gameContext.aimPoint, gameContext.startPoint, gameContext.game.activeHole.waypoints.get('pin'));
 
   aimPointUpdated(true);
 
@@ -313,7 +319,7 @@ async function setupCourse() {
       setupData: gameContext.setupData,
       qualityLevel: gameContext.qualityLevel,
       manager: gameContext.loadingScreen?.manager,
-      meshLoaderOptions: { ktx2Path: '../ktx2/' }
+      meshLoaderOptions: { ktx2Path: Ktx2Path }
     }
   );
 
@@ -322,6 +328,11 @@ async function setupCourse() {
   console.log('Course loaded', gameContext.course);
   console.log('Course settings', gameContext.course.sceneSettings);
   if (!gameContext.course.scene) throw new Error('Unable to load course scene');
+
+  // load audio
+  gameContext.audioPlayer = new AudioPlayer();
+  await gameContext.audioPlayer.load(HoleOutSound);  
+  await gameContext.audioPlayer.load(GroundThudSound);
 
   // create the initial scene
   await setupScene();
@@ -332,11 +343,19 @@ async function setupCourse() {
   // add loaded course to the scene
   gameContext.scene?.add(gameContext.course.scene);
 
+
   // create the golf ball
   gameContext.golfBall = new GolfBall(gameContext.scene, app.world, app.rapier, {
     setupData: gameContext.setupData,
   });
-  gameContext.golfBall.on('shotEnded', () => {
+  gameContext.golfBall.on('landed', (velocity: number) => {
+    console.log('velocity', velocity);
+    gameContext.audioPlayer?.play(GroundThudSound, velocity);
+  });
+  gameContext.golfBall.on('holedOut', () => {
+    gameContext.audioPlayer?.play(HoleOutSound);
+  });
+  gameContext.golfBall.on('shotEnded', (result) => {
     app.sendShotResult(
       {
         shot: gameContext.golfBall?.lastShot,
