@@ -1,5 +1,7 @@
 import { QualityMode } from "./quality";
 
+export const DefaultGimmeDistances = [2, 4, 80];
+
 function getDeviceType() {
   const ua = navigator.userAgent;
 
@@ -60,9 +62,9 @@ export function generateSetupData(playerCount: number = 1, override: Partial<Ope
     cameraOffset: 0,
     practiceMode: false,
     qualityLevel,
-    // puttingEnabled: false,
+    puttingEnabled: true,
     // gimmesEnabled: true,
-    // gimmeDistances: [10, 20],
+    gimmeDistances: [...DefaultGimmeDistances],
     elevation: 0,
     // gameMode: 2,
     ...override

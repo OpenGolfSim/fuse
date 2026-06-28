@@ -8,7 +8,9 @@ import { CourseColliderType, CourseSurfaceProperties, CourseSurfaceType } from '
 const FIXED_DT = 1 / 120;
 
 export interface GolfBallEvents {
-  shotEnded: (details: { surface?: CourseSurfaceProperties }) => void
+  shotEnded: (details: { surface?: CourseSurfaceProperties, isHoled: boolean }) => void,
+  holedOut: () => void,
+  landed: (velocity: number) => void
 }
 
 type BallTrailClearMode = 'start' | 'end' | 'never';
@@ -86,7 +88,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
 
   }
 
-  reset(aimPoint: THREE.Vector3, startPoint: THREE.Vector3) {
+  reset(aimPoint: THREE.Vector3, startPoint: THREE.Vector3, holePoint?: THREE.Vector3) {
     if (this.object) {
       // remove existing ball object and physics
       this.#scene.remove(this.object);
@@ -99,7 +101,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     }
     if (this.physics) {
       this.physics.removeAllListeners(); // clean up old event listener
-      this.physics.remove();
+      this.physics.remove(); 
     }
     this.isShotWaiting = false;
     // const geometry = new THREE.SphereGeometry( this.radius, 32, 16 );
@@ -128,7 +130,12 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
 
     this.physics = new BallPhysics(this.object, this.#world, this.#rapier, this.radius);
     this.physics.on('shotEnded', surface => this._onShotEnded(surface));
+    this.physics.on('holedOut', () => this.emit('holedOut'));
+    this.physics.on('landed', (v) => this.emit('landed', v));
     this.physics.setElevation(this.#setupData?.elevation);
+    if (holePoint) {
+      this.physics.setPin(holePoint);
+    }
   }
 
   #resetBallTrail() {
@@ -149,8 +156,8 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     }
   }
   
-  isOnGreen() {
-    return this.physics?.isGrounded && this.physics?.currentSurface?.type === 'green';
+  isOnGreen(preShot = false) {
+    return (preShot || this.physics?.isGrounded) && this.physics?.currentSurface?.type === 'green';
   }
 
   // aimAt(aimPoint) {
@@ -174,7 +181,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
       this.isShotActive = false;
       // this.isShotEnded = true;
       console.log('FIRE SHOT END');
-      this.emit('shotEnded', { surface });
+      this.emit('shotEnded', { surface, isHoled: this.physics?.isHoled === true });
       // this.dispatchEvent(new CustomEvent('shotEnd', { detail: { surface } }));
     }, this.#waitTime);
   }

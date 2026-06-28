@@ -5,20 +5,22 @@ import { Hole } from '@/courses/types';
 import { UnitConversions } from '@/utils/units';
 import { colors } from '@/utils/colors';
 import { UIDropDownMenu } from '@/ui/UIDropDownMenu';
+import { CourseHole, CourseHoleMap } from '@/courses/loader';
 
 type UICourseMapOptions = {
   map: ImageBitmap;
   worldSize: number;
   mapWidthPercent?: number;
   units?: OpenGolfSim.MeasurementUnits;
-  holes?: Map<string, Hole>;
+  holes?: CourseHoleMap;
 }
 interface UICourseMapsEvents {
   updateAim: (position: THREE.Vector3) => void;
   updateStart: (position: THREE.Vector3) => void;
+  holeChange: (hole: Hole) => void;
 }
 
-export class UICourseMap extends EventEmitter {
+export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
   mapWidthPercent: number;
   // camera: THREE.OrthographicCamera;
   // renderer: THREE.WebGLRenderer;
@@ -30,7 +32,7 @@ export class UICourseMap extends EventEmitter {
   parText: HTMLElement;
   distText: HTMLElement;
   units: OpenGolfSim.MeasurementUnits;
-  holes: Map<string, Hole>;
+  holes: CourseHoleMap;
   canvas: HTMLCanvasElement;
   overlayCanvas: HTMLCanvasElement;
   
@@ -119,7 +121,7 @@ export class UICourseMap extends EventEmitter {
       menuItems: [...this.holes.values()].map(hole => ({
         label: `Hole ${hole.number}`,
         secondary: `Par ${hole.par}`,
-        action: () => console.log("EXIT")
+        action: () => this.emit('holeChange', hole)
       })),
     });
   }

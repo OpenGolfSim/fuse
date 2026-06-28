@@ -12,6 +12,8 @@ import { PhysicsLookupTable, GRAVITY, isColliderWithUserData, ColliderWithUserDa
 
 interface BallPhysicsEvents {
   shotEnded: (surface: CourseSurfaceProperties | undefined) => void;
+  holedOut: () => void;
+  landed: (velocity: number) => void;
 }
 
 type TerrainInfo = {
@@ -64,6 +66,14 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   rigidBody: RigidBody;
   collider: ColliderWithUserData;
   ballColliderHandle: number;
+
+  // golf hole physics
+  holeCenter = new THREE.Vector2();   // (x, z), set when the pin is placed
+  holeRadius = 0.054;                 // 108mm
+  cupDepth   = 0.105;                 // ≥101.6mm regulation
+  holeGroundY = 0;                    // green Y at the pin, captured on entry
+  holeState: 'none' | 'falling' = 'none';
+  isHoled = false;
 
   #preStepLinvel?: { x: number; y: number; z: number };
 
@@ -180,6 +190,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     
     this.isLanded = false;
     this.isGrounded = false;
+    this.isHoled = false;
     this.isEnded = false;
     this.groundedFrames = 0;
     this.syncMesh();
@@ -335,6 +346,14 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     this.rigidBody.setAngvel({ x: spin.x, y: spin.y, z: spin.z }, true);
   }
 
+  _handleLanding() {
+    console.log('land');
+    const lv = this.rigidBody.linvel();
+    const vel = new THREE.Vector3(lv.x, lv.y, lv.z);
+    const vMag = THREE.MathUtils.clamp(vel.length(), 0, 25) / 25;
+    this.emit('landed', vMag);    
+  }
+
   _processCollisions() {
     this.shotFrames++;
 
@@ -348,13 +367,17 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     }
 
     // Detect landing via terrain height, not Rapier contacts
-    if (!this.isLanded && this.hasBeenAirborne) {
+    if (this.hasBeenAirborne) {
       const pos = this.rigidBody.translation();
       const terrainY = this.getTerrainHeight(pos.x, pos.z);
       if (pos.y <= terrainY + this.ballRadius + 0.01) {
-        this.isLanded = true;
+        if (!this.isLanded) {
+          this.isLanded = true;
+        }
+        // this._handleLanding();
       }
     }
+
 
     // Tree collisions still handled by Rapier
     this.world.contactPairsWith(this.collider, (otherCollider) => {
@@ -491,12 +514,68 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
       return true;
     }
   }
+
+  _updateCupFall(dt: number) {
+    const pos = this.rigidBody.translation();
+    const lv = this.rigidBody.linvel();
+    const vel = new THREE.Vector3(lv.x, lv.y, lv.z);
+
+    vel.y -= GRAVITY * dt;
+
+    let nx = pos.x + vel.x * dt;
+    let nz = pos.z + vel.z * dt;
+    let ny = pos.y + vel.y * dt;
+
+    // contain within the cup wall (rim radius minus ball radius)
+    const C = this.holeCenter;
+    const off = new THREE.Vector2(nx - C.x, nz - C.y);
+    const maxOff = this.holeRadius - this.ballRadius;
+    if (off.length() > maxOff) {
+      off.setLength(maxOff);
+      nx = C.x + off.x; nz = C.y + off.y;
+      // bounce off the wall, damped — this is the rattle
+      const n = off.clone().normalize();
+      const vh = new THREE.Vector2(vel.x, vel.z);
+      vh.addScaledVector(n, -2 * vh.dot(n));
+      vh.multiplyScalar(0.4);
+      vel.x = vh.x; vel.z = vh.y;
+    }
+
+    const bottomY = this.holeGroundY - this.cupDepth + this.ballRadius;
+    if (ny <= bottomY) {
+      ny = bottomY;
+      vel.set(vel.x * 0.3, Math.abs(vel.y) * 0.25, vel.z * 0.3); // small floor bounce
+      if (vel.length() < 0.15) {
+        // settled
+        this.rigidBody.setTranslation({ x: nx, y: bottomY, z: nz }, true);
+        this.rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        this.holeState = 'none';
+        this.isHoled = true;
+        this.emit('holedOut');
+        this._endShot();
+        return;
+      }
+    }
+
+    this.rigidBody.setTranslation({ x: nx, y: ny, z: nz }, true);
+    this.rigidBody.setLinvel({ x: vel.x, y: vel.y, z: vel.z }, true);
+  }
+
+
   _updateGroundPhysics(dt: number) {
+    // Falling into hole check
+    if (this.holeState === 'falling') {
+      console.log('Bal is falling');
+      this._updateCupFall(dt);
+      return;
+    }
+
     const pos = this.rigidBody.translation();
     const lv = this.rigidBody.linvel();
     const vel = new THREE.Vector3(lv.x, lv.y, lv.z);
     const av = this.rigidBody.angvel();
     const spin = new THREE.Vector3(av.x, av.y, av.z);
+
 
     // Tree collision check — if hit, apply response and skip this frame
     if (this._checkTreeCollision(pos, vel, spin, dt)) {
@@ -519,6 +598,12 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     // console.log('terrain.userData', terrain);
     const normal = this._getTerrainNormal(newX, newZ);
     
+    if (this._checkHole(pos, newX, newZ, vel, terrainY)) {
+      this.rigidBody.setLinvel({ x: vel.x, y: vel.y, z: vel.z }, true);
+      this.syncMesh();
+      return;
+    }
+
     if (this._checkWaterCollision()) {
       this.mesh.visible = false;
       this._endShot();
@@ -554,6 +639,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
         vel.copy(tangentComponent.multiplyScalar(tangentRetention))
           .add(normalComponent.multiplyScalar(restitution));
 
+        this._handleLanding();
         // const spinMag = spin.length();
         // console.log('Bounce spin magnitude:', spinMag.toFixed(1), 'rad/s');
         // if (spinMag > 1.0) {
@@ -656,8 +742,14 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
 
     // Final check for lowest ground point (don't let the ball fall through)
     const finalPos = this.rigidBody.translation();
-    const safeY = this.getTerrainHeight(finalPos.x, finalPos.z) + this.ballRadius;
-    if (finalPos.y < safeY) {
+    // const safeY = this.getTerrainHeight(finalPos.x, finalPos.z) + this.ballRadius;
+
+    const checkY = this.getTerrainHeight(finalPos.x, finalPos.z);
+    const safeY = (checkY + this.ballRadius);
+
+
+    // if (finalPos.y < safeY) {
+    if (finalPos.y < safeY - 0.005) {
       console.warn('Ball fallen below ground');
       this.rigidBody.setTranslation(
         { x: finalPos.x, y: safeY, z: finalPos.z }, true
@@ -708,6 +800,105 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     const hD = this.getTerrainHeight(x, z - eps);
     const hU = this.getTerrainHeight(x, z + eps);
     return new THREE.Vector3(hL - hR, 2 * eps, hD - hU).normalize();
+  }
+
+  setPin(pin: THREE.Vector3) {
+    this.holeCenter.set(pin.x, pin.z);
+    this.holeGroundY = pin.y;   // green Y at the pin
+    console.log(`Setting hole center to: ${pin.toArray().join(',')}`)
+  }
+
+  _checkHole(pos: Vector, newX: number, newZ: number, vel: THREE.Vector3, terrainY: number): boolean {
+
+    const R = this.holeRadius, r = this.ballRadius, g = GRAVITY;
+    const C = this.holeCenter;
+
+    // segment P0 -> P1 in plan space
+    const p0 = new THREE.Vector2(pos.x, pos.z);
+    const p1 = new THREE.Vector2(newX, newZ);
+    const seg = p1.clone().sub(p0);
+    const segLen = seg.length();
+
+    // closest approach of the travel segment to the hole center
+    let b: number;
+    if (segLen < 1e-6) {
+      b = p0.distanceTo(C);
+    } else {
+      const t = THREE.MathUtils.clamp(C.clone().sub(p0).dot(seg) / (segLen * segLen), 0, 1);
+      b = p0.clone().addScaledVector(seg, t).distanceTo(C);
+    }
+    
+    if (b >= R + r) {
+      // no interaction
+      return false;
+    }
+
+    console.log('checkHole', { b: b.toFixed(4), vh: Math.hypot(vel.x, vel.z).toFixed(3) });
+
+    const vh = Math.hypot(vel.x, vel.z);
+    // Slow ball near the hole: it overhangs the edge and topples in.
+    if (vh < 0.7 && b < R + r) {
+      console.log('CUP - slow roll in?');
+      this._enterCup(terrainY);
+      return true;
+    }
+
+    // resting on the hole
+    if (vh < 1e-3) {
+      if (p1.distanceTo(C) < R) {
+        console.log('CUP - resting on the hole?');
+        this._enterCup(terrainY);
+        return true;
+      }
+      return false;
+    }
+
+    if (b < R) {
+      // path crosses the opening — does it fall far enough during transit?
+      const chord = 2 * Math.sqrt(R * R - b * b);
+      const tCross = chord / vh;
+      const vDown = Math.max(0, -vel.y);                 // helps chips dropping in
+      const drop = vDown * tCross + 0.5 * g * tCross * tCross;
+      if (drop > r) {
+        console.log('CUP - path crossing!');
+        this._enterCup(terrainY);
+        return true;
+      }
+      // console.log('CUP - _lipDeflect', p1);
+      // this._lipDeflect(vel, C, p1, 0.6);                 // rode across, clipped far lip
+      return false;
+    }
+
+    // R <= b < R + r : grazing the rim
+    if (vh < 0.5) {
+      console.log('_enterCup < 0.5', vh);
+      this._enterCup(terrainY);
+      return true;
+    }
+    
+    // console.log('_lipDeflect-END', p1);
+    // this._lipDeflect(vel, C, p1, 0.5);                       // rim-out
+    return false;
+  }
+
+  _lipDeflect(vel: THREE.Vector3, C: THREE.Vector2, ballXZ: THREE.Vector2, retain: number) {
+    const n = ballXZ.clone().sub(C).normalize();
+    const vh = new THREE.Vector2(vel.x, vel.z);
+    const inward = -vh.dot(n);
+    if (inward > 0) vh.addScaledVector(n, inward);
+    vh.multiplyScalar(retain);
+
+    console.log('lipDeflect', { inward, velYbefore: vel.y });   // ← here
+
+    vel.x = vh.x;            // ← "writing back" = these three lines
+    vel.y = Math.min(vel.y, 0);
+    vel.z = vh.y;
+  }
+
+  _enterCup(terrainY: number) {
+    this.holeState = 'falling';
+    this.holeGroundY = terrainY;
+    this.isGrounded = false; // stop the rest-check from ending the shot mid-drop
   }
 
 }

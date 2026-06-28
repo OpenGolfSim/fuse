@@ -168,9 +168,6 @@
   align-items: center;
   justify-content: center;
 }
-.playerMenuName:hover {
-  color: var(--hover-color);
-}
 
 .playerMenuName {
   flex: 1;
@@ -370,3 +367,124 @@
   background-color: var(--active-bg-color);
   color: var(--text-disabled);
 }
+
+
+.dialog {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.25);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.dialogOpen {
+  display: flex;
+}
+
+.dialogContent {
+  /* width: 100%; */
+  /* height: 100%; */
+  min-width: 500px;
+  max-width: 1000px;
+  max-height: 600px;
+  background-color: var(--bg-color-solid);
+  border-radius: var(--border-radius);
+}
+.dialogHeader {
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  align-items: center;
+}
+.dialogContentBody {
+  padding: calc(var(--base-padding) * 2);
+}
+.dialogTitle {
+  flex: 1;
+  padding: var(--base-padding) calc(var(--base-padding) * 2);
+  font-size: var(--large-font-size);
+  font-weight: 800;
+}
+.dialogCloseButton {
+  color: #fff;
+  margin-left: auto;
+  display: block;
+  padding: var(--base-padding) calc(var(--base-padding) * 2);
+  font-size: 3vh;
+  user-select: none;
+}
+.holesRow {
+  /* display: flex;
+  flex-direction: row; */
+  display: grid;
+  /* margin-left: 200px; */
+  grid-template-columns: 200px repeat(21, minmax(0, 1fr));  
+  padding: var(--base-padding) 0;
+  /* display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));    */
+}
+.parRow {
+  color: var(--text-disabled);
+}
+.playerRow {
+  display: grid;
+  grid-template-columns: 200px repeat(21, minmax(0, 1fr));
+  padding: var(--base-padding) 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+.playerSpace {
+  width: 200px;
+}
+
+.holesRow > div,
+.playerRow > div {
+  text-align: center;
+  font-size: var(--small-font-size);
+  font-weight: 700;
+  padding: 0 calc(var(--base-padding) / 2);
+}
+.holesRow > div:first-child {
+  text-align: right;
+  font-size: var(--small-font-size);
+}
+
+.playerRow > div:first-child {
+  text-align: left;
+  font-size: var(--base-font-size);
+}
+.scoreCardRoundOver {
+  display: none;
+}
+.scoreCardRoundOver.show {
+  display: flex;
+}
+
+.hazardButtons {
+  display: flex;
+  flex-direction: row;
+  gap: var(--base-padding);
+}
+.hazardButton {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: var(--base-padding);
+  font-size: var(--large-font-size);
+  font-weight: 800;
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border-color);
+
+  color: var(--text-color);
+  align-items: center;
+  gap: var(--base-padding);
+}
+.hazardButton img {
+  width: 5vh;
+}
+

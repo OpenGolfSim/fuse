@@ -11,6 +11,7 @@ export enum CourseSurfaceType {
   CartPath = 'cart_path',
   PlaneLake = 'plane_lake',
   PlaneRiver = 'plane_river',
+  PineStraw = 'pine_straw',
   Default = 'default',
   Base = 'base',
 }
@@ -114,6 +115,12 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
     friction: 0.3,
     restitution: 0.50,
     rollResistance: 0.01
+  },
+  [CourseSurfaceType.PineStraw]: {
+    hasCollider: true,
+    friction: 0.8,
+    restitution: 0.15,
+    rollResistance: 0.20
   },
   [CourseSurfaceType.Default]: {
     hasCollider: true,

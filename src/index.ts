@@ -8,6 +8,7 @@ export * from '@/trees';
 export * from '@/lights';
 export * from '@/sky';
 export * from '@/renderer';
+export * from '@/audio';
 
 // Objects
 export * from '@/objects/aimPoint';
