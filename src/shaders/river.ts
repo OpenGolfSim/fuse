@@ -26,8 +26,8 @@ export class RiverSurface {
   material: MeshPhysicalNodeMaterial;
   water: THREE.Mesh;
   speed: number;
-  private timeUniform = uniform(0);
-
+  private timeUniform: any;
+  
   constructor(
     waterObject: THREE.Mesh,
     flowMapData?: FlowMapData,
@@ -44,6 +44,8 @@ export class RiverSurface {
     // this.mesh = new THREE.Mesh(geometry.clone(), this.material);
     this.water = new THREE.Mesh(waterObject.geometry.clone(), this.material);
     this.water.position.set(this.water.position.x, this.water.position.y - 0.45, this.water.position.z);
+
+    this.timeUniform = uniform(0);
 
     // Recompute UVs to [0,1] range for flow map alignment
     const pos = this.water.geometry.attributes.position;
