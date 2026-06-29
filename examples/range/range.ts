@@ -235,7 +235,7 @@ async function setupRange() {
   if (!gameContext.renderer) {
     throw new Error('Renderer must be created first');
   }
-  gameContext.meshLoader = new MeshLoader(gameContext.renderer.renderer, gameContext.loadingScreen?.manager);
+  gameContext.meshLoader = new MeshLoader(gameContext.renderer, gameContext.loadingScreen?.manager);
 
   gameContext.scene = new THREE.Scene();
   gameContext.scene.background = skyColor;
