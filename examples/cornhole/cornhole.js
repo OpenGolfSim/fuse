@@ -509,7 +509,7 @@ async function setupGame() {
 
   await gameContext.renderer.init();
 
-  gameContext.meshLoader = new MeshLoader(gameContext.renderer.renderer);  
+  gameContext.meshLoader = new MeshLoader(gameContext.renderer);  
 
   await createGround();
 
