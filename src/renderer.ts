@@ -113,19 +113,14 @@ export class FuseRenderer {
     const tempScene = new Scene();
     tempScene.add(sky);
     
-    const pmrem = new PMREMGenerator(this.renderer as WebGLRenderer);
+    // Three.js type definitions for PMREMGenerator haven't been updated to accept WebGPURenderer as a renderer type yet.
+    // @ts-expect-error
+    const pmrem = new PMREMGenerator(this.renderer);
     this.environment = pmrem.fromScene(tempScene, 0, 0.1, 10000).texture;
-    // scene.environment = pmrem.fromScene(tempScene, 0, 0.1, 10000).texture;
     pmrem.dispose();
     
     // Move sky back to the real scene
     scene.add(sky);
 
-    // // Three.js type definitions for PMREMGenerator haven't been updated to accept WebGPURenderer yet.
-    // const pmrem = new PMREMGenerator(this.renderer as WebGLRenderer);
-    // pmrem.compileCubemapShader();
-    // scene.environment = pmrem.fromScene(scene, 0, 0.1, 10000).texture;
-    // // scene.environment = pmrem.fromScene(scene).texture;
-    // pmrem.dispose();
   }
 }
