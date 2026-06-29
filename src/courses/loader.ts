@@ -23,6 +23,8 @@ import golfCupModel from '@/models/golfCup.glb?url';
 import { QualityMode } from '@/utils/quality';
 import { DefaultGimmeDistances } from '@/utils/data';
 import { Hole } from './types';
+import { RiverSurface } from '@/shaders';
+import { FuseRenderer } from '@/renderer';
 
 
 
@@ -57,10 +59,10 @@ type MeshLoaderOptions = {
 export class MeshLoader extends EventEmitter<CourseLoaderEvents> {
   gltfLoader: GLTFLoader;
   
-  constructor(renderer: THREE.WebGLRenderer | WebGPURenderer, manager?: THREE.LoadingManager, options: MeshLoaderOptions = {}) {
+  constructor(renderer: FuseRenderer, manager?: THREE.LoadingManager, options: MeshLoaderOptions = {}) {
     super();
     const ktx2Path = options.ktx2Path ?? '/ktx2/';
-    const ktx2Loader = new KTX2Loader().setTranscoderPath(ktx2Path).detectSupport(renderer);
+    const ktx2Loader = new KTX2Loader().setTranscoderPath(ktx2Path).detectSupport(renderer.renderer);
     this.gltfLoader = new GLTFLoader(manager);
     this.gltfLoader.setKTX2Loader(ktx2Loader);
   }
@@ -129,6 +131,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   grassAssets?: GrassAssets;
   planter?: TreePlanter;
 
+  #renderer: FuseRenderer;
   #raycaster: THREE.Raycaster;
   #origin: THREE.Vector3;
   #direction: THREE.Vector3;
@@ -137,13 +140,14 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   constructor(
     world: World,
     rapier: RapierInstance,
-    renderer: THREE.WebGLRenderer | WebGPURenderer,
+    renderer: FuseRenderer,
     options: CourseLoaderOptions
   ) {
     super();
     this.world = world;
     this.rapier = rapier;
     this.qualityLevel = options.qualityLevel;
+    this.#renderer = renderer;
     this.meshLoader = new MeshLoader(renderer, options.manager, options.meshLoaderOptions);
     this.setupData = options.setupData || {};
     this.courseSize = 1000;
@@ -408,8 +412,11 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     }
 
   }
+  
   _addWater() {
     if (!this.scene) throw new Error('Scene missing');
+    if (!this.gltf) throw new Error('Course file not loaded');
+
     this.waterSurfaces.clear();
     const toReplace: THREE.Object3D[] = [];
     this.scene.traverse((child) => {
@@ -417,23 +424,26 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         toReplace.push(child);
       }
     });
-
-    toReplace.forEach(child => {
+    
+    const parser = this.gltf.parser;
+    const flowMaps = (parser.json?.images || []).filter(
+      (img: any) => img.extras?.type === 'flow_map'
+    ) as FlowMapImage[];
+    
+    toReplace.forEach(async child => {
       let surface;
       let offsetY = 0;
       if (!isMeshObject(child)) return;
       if (child.userData?.surface === 'plane_river') {
         offsetY = 0;
-        surface = new WaterSurface(child, {
-          speed: 0.25,
-          water: {
-            alpha: 0.5,
-            sunColor: new THREE.Color('#4c85a8'),
-            waterColor: new THREE.Color('#004671'),
-            distortionScale: 0.5,
-          }
-        });
-        
+        const flowMapImage = flowMaps.find(image => image.extras?.id === child.userData.id);
+        let flowImageData;
+        if (flowMapImage) {
+          const buffer = await parser.getDependency('bufferView', flowMapImage.bufferView);
+          flowImageData = await getTextureImageData(buffer);
+        }
+        surface = new RiverSurface(child, flowImageData);
+
       } else if (child.userData?.surface === 'plane_lake') {
         offsetY = 0;
         surface = new WaterSurface(child, {
@@ -457,6 +467,10 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         this.scene?.remove(child);
       }
     });
+  }
+
+  updateEnvironment(environment: THREE.Texture) {
+    this.waterSurfaces.forEach(water => water.updateEnvironment && water.updateEnvironment(environment));
   }
 
   _detectSurface(mesh: THREE.Object3D) {

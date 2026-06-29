@@ -2,12 +2,16 @@ import {
   WebGLRenderer,
   PCFShadowMap,
   ACESFilmicToneMapping,
+  PMREMGenerator,
+  Scene,
   type Camera,
   type Fog,
-  type Scene,
+  type Mesh,
+  type Texture,
 } from 'three';
 import { QualityMode } from './utils/quality';
 import { WebGPURenderer } from 'three/webgpu';
+import { WebGLNodesHandler } from 'three/examples/jsm/tsl/WebGLNodesHandler.js';
 
 type FuseRendererOptions = {
   canvas: HTMLElement | null;
@@ -27,6 +31,8 @@ export class FuseRenderer {
   height: number;
   qualityLevel: QualityMode;
 
+  environment?: Texture;
+
   constructor(options: FuseRendererOptions) {
     if (!options.canvas || !(options.canvas instanceof HTMLCanvasElement)) {
       throw new Error('Must provide a valid canvas element');
@@ -39,6 +45,10 @@ export class FuseRenderer {
       this.renderer = new WebGPURenderer({ canvas: options.canvas, antialias: options.antialias });
     } else {
       this.renderer = new WebGLRenderer({ canvas: options.canvas, antialias: options.antialias });
+      // Enable TSL node material support for WebGLRenderer
+      // (WebGPURenderer handles this natively)
+      console.log(`Using WebGL renderer adding nodes handler`);
+      this.renderer.setNodesHandler(new WebGLNodesHandler());
     }
     this.renderer.setSize(this.width, this.height);  
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
@@ -92,5 +102,25 @@ export class FuseRenderer {
       return this.renderer.capabilities.getMaxAnisotropy();
     }
     return 1;
+  }
+
+  generateEnvironment(scene: Scene, sky?: Mesh) {
+    if (!this.renderer) {
+      throw new Error('Missing renderer');
+    }
+    if (!sky) return;
+  
+    const tempScene = new Scene();
+    tempScene.add(sky);
+    
+    // Three.js type definitions for PMREMGenerator haven't been updated to accept WebGPURenderer as a renderer type yet.
+    // @ts-expect-error
+    const pmrem = new PMREMGenerator(this.renderer);
+    this.environment = pmrem.fromScene(tempScene, 0, 0.1, 10000).texture;
+    pmrem.dispose();
+    
+    // Move sky back to the real scene
+    scene.add(sky);
+
   }
 }

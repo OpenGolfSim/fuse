@@ -236,6 +236,10 @@ async function setupScene() {
   gameContext.scene.add(gameContext.clouds.object);
   
 
+  gameContext.renderer.generateEnvironment(gameContext.scene, gameContext.clouds.object);
+  if (gameContext.renderer.environment) {
+    gameContext.course.updateEnvironment(gameContext.renderer.environment);
+  }
 
 }
 
@@ -313,7 +317,7 @@ async function setupCourse() {
   gameContext.course = new CourseLoader(
     app.world,
     app.rapier,
-    gameContext.renderer.renderer,
+    gameContext.renderer,
     {
       setupData: gameContext.setupData,
       qualityLevel: gameContext.qualityLevel,
