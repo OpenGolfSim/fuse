@@ -103,10 +103,23 @@ namespace OpenGolfSim {
 
 }
 
-type TreeImage = {
+
+interface GLTFImage {
   bufferView: number;
   name?: string,
   mimeType?: string,
+  extras?: Record<string, any>
+}
+
+interface FlowMapImage extends GLTFImage {
+  extras?: {
+    type?: 'flow_map',
+    id?: string,
+    riverId?: string,
+  }
+}
+
+interface TreeImage extends GLTFImage {
   extras?: {
     type?: 'tree_mask' | 'tree_billboard',
     id?: string,

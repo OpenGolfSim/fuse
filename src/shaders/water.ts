@@ -143,6 +143,11 @@ export class WaterSurface {
     this.water.material.needsUpdate = true;
   }
 
+  // updateEnvironment(envMap: THREE.Texture) {
+  //   this.water.material.envMap = envMap;
+  //   this.water.material.needsUpdate = true;
+  // }
+
   update() {
     this.water.material.uniforms['time'].value += this.speed / 60.0;
   }

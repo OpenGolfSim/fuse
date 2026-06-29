@@ -6,4 +6,5 @@ export * from '@/shaders/sand';
 export * from '@/shaders/slopeGrid';
 export * from '@/shaders/target';
 export * from '@/shaders/water';
+export * from '@/shaders/river';
 export * from '@/shaders/yardage';

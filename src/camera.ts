@@ -188,7 +188,6 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     if (dx * dx + dz * dz > threshold * threshold) {
       if (!!this.scene) {
         const ground = GroundUtils.getGroundYFromScene(this.scene, aimPoint.x, aimPoint.z);
-        console.log('ground', ground);
         if (ground) {
           this.#groundY = ground.y;
         }
