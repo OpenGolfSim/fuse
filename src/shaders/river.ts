@@ -86,14 +86,10 @@ export class RiverSurface {
     // --- Uniforms ---
     const flowSpeed      = uniform(opts.speed);
     const flowStrength   = uniform(opts.flowStrength);
-    // const tiling         = uniform(new THREE.Vector2(...opts.uvTiling));
     const tileSize = Math.min(rangeX, rangeZ) / opts.uvTiling[0];
     const tiling = uniform(new THREE.Vector2(rangeX / tileSize, rangeZ / tileSize));
 
     const normStrength   = uniform(opts.normalStrength);
-    const shallowColor   = uniform(opts.shallowColor);
-    const deepColor      = uniform(opts.deepColor);
-    const baseOpacity    = uniform(opts.opacity);
 
     // --- Textures ---
     const textureLoader = new THREE.TextureLoader();
@@ -126,12 +122,9 @@ export class RiverSurface {
     // flowMapTexture.flipY = true;
     flowMapTexture.wrapS = flowMapTexture.wrapT = THREE.ClampToEdgeWrapping;
 
-    // flowMapTexture.wrapS = flowMapTexture.wrapT = THREE.ClampToEdgeWrapping;
-
-    // --- Flow map sampling ---
+    
     const baseUV = uv();
-
-    // Decode flow direction from [0,1] to [-1,1]
+    // Decode flow direction
     const flow = texture(flowMapTexture, baseUV).rg
       .sub(0.5)
       .mul(2.0)
@@ -152,16 +145,12 @@ export class RiverSurface {
 
     // --- Sample water normals at two offset UVs and blend ---
     const tiledUV = baseUV.mul(tiling);
-    // const uv0 = tiledUV.add(flow.mul(phase0));
-    // const uv1 = tiledUV.add(flow.mul(phase1));
     const uv0 = tiledUV.add(flow.mul(speed).mul(phase0));
     const uv1 = tiledUV.add(flow.mul(speed).mul(phase1));
 
     const n0 = texture(waterNormalTex, uv0);
     const n1 = texture(waterNormalTex, uv1);
     const blendedNormals = mix(n0, n1, blend);
-
-    // this.material.normalNode = normalMap(blendedNormals, vec2(normStrength));
 
     // Second layer: smaller ripples, different speed and angle for turbulence
     const detailTiling = uniform(new THREE.Vector2(rangeX / tileSize * 2.3, rangeZ / tileSize * 2.3));
@@ -179,8 +168,6 @@ export class RiverSurface {
     const combinedNormals = mix(blendedNormals, detailNormals, 0.2);
     this.material.normalNode = normalMap(combinedNormals, vec2(normStrength));
 
-
-
     const viewDir = normalize(cameraPosition.sub(positionWorld));
     const NdotV = clamp(dot(normalWorld, viewDir), 0.0, 1.0);
     const fresnel = pow(sub(float(1.0), NdotV), float(3.0));
@@ -195,30 +182,6 @@ export class RiverSurface {
     this.material.specularIntensity = 1.0;
     this.material.specularColor = new THREE.Color(0xffffff);
     this.material.envMapIntensity = 0.5;
-
-    // // Fresnel: more reflective at grazing angles
-    // const viewDir = normalize(cameraPosition.sub(positionWorld));
-    // const NdotV = clamp(dot(normalWorld, viewDir), 0.0, 1.0);
-    // const fresnel = pow(sub(float(1.0), NdotV), float(3.0));
-
-    // this.material.colorNode = mix(shallowColor, deepColor, fresnel);
-
-    // this.material.opacityNode = clamp(
-    //   mix(baseOpacity, float(0.95), fresnel),
-    //   0.0, 1.0
-    // );
-
-    // this.material.color = opts.shallowColor;
-    // this.material.roughness = 0.4;
-    // this.material.metalness = 0.0;
-    // // this.material.opacity = opts.opacity;
-    // this.material.specularIntensity = 1.0;
-    // this.material.specularColor = new THREE.Color(0xffffff);
-    // this.material.envMapIntensity = 1.0;    
-    // this.material.normalNode = normalMap(blendedNormals, vec2(normStrength));
-
-    // // this.material.roughnessNode = float(opts.roughness);
-    // // this.material.metalnessNode = float(0.0);
 
   }
 
