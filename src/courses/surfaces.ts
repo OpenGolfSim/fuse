@@ -38,8 +38,9 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
   [CourseSurfaceType.Green]: {
     hasCollider: true,
     friction: 0.4,
-    restitution: 0.45,
-    rollResistance: 0.075,
+    restitution: 0.40,
+    rollResistance: 0.09,
+    // rollResistance: 0.075,
     // rollResistanceSpeedThreshold: 0.0001,
     stopSpeed: 0.12,
     stopAngular: 4.8,
@@ -59,8 +60,8 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
   [CourseSurfaceType.FirstCut]: {
     hasCollider: true,
     friction: 0.4,
-    restitution: 0.2,
-    rollResistance: 0.14
+    restitution: 0.38,
+    rollResistance: 0.20
   },
   [CourseSurfaceType.Tee]: {
     hasCollider: true,
@@ -70,21 +71,24 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
   },
   [CourseSurfaceType.Rough]: {
     hasCollider: true,
-    friction: 0.5,
+    friction: 0.2,
     restitution: 0.3,
-    rollResistance: 0.40
+    rollResistance: 0.15,
+    stopSpeed: 0.20,
   },
   [CourseSurfaceType.Base]: {
     hasCollider: true,
     friction: 0.8,
-    restitution: 0.15,
-    rollResistance: 0.20
+    restitution: 0.2,
+    rollResistance: 0.30,
+    stopSpeed: 0.30,
   },
   [CourseSurfaceType.Sand]: {
     hasCollider: true,
-    friction: 1.5,
+    friction: 1.0,
     restitution: 0.02,
-    rollResistance: 0.60
+    rollResistance: 0.20,
+    stopSpeed: 0.20,
   },
   [CourseSurfaceType.Water]: {
     hasCollider: true,

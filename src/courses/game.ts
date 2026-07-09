@@ -282,12 +282,16 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     this.activePlayer.currentClub = club;
   }
 
+  getActiveHoleNumber() {
+    return parseInt(this.activeHole.number) || 0;
+  }
+  
   update(dt: number) {
-    const hole = this.course.holes.get(parseInt(this.activeHole.number));
-    if (hole?.green?.target) {
-      hole.green.target.update(this.golfBall, dt);
-      hole.green.flag.update(dt);
-    }
+    // const hole = this.course.holes.get(parseInt(this.activeHole.number));
+    // if (hole?.green?.target) {
+    //   hole.green.target.update(this.golfBall, dt);
+    //   hole.green.flag.update(dt);
+    // }
   }
 
 }

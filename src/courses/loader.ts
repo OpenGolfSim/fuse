@@ -4,17 +4,17 @@ import { type World } from '@dimforge/rapier3d-compat';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import EventEmitter from 'eventemitter3';
+import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 
 import { getAverageTextureColor, getTextureImageData } from '@/utils/image';
 import { TreeGroup, TreePlanter } from '@/trees';
 import { TargetShaderMaterial } from '@/shaders/target';
-import { SandShaderMaterial } from '@/shaders/sand';
+import { SandMaterial } from '@/shaders/sand';
 import { GrassAssets, GrassShader } from '@/shaders/grass';
-import { WaterSurface } from '@/shaders/water';
 import { FlatGrassShaderMaterial } from '@/shaders/grassFlat';
 import { FlagStick } from '@/objects/flagStick';
 import { type ShotPerspectiveCamera } from '@/camera';
-import { GroundPhysics } from '@/physics/groundPhysics';
+// import { GroundPhysics } from '@/physics/groundPhysics';
 import { CourseSurfaceProperties, CourseSurfaces, isCourseSurfaceType } from '@/courses/surfaces';
 import perlinNoise from '@/images/perlinnoise.webp?url';
 import { isMeshObject } from '@/utils/mesh';
@@ -23,9 +23,14 @@ import golfCupModel from '@/models/golfCup.glb?url';
 import { QualityMode } from '@/utils/quality';
 import { DefaultGimmeDistances } from '@/utils/data';
 import { Hole } from './types';
-import { RiverSurface } from '@/shaders';
+import { LakeSurface, RiverSurface } from '@/shaders';
 import { FuseRenderer } from '@/renderer';
+import { type GolfBall } from '@/objects/golfBall';
+import { PuttingGridMaterial } from '@/shaders/putting';
 
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 
 export interface SceneSettings {
@@ -87,7 +92,7 @@ export class MeshLoader extends EventEmitter<CourseLoaderEvents> {
 
 interface LoadedCourseSurface extends CourseSurfaceProperties {
   mesh: THREE.Mesh,
-  ground: GroundPhysics,
+  // ground: GroundPhysics,
 }
 
 type CourseLoaderOptions = {
@@ -100,7 +105,8 @@ type CourseLoaderOptions = {
 
 type CourseGreen = {
   flag: FlagStick;
-  target: TargetShaderMaterial;
+  target?: TargetShaderMaterial;
+  grid?: PuttingGridMaterial;
   object: THREE.Object3D;
 }
 
@@ -136,6 +142,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   #origin: THREE.Vector3;
   #direction: THREE.Vector3;
   #accumulator = 10;
+  #blendMaps: Map<string, BlendMapData>;
 
   constructor(
     world: World,
@@ -158,6 +165,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     this.surfaces = new Map();
     this.grasses = new Map();
     this.greenGrids = new Map();
+    this.#blendMaps = new Map();
     
     this.#raycaster = new THREE.Raycaster();
     this.#origin = new THREE.Vector3();
@@ -190,9 +198,13 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       throw new Error('Unable to load grass assets');
     }
 
+    await this._parseTextures();
+
+    this._setupCourseSurfaces();
     this._parseCourseHoles();
-    this._addCourseColliders();
     this._addWater();
+
+    
     await this._addTrees();
     await this._parseMap();
 
@@ -200,41 +212,98 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     return this.scene;
   }
 
-  update(dt: number, camera: ShotPerspectiveCamera, isShotActive: boolean = false) {
+  update(dt: number, camera: ShotPerspectiveCamera, golfBall: GolfBall, activeHole = 1) {
+    
     // update water and other animations that happen each frame
     this.waterSurfaces.forEach(water => water.update(dt));
     
+    const hole = this.holes.get(activeHole);
 
     // planting / LOD logic only needs to happen every few frames
     if (this.#accumulator >= 4) {
-      this.greenGrids.forEach(grid => grid.update(camera));
+      // this.greenGrids.forEach(grid => grid.update(camera));
       this.grasses.forEach(grass => grass.update(dt, camera));
-      this.planter?.update(camera, isShotActive);
+      this.planter?.update(camera, golfBall.isShotActive);
       this.#accumulator = 0;
     }
     this.#accumulator++;
+
+    if (hole?.green?.target) {
+      hole.green.target.update(golfBall, dt);
+    }    
+    if (hole?.green?.grid) {
+      hole.green.grid.update(dt, camera);
+    }    
+    if (hole?.green?.flag) {
+      hole.green.flag.update(dt);
+    }
   }
 
-  _addCourseColliders() {
-    if (!this.scene) {
-      console.warn('No scene defined!');
-      return;
+  async _parseTextures() {
+    if (!this.scene) throw new Error('No scene defined!');
+    if (!this.gltf) throw new Error('Course file not loaded');
+    const parser = this.gltf.parser;
+
+    // parse blend maps
+    const blendMapRecords = (parser.json?.images || []).filter(
+      (img: any) => img.extras?.type === 'blend_map'
+    ) as BlendMapImage[];
+
+    for (const blendMapRecord of blendMapRecords) {
+      // const blendMapRecord = blendMapRecords.find(image => image.extras?.id === child.userData.id);
+      if (blendMapRecord?.extras?.id) {
+        const buffer = await parser.getDependency('bufferView', blendMapRecord.bufferView);
+        const blendMapImageData = await getTextureImageData(buffer);
+        const blendMap = {
+          data: blendMapImageData.data,
+          // width: blendMapRecord.extras.width ?? 0,
+          // height: blendMapRecord.extras.height ?? 0,
+          width: blendMapImageData.width,
+          height: blendMapImageData.height,
+          bounds: blendMapRecord.extras.bounds ?? { w: 0, h: 0, x: 0, y: 0 },
+        };
+        console.log(`found blend map for ${blendMapRecord.extras.id}`, blendMap);
+        this.#blendMaps.set(blendMapRecord.extras.id, blendMap);
+      }
     }
+
+
+  }
+
+  _setupCourseSurfaces() {
+    if (!this.scene) throw new Error('No scene defined!');
+    if (!this.gltf) throw new Error('Course file not loaded');
+    const parser = this.gltf.parser;
+
     this.scene.updateMatrixWorld(true); // critical — bakes the position.set applied when loaded
     this.surfaces.clear();
     this.grasses.clear();
     this.greenGrids.clear();
         
+    // Pre-pass: collect all surface meshes for neighbor lookup
+    const allSurfaceMeshes: THREE.Mesh[] = [];
+    this.scene.traverse((child) => {
+      if (!(child instanceof THREE.Mesh) || !child.isMesh) return;
+      if (this._detectSurface(child)) {
+        child.geometry.computeBoundsTree();
+        allSurfaceMeshes.push(child);
+      }
+    });
 
     this.scene.traverse((child) => {
       if (!this.scene) { return; }
       if (!(child instanceof THREE.Mesh)) { return; }
       if (!child.isMesh || !child.geometry?.attributes.position) return;
       child.receiveShadow = true;
-      
+
       // Disable vertex color rendering on all meshes —
       // we only use them as data, not visual color
-      if (child.material) {
+      if (child.material instanceof THREE.MeshStandardMaterial) {
+        // child.material
+        // grassTexture.anisotropy = this.#renderer.getMaxAnisotropy() || 1;
+        if (this.qualityLevel >= QualityMode.Medium) {
+          if (child.material.map) child.material.map.anisotropy = this.#renderer.getMaxAnisotropy() || 1;
+        }
         child.material.vertexColors = false;
         child.material.needsUpdate = true;
       }
@@ -243,36 +312,41 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       if (detected?.surfaceType && detected?.surfaceSettings) {
         const { surfaceType, surfaceSettings } = detected;
         const surfaceOptions = { type: surfaceType, ...surfaceSettings };
-        // console.log('set', surfaceOptions);
-        const ground = new GroundPhysics(child, this.world, this.rapier, surfaceOptions);
-        // console.log(child.name, surfaceType);
-        // this.surfaceByCollider.set(ground.collider.handle, { type: surfaceType, ...surfaceSettings, mesh: child });
-        if (surfaceType === 'sand') {
-          child.material = new SandShaderMaterial(child.material);
 
-        } else if (['fringe', 'fairway', 'first_cut'].includes(surfaceType)) {
-          child.material = new FlatGrassShaderMaterial(child.material, {
-            blendNoiseScale: 0.1,
-          });
+        const blendMap = this.#blendMaps.get(child.userData.id);
+        if (blendMap) {
+
+          const neighborMesh = this.findNeighborMesh(child, allSurfaceMeshes);
+          if (neighborMesh && this.grassAssets) {
+             const sand = new SandMaterial(
+               child,
+               this.grassAssets.noiseTexture,
+               blendMap,
+               neighborMesh,
+               child.userData.blendSettings || {},
+             );
+             console.log('blendSand', sand);
+          }
 
         } else if (this.qualityLevel > QualityMode.Low && surfaceType === 'rough') {
           const grassOptions = {
-            density: 18,
+            density: 11,
             renderDistance: 25,
             cellSize: 5,
             lean: 0.01,
-            heightVariation: 0.05,
+            heightVariation: 0.5,
             maxNewCellsPerFrame: 10,
-            scaleXZ: 0.8,
-            scaleY: 0.75,
+            scaleXZ: 0.6,
+            scaleY: 0.65,
             layer: 2,
-            baseColor: new THREE.Color('#3a4a13'),
+            baseColor: new THREE.Color('#415722'),
             tipColor1: new THREE.Color('#5c7c2e'),
             tipColor2: new THREE.Color('#ffffff'),
           };
           
           if (this.qualityLevel > QualityMode.Medium) {
             grassOptions.renderDistance = 50;
+            grassOptions.density = 15;
           }
           
           const grass = new GrassShader(child, this.grassAssets!, grassOptions);
@@ -282,30 +356,58 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         } else if (this.qualityLevel !== QualityMode.Low && ['deep_rough', 'base'].includes(surfaceType)) {
           
           const grass = new GrassShader(child, this.grassAssets!, {
-            density: 10,
+            density: 8,
             renderDistance: 60,
             cellSize: 10,
             lean: 0.03,
             layer: 2,
             heightVariation: 0.1,
             maxNewCellsPerFrame: 10,
-            scaleXZ: 1.2,
-            scaleY: 1.25,
-            baseColor: '#354310',   // match your terrain's green
-            tipColor1: '#486124',
-            tipColor2: '#59792d',
+            scaleXZ: 0.8,
+            scaleY: 0.6,
+            // baseColor: '#394e12',   // match your terrain's green
+            // tipColor1: '#4d6b21',
+            // tipColor2: '#59792d',
           });
           this.scene.add(grass.mesh);
           this.grasses.set(child.uuid, grass);
         }
         console.log('add surface', child.name);
 
-        this.surfaces.set(child.uuid, { ...surfaceOptions, mesh: child, ground });
+        this.surfaces.set(child.uuid, { ...surfaceOptions, mesh: child });
       }
     });
-    this.world.step();
+    // this.world.step();
+    for (const surface of this.surfaces.values()) {
+      surface.mesh.geometry.computeBoundsTree();
+    }
+
   }
   
+  findNeighborMesh(sandMesh: THREE.Mesh, allSurfaceMeshes: THREE.Mesh[]) {
+    // Get the bounding box center, offset slightly outward
+    const bbox = new THREE.Box3().setFromObject(sandMesh);
+    const center = bbox.getCenter(new THREE.Vector3());
+    const size = bbox.getSize(new THREE.Vector3());
+    
+    // Test point just outside the bounding box edge
+    const testPoint = new THREE.Vector3(
+      center.x + size.x * 0.5 + 0.5,
+      center.y + 50,
+      center.z
+    );
+
+    const raycaster = new THREE.Raycaster(testPoint, new THREE.Vector3(0, -1, 0));
+    const hits = raycaster.intersectObjects(allSurfaceMeshes, false);
+    
+    // First hit that isn't the sand mesh itself
+    for (const hit of hits) {
+      if (hit.object !== sandMesh && hit.object instanceof THREE.Mesh) {
+        return hit.object;
+      }
+    }
+    return null;
+  }
   getGroundY(x: number, z: number, startY = 1000, maxDistance = 2000) {
     this.#origin.set(x, startY, z);
     this.#raycaster.set(this.#origin, this.#direction);
@@ -357,7 +459,8 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       worldSize: this.courseSize,
       qualityLevel: this.qualityLevel,
       world: this.world,
-      rapier: this.rapier
+      rapier: this.rapier,
+      groundMeshes: this.getGroundMeshes(),
     });
 
     const treeConfigs: Record<string, TreeGroup[]> = {};
@@ -446,22 +549,22 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
 
       } else if (child.userData?.surface === 'plane_lake') {
         offsetY = 0;
-        surface = new WaterSurface(child, {
-          speed: 0.25,
-          textureScale: 4,
-          water: {
-            alpha: 0.8,
-            waterColor: new THREE.Color('#0b4753')
-          },
-        });
+        surface = new LakeSurface(child);
+        // surface = new LakeSurface(child, {
+          // speed: 0.25,
+          // textureScale: 4,
+          // water: {
+          //   alpha: 0.8,
+          //   waterColor: new THREE.Color('#0b4753')
+          // },
+        // });
       }
 
       if (surface) {
         // Copy the original mesh's world transform onto the water
-        child.updateWorldMatrix(true, false);
-        surface.water.applyMatrix4(child.matrixWorld);
-        surface.water.position.y += offsetY;
-
+        // child.updateWorldMatrix(true, false);
+        // surface.water.applyMatrix4(child.matrixWorld);
+        // surface.water.position.y += offsetY;
         this.waterSurfaces.set(child.uuid, surface);
         this.scene?.add(surface.water);
         this.scene?.remove(child);
@@ -537,10 +640,16 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   _setupGreen(hit: THREE.Intersection, position: THREE.Vector3, holeNumber: string) {
     if (!this.scene) throw new Error('Scene missing');
 
-    const flag = new FlagStick(position, holeNumber, this.golfCup);
-    const target = new TargetShaderMaterial(hit.object, position, { gimmeDistances: this.setupData?.gimmeDistances || DefaultGimmeDistances });
+    const worldNormal = hit.face
+      ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld)
+      : undefined;
+    const flag = new FlagStick(position, holeNumber, this.golfCup, worldNormal);
     this.scene.add(flag.object);
 
-    return { object: hit.object, flag, target };
+    let target;
+    // const target = new TargetShaderMaterial(hit.object, position, { gimmeDistances: this.setupData?.gimmeDistances || DefaultGimmeDistances });
+    const grid = new PuttingGridMaterial(hit.object, { holeWorldPos: position });
+
+    return { object: hit.object, flag, target, grid };
   }
 }

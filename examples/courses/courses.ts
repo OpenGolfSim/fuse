@@ -83,7 +83,7 @@ const gameContext: {
   dialogs: {}
 };
 
-const defaultSkyColor = 'rgb(192, 215, 241)';
+const defaultSkyColor = 'rgb(177, 205, 236)';
 const defaultFogColor = new THREE.Color('#fff7e0');
 const defaultCloudColor = new THREE.Color('rgb(255, 255, 255)');
 // const lightColor = new THREE.Color('rgb(255, 247, 224)');
@@ -91,7 +91,7 @@ const defaultCloudColor = new THREE.Color('rgb(255, 255, 255)');
 
 function launchShot(shot: OpenGolfSim.Shot) {
   if (!gameContext.golfBall) return;
-  console.log('[DEBUG] Received new shot data:', shot);
+
   if (shot.ballSpeed && !gameContext.golfBall.isShotActive) {
     gameContext.shotData?.updateShotData(shot);
     gameContext.golfBall.launchShot(shot);
@@ -126,19 +126,23 @@ function setupNextShot() {
 
 }
 
-function setupRenderer() {
+async function setupRenderer() {
   
   THREE.ColorManagement.enabled = true;
   
   app.sendMessage({ type: 'log', message: `qualityLevel: ${gameContext.qualityLevel}` });
-  
+  // console.log('Backend:', renderer.backend?.constructor?.name);
+
   const canvas = document.getElementById('canvas');
   if (!canvas || !(canvas instanceof HTMLCanvasElement)) throw new Error('Unable to find canvas in HTML. Make sure you create a root canvas element (e.g. <canvas id="canvas"></canvas>)');
   gameContext.renderer = new FuseRenderer({
     canvas,
+    renderMode: 'webgpu',
     qualityLevel: gameContext.qualityLevel,
     antialias: true // gameContext.qualityLevel >= QualityMode.Medium
   });
+
+  await gameContext.renderer.init();
   // gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
 
   let maxPixelRatio = Math.min(window.devicePixelRatio, 1);
@@ -159,19 +163,23 @@ async function setupScene() {
   const skyType = gameContext.course?.sceneSettings?.sky?.type;
   const cloudSettings = gameContext.course?.sceneSettings?.sky?.clouds;
 
-  const skyColor = new THREE.Color(cloudSettings?.skyColor ?? defaultSkyColor);
+  const skyColor = new THREE.Color('#80cef6');
+  // const skyColor = new THREE.Color(cloudSettings?.skyColor ?? defaultSkyColor);
   const fogColor = new THREE.Color(cloudSettings?.fogColor ?? defaultFogColor);
   const cloudColor = new THREE.Color(cloudSettings?.cloudColor ?? defaultCloudColor);
 
   // Base scene
   // TODO: move to course loader?
   gameContext.scene = new THREE.Scene(); 
-  gameContext.scene.background = new THREE.Color(skyColor);
+  gameContext.scene.background = skyColor;
 
-  gameContext.fog = new THREE.Fog(fogColor, 100, 800);
+  gameContext.fog = new THREE.Fog(fogColor, 300, 800);
   gameContext.scene.fog = gameContext.fog;
 
-  gameContext.lightGroup = new CourseLight();
+  gameContext.lightGroup = new CourseLight({
+    qualityLevel: gameContext.qualityLevel,
+    color: new THREE.Color('#fffac0')
+  });
   gameContext.scene.add(gameContext.lightGroup);
 
   // Main Camera
@@ -190,6 +198,8 @@ async function setupScene() {
     }
   );
   
+  gameContext.renderer.setupPostProcessing(gameContext.scene, gameContext.camera);
+
   // Aim point
   gameContext.visualAimPoint = new AimPoint(gameContext.camera, {
     units: gameContext.setupData?.units
@@ -221,17 +231,25 @@ async function setupScene() {
   gameContext.controls.on('toggleStats', () => gameContext.stats?.toggle());
 
 
+  console.log('-----');
+  console.log('cloudSettings', cloudSettings)
+  console.log(`sky: ${skyColor.getHexString()}, cloud: ${cloudColor.getHexString()}, fog: ${cloudColor.getHexString()}`);
   // TODO: move to course loader..
   // Sky/Clouds
   gameContext.clouds = new VolumetricClouds(gameContext.camera, {
     radius: 800,
-    density: cloudSettings?.density ?? 0.4,
-    opacity: cloudSettings?.opacity ?? 0.8,
-    scale: cloudSettings?.scale ?? 6,
-    skyColor,
+    density: 0.28,
+    opacity: 0.8,
+    scale: 4,
+    // density: cloudSettings?.density ?? 0.4,
+    // opacity: cloudSettings?.opacity ?? 0.8,
+    // scale: cloudSettings?.scale ?? 6,
     cloudColor,
     fogColor,
-    position: new THREE.Vector3(...cloudSettings?.position ?? [0, -50, 0])
+    // cloudColor: new THREE.Color('#f4fafc'),
+    // fogColor: new THREE.Color('#f7f6f1'),
+    skyColor,
+    position: new THREE.Vector3(0, 0, 0)
   });
   gameContext.scene.add(gameContext.clouds.object);
   
@@ -299,7 +317,6 @@ async function setupCourse() {
   if (!app.world) {
     throw new Error('Physics world does not exist');
   }
-  
   if (!gameContext?.setupData) {
     throw new Error('Missing setupData!');
   }
@@ -309,7 +326,9 @@ async function setupCourse() {
   if (typeof gameContext.setupData?.qualityLevel !== 'undefined') {
     gameContext.qualityLevel = gameContext.setupData.qualityLevel;
   }
-  setupRenderer();
+  
+  await setupRenderer();
+  
   if (!gameContext.renderer) {
     throw new Error('Missing renderer!');
   }
@@ -350,9 +369,10 @@ async function setupCourse() {
   // create the golf ball
   gameContext.golfBall = new GolfBall(gameContext.scene, app.world, app.rapier, {
     setupData: gameContext.setupData,
+    groundMeshes: gameContext.course.getGroundMeshes()
   });
   gameContext.golfBall.on('landed', (velocity: number) => {
-    gameContext.audioPlayer?.play(GroundThudSound, velocity);
+    // gameContext.audioPlayer?.play(GroundThudSound, velocity);
   });
   gameContext.golfBall.on('holedOut', () => {
     gameContext.audioPlayer?.play(HoleOutSound);
@@ -418,7 +438,7 @@ async function setupCourse() {
 
   gameContext.courseMap?.on('updateAim', adjustAimPoint);
   gameContext.courseMap?.on('updateStart', adjustStartPoint);
-  
+
 }
 
 /**
@@ -430,8 +450,10 @@ function preLoad() {
   // }
   // allow override with query param
   const qualityParam = (new URLSearchParams(window.location.search)).get('quality');
+  console.log('quality param', qualityParam);
   if (qualityParam) {
     gameContext.qualityLevel = parseInt(qualityParam, 10);
+    if (gameContext.setupData) gameContext.setupData.qualityLevel = gameContext.qualityLevel;
   }
 
   console.log('[debug] Setup Data', gameContext.setupData);
@@ -442,6 +464,33 @@ function preLoad() {
       requestAnimationFrame(animate);
       gameContext.isReady = true;
     }
+
+    if (gameContext.scene) {
+
+      // Right after scene creation, before anything is added
+      const originalAdd = gameContext.scene.add.bind(gameContext.scene);
+
+      gameContext.scene.add = function(...args: any[]) {
+        for (const obj of args) {
+          console.log('Scene.add:', obj.type, obj.constructor.name);
+        }
+        return originalAdd(...args);
+      };
+    }
+
+
+    // setInterval(() => {
+    //   if (!gameContext.renderer) return;
+    //   const info = gameContext.renderer.renderer.info;
+    //   app.log([
+    //     `Geometries: ${info.memory.geometries}`,
+    //     `Textures: ${info.memory.textures}`,
+    //     `Programs: ${info.memory.programs}`,
+    //     `Total: ${(info.memory.total / 1024 / 1024).toFixed(1)}MB`,
+    //     `TrailPoints: ${gameContext.golfBall?.trail?.points?.length ?? 0}`
+    //   ].join(', '));
+    // }, 5000);
+
   });
   gameContext.loadingScreen.load(setupCourse);
   document.body.style.opacity = '1';
@@ -464,11 +513,11 @@ function animate(animDelta: number) {
   gameContext.controls?.update(delta);
   gameContext.clouds?.update(delta);
 
-  if (gameContext.camera && gameContext.isReady) {
-    gameContext.course?.update(delta, gameContext.camera, gameContext.golfBall?.isShotActive);
+  if (gameContext.camera && gameContext.golfBall && gameContext.isReady) {
+    gameContext.course?.update(delta, gameContext.camera, gameContext.golfBall, gameContext.game?.getActiveHoleNumber());
   }
 
-  gameContext.game?.update(delta);
+  // gameContext.game?.update(delta);
 
   if (gameContext.scene && gameContext.game) {
     gameContext.courseMap?.render(

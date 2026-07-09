@@ -1,4 +1,5 @@
 import {
+  Color,
   WebGLRenderer,
   PCFShadowMap,
   ACESFilmicToneMapping,
@@ -9,8 +10,16 @@ import {
   type Mesh,
   type Texture,
 } from 'three';
+import { pass } from 'three/tsl';
 import { QualityMode } from './utils/quality';
-import { WebGPURenderer } from 'three/webgpu';
+import {
+  WebGPURenderer,
+  RenderPipeline,
+  HemisphereLight,
+  PMREMGenerator as WebGPUPMREMGenerator,
+} from 'three/webgpu';
+import { bloom } from 'three/addons/tsl/display/BloomNode.js';
+
 import { WebGLNodesHandler } from 'three/examples/jsm/tsl/WebGLNodesHandler.js';
 
 type FuseRendererOptions = {
@@ -32,7 +41,7 @@ export class FuseRenderer {
   qualityLevel: QualityMode;
 
   environment?: Texture;
-
+  pipeline?: RenderPipeline;
   constructor(options: FuseRendererOptions) {
     if (!options.canvas || !(options.canvas instanceof HTMLCanvasElement)) {
       throw new Error('Must provide a valid canvas element');
@@ -42,7 +51,7 @@ export class FuseRenderer {
     this.height = this.container.offsetHeight;
 
     if (options.renderMode === 'webgpu') {
-      this.renderer = new WebGPURenderer({ canvas: options.canvas, antialias: options.antialias });
+      this.renderer = new WebGPURenderer({ canvas: options.canvas, antialias: options.antialias, depth: true, });
     } else {
       this.renderer = new WebGLRenderer({ canvas: options.canvas, antialias: options.antialias });
       // Enable TSL node material support for WebGLRenderer
@@ -57,10 +66,10 @@ export class FuseRenderer {
     
     this.qualityLevel = options.qualityLevel ?? QualityMode.Medium;
 
-    if (this.qualityLevel >= QualityMode.Medium) {
+    // if (this.qualityLevel >= QualityMode.Medium) {
       this.renderer.toneMapping = ACESFilmicToneMapping; // or whatever you pick
-      this.renderer.toneMappingExposure = 1.0;
-    }
+      this.renderer.toneMappingExposure = 1.1;
+    // }
 
     window.addEventListener('resize', this._handleResize.bind(this));
 
@@ -92,7 +101,13 @@ export class FuseRenderer {
     if (fog) {
       scene.fog = fog;
     }
-    this.renderer.render(scene, camera);
+    // this.renderer.render(scene, camera);
+    if (this.pipeline) {
+      this.pipeline.render();  // replaces renderer.render()
+    } else {
+      this.renderer.render(scene, camera);
+    }
+
   }
 
   getMaxAnisotropy() {
@@ -108,19 +123,63 @@ export class FuseRenderer {
     if (!this.renderer) {
       throw new Error('Missing renderer');
     }
-    if (!sky) return;
-  
-    const tempScene = new Scene();
-    tempScene.add(sky);
+    // if (!sky) return;
+
+    // const tempScene = new Scene();
+    // tempScene.background = scene.background || new Color('#c8dbe5');
+    // tempScene.add(sky);
     
-    // Three.js type definitions for PMREMGenerator haven't been updated to accept WebGPURenderer as a renderer type yet.
-    // @ts-expect-error
-    const pmrem = new PMREMGenerator(this.renderer);
+    // const pmrem = this.renderer instanceof WebGPURenderer ? new WebGPUPMREMGenerator(this.renderer) : new PMREMGenerator(this.renderer);
+    // this.environment = pmrem.fromScene(tempScene, 0, 0.1, 10000).texture;
+    // pmrem.dispose();
+    
+    // // Move sky back to the real scene
+    // scene.add(sky);
+    // scene.environment = this.environment;
+
+    const tempScene = new Scene();
+    tempScene.background = scene.background || new Color('#c8dbe5');
+    if (sky) {
+      tempScene.add(sky);
+    }
+    
+    const hemiLight = new HemisphereLight('#c8dbe8', '#4a7a5c', 1.0);
+    tempScene.add(hemiLight);
+
+    const pmrem = this.renderer instanceof WebGPURenderer ? new WebGPUPMREMGenerator(this.renderer) : new PMREMGenerator(this.renderer);
     this.environment = pmrem.fromScene(tempScene, 0, 0.1, 10000).texture;
     pmrem.dispose();
     
     // Move sky back to the real scene
-    scene.add(sky);
+    if (sky) scene.add(sky);
+    // scene.environment = this.environment;
 
   }
+
+  // In your FuseRenderer class, add a setup method:
+  setupPostProcessing(scene: Scene, camera: Camera) {
+    if (!(this.renderer instanceof WebGPURenderer)) {
+      console.warn('Post-processing pipeline requires WebGPURenderer');
+      return;
+    }
+
+    this.pipeline = new RenderPipeline(this.renderer);
+
+    // Create the scene render pass
+    const scenePass = pass(scene, camera);
+
+    // Get the color output texture node
+    const scenePassColor = scenePass.getTextureNode('output');
+
+    // Create the bloom effect
+    // const strength = 0.08;
+    const strength = 0.085;
+    const radius = 0.1;
+    const threshold = 0.60;
+    const bloomPass = bloom(scenePassColor, strength, radius, threshold);
+
+    // Combine: original scene + bloom glow
+    this.pipeline.outputNode = scenePassColor.add(bloomPass);
+  }
+
 }

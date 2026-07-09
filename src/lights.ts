@@ -1,21 +1,34 @@
 import * as THREE from 'three';
+import { QualityMode } from '@/utils/quality';
 
+type CourseLightOptions = {
+  color?: THREE.ColorRepresentation | undefined,
+  qualityLevel?: QualityMode
+}
 export class CourseLight extends THREE.Group {
   ambient: THREE.AmbientLight;
   overhead: THREE.DirectionalLight;
 
-  constructor(color: THREE.ColorRepresentation | undefined = 0xffffff) {
+  constructor(options: CourseLightOptions = {}) {
     super();
+    const color = options.color ?? new THREE.Color('#ffffee');
     // Bright warm ambient
-    this.ambient = new THREE.AmbientLight(color, 0.5);
+    this.ambient = new THREE.AmbientLight(color, 0.9);
     this.add(this.ambient);
     
     // Main overhead light for shadows
-    this.overhead = new THREE.DirectionalLight(color, 1.4);
+    this.overhead = new THREE.DirectionalLight(color, 1.1);
     this.overhead.position.set(600, 300, 600);
     this.overhead.castShadow = true;
-    this.overhead.shadow.mapSize.width = 2048; // Higher = crisper shadows
-    this.overhead.shadow.mapSize.height = 2048;
+    
+    let shadowMapSize = 256;
+    if (options.qualityLevel === QualityMode.Medium) {
+      shadowMapSize = 2048;
+    } else if (options.qualityLevel === QualityMode.High) {
+      shadowMapSize = 4096;
+    }
+    this.overhead.shadow.mapSize.width = shadowMapSize; // Higher = crisper shadows
+    this.overhead.shadow.mapSize.height = shadowMapSize;
     this.overhead.shadow.camera.near = 1;
     // Adjust these to match the size of your scene
     this.overhead.shadow.camera.far = 700;

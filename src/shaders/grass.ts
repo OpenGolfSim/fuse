@@ -1,30 +1,13 @@
-/**
- * GrassShader.js — Blade geometry with lazy jittered-grid sampling
- *
- * Supports loaded GLB clump models or procedural single blades.
- * No alpha texture, no transparency overdraw.
- *
- * Chunked mode:
- *   - Init: bucket source mesh triangles into grid cells (fast)
- *   - Runtime: generate grass via jittered grid on first cell activation, then cache
- *   - Uniform distribution guaranteed by grid — no random clustering
- *
- * Usage:
- *   const assets = await GrassShader.loadAssets({
- *     modelPath: '/models/grassClump.glb',
- *     noisePath: '/textures/perlinnoise.webp',
- *   });
- *
- *   const grass = new GrassShader(roughMesh, assets, {
- *     density: 10,
- *     renderDistance: 50,
- *     cellSize: 5,
- *   });
- *   scene.add(grass.object);
- *   grass.update(dt, camera);
- */
-
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
+import { MeshLambertNodeMaterial } from 'three/webgpu';
+import {
+  vec2, vec3, vec4, float,
+  uv, texture, uniform as tslUniform,
+  positionWorld, cameraPosition,
+  modelWorldMatrix,
+  normalize, dot, mix, smoothstep as tslSmoothstep,
+  luminance
+} from 'three/tsl';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshSurfaceSampler } from 'three/addons/math/MeshSurfaceSampler.js';
 
@@ -48,10 +31,130 @@ export type GrassShaderOptions = {
   tipColor1?: THREE.ColorRepresentation,
   tipColor2?: THREE.ColorRepresentation,
   layer?: number,
-  cellSize?: number
-  maxNewCellsPerFrame?: number
-  density?: number  
+  cellSize?: number,
+  maxNewCellsPerFrame?: number,
+  density?: number,
+  terrainTexture?: THREE.Texture,
+  /** Tint multiplied with the terrain texture. Ignored if terrainTintNode is given. */
+  terrainTint?: THREE.ColorRepresentation,
+  /** Existing TSL uniform node — pass the SAME node your terrain material uses
+   *  so tint changes propagate to both in lockstep. */
+  terrainTintNode?: ReturnType<typeof tslUniform>,
+  /** 0 = authored base/tip colors, 1 = fully ground-matched. Default 1. */
+  groundMatch?: number,
+  /** Root darkening / tip brightening applied to the sampled ground color. */
+  rootDarken?: number,   // default 0.6
+  tipBrighten?: number,  // default 1.3
+  /** Mip level to sample the terrain texture at. Higher = blurrier =
+   *  smoother grass color. 0 = full detail. Try 4-7. */
+  terrainBlur?: number,
 }
+
+type TerrainBounds = { minX: number, minZ: number, sizeX: number, sizeZ: number };
+
+function createClumpGeometry(opts: {
+  bladeCount?: number;
+  radius?: number;
+  bladeWidth?: number;
+  bladeHeight?: number;
+  heightVariation?: number;
+  lean?: number;
+} = {}) {
+  const {
+    bladeCount = 30,
+    radius = 0.15,
+    bladeWidth = 0.025,
+    bladeHeight = 0.08,
+    heightVariation = 0.4,
+    lean = 0.3,
+  } = opts;
+
+  const singleBlade = createBladeGeometry();
+  singleBlade.scale(bladeWidth, bladeHeight, bladeWidth);
+
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+
+  const mat = new THREE.Matrix4();
+  const quat = new THREE.Quaternion();
+  const euler = new THREE.Euler();
+  const pos = new THREE.Vector3();
+  const scale = new THREE.Vector3();
+  const tempVec = new THREE.Vector3();
+  const tempNorm = new THREE.Vector3();
+  const normalMatrix = new THREE.Matrix3();
+
+  const bladePos = singleBlade.attributes.position;
+  const bladeNorm = singleBlade.attributes.normal;
+  const bladeUV = singleBlade.attributes.uv;
+  const bladeIdx = singleBlade.index!;
+
+  for (let i = 0; i < bladeCount; i++) {
+    // // Random position within the clump radius
+    // const angle = Math.random() * Math.PI * 2;
+    // const dist = Math.sqrt(Math.random()) * radius;
+    // pos.set(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
+    // Sunflower spiral: even distribution within a circle
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+    const t = i / bladeCount;
+    const angle = i * goldenAngle;
+    const dist = Math.sqrt(t) * radius;
+    // Small jitter to avoid looking too uniform
+    const jitter = radius * 0.02;
+    pos.set(
+      Math.cos(angle) * dist + (Math.random() - 0.5) * jitter,
+      0,
+      Math.sin(angle) * dist + (Math.random() - 0.5) * jitter
+    );
+
+    // Random Y rotation
+    const yRot = Math.random() * Math.PI * 2;
+
+    // Random lean
+    const leanAmount = (Math.random() - 0.5) * 2 * lean;
+    const leanDir = Math.random() * Math.PI * 2;
+
+    euler.set(Math.sin(leanDir) * leanAmount, yRot, Math.cos(leanDir) * leanAmount);
+    quat.setFromEuler(euler);
+
+    // Random height
+    const hVar = 1.0 + (Math.random() - 0.5) * 2 * heightVariation;
+    scale.set(1, hVar, 1);
+
+    mat.compose(pos, quat, scale);
+    normalMatrix.getNormalMatrix(mat);
+
+    // Append transformed vertices
+    const vertexOffset = positions.length / 3;
+
+    for (let v = 0; v < bladePos.count; v++) {
+      tempVec.fromBufferAttribute(bladePos, v).applyMatrix4(mat);
+      positions.push(tempVec.x, tempVec.y, tempVec.z);
+
+      tempNorm.fromBufferAttribute(bladeNorm, v).applyMatrix3(normalMatrix).normalize();
+      normals.push(tempNorm.x, tempNorm.y, tempNorm.z);
+
+      uvs.push(bladeUV.getX(v), bladeUV.getY(v));
+    }
+
+    // Append offset indices
+    for (let j = 0; j < bladeIdx.count; j++) {
+      indices.push(bladeIdx.getX(j) + vertexOffset);
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+
+  singleBlade.dispose();
+  return geo;
+}
+
 /**
  * Blade geometry (procedural fallback)
  */
@@ -83,121 +186,231 @@ function createBladeGeometry() {
   return geo;
 }
 
-function createBladeMaterial(noiseTexture: GrassAssets['noiseTexture'], opts: GrassShaderOptions = {}) {
-  const uniforms = {
-    uGrassLightIntensity: { value: opts.lightIntensity ?? 1.0 },
-    uNoiseScale:          { value: opts.noiseScale ?? 1.5 },
-    uRenderDistance:      { value: opts.renderDistance ?? 0.0 },
-    baseColor:            { value: new THREE.Color(opts.baseColor ?? '#3a5a20') },
-    tipColor1:            { value: new THREE.Color(opts.tipColor1 ?? '#6a9a45') },
-    tipColor2:            { value: new THREE.Color(opts.tipColor2 ?? '#4a7a30') },
+function createBladeMaterial(
+  noiseTexture: GrassAssets['noiseTexture'],
+  opts: GrassShaderOptions = {},
+  terrainBounds: TerrainBounds | null = null,
+) {
+  // Uniforms — these have .value so the GrassShader setters still work
+  const uniforms: Record<string, any> = {
+    baseColor:            tslUniform(new THREE.Color(opts.baseColor ?? '#3a5a20')),
+    tipColor1:            tslUniform(new THREE.Color(opts.tipColor1 ?? '#6a9a45')),
+    tipColor2:            tslUniform(new THREE.Color(opts.tipColor2 ?? '#4a7a30')),
+    uGrassLightIntensity: tslUniform(opts.lightIntensity ?? 1.0),
+    uNoiseScale:          tslUniform(opts.noiseScale ?? 1.5),
+    uRenderDistance:      tslUniform(opts.renderDistance ?? 0.0),
     noiseTexture:         { value: noiseTexture },
   };
 
-  const material = new THREE.MeshLambertMaterial({
+  const material = new MeshLambertNodeMaterial({
     side: THREE.DoubleSide,
     transparent: true,
+    alphaTest: 0.01,
   });
 
-  material.customProgramCacheKey = () => 'grass-blade-material';
-  material.onBeforeCompile = (shader) => {
-    shader.uniforms.uTipColor1           = uniforms.tipColor1;
-    shader.uniforms.uTipColor2           = uniforms.tipColor2;
-    shader.uniforms.uBaseColor           = uniforms.baseColor;
-    shader.uniforms.uGrassLightIntensity = uniforms.uGrassLightIntensity;
-    shader.uniforms.uNoiseScale          = uniforms.uNoiseScale;
-    shader.uniforms.uNoiseTexture        = uniforms.noiseTexture;
-    shader.uniforms.uRenderDistance      = uniforms.uRenderDistance;
+  // --- Color: gradient from base (bottom) to tip (top) ---
+  const bladeUV = uv();
+  // const grassColor = mix(uniforms.baseColor, uniforms.tipColor1, float(1.0).sub(bladeUV.y));
+  // const grassColor = mix(uniforms.tipColor1, uniforms.baseColor, float(1.0).sub(bladeUV.y));
+  const authoredColor = mix(uniforms.tipColor1, uniforms.baseColor, float(1.0).sub(bladeUV.y));
 
-    // ---- Vertex shader ----
+  let grassColor: any = authoredColor;
 
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <common>',
-      /* glsl */ `#include <common>
-      uniform sampler2D uNoiseTexture;
-      uniform float uNoiseScale;
-      uniform float uRenderDistance;
-      varying vec2 vBladeUV;
-      varying vec2 vGlobalUV;
-      varying float vDistanceFade;
-      `,
-    );
+  if (opts.terrainTexture && terrainBounds) {
+    // Tint uniform: share the terrain material's node if provided,
+    // otherwise own one (settable via GrassShader.terrainTint).
+    uniforms.uTerrainTint = opts.terrainTintNode
+      ?? tslUniform(new THREE.Color(opts.terrainTint ?? '#ffffff'));
+    uniforms.uGroundMatch = tslUniform(opts.groundMatch ?? 1.0);
 
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <project_vertex>',
-      /* glsl */ `
-      #ifdef USE_INSTANCING
-        vec4 grassWorldPos = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
-      #else
-        vec4 grassWorldPos = modelMatrix * vec4(transformed, 1.0);
-      #endif
+    // World XZ → terrain UV, derived from the source mesh's world bbox.
+    // NOTE: assumes a standard planar unwrap (u→+x, v→+z). If your terrain
+    // UVs are flipped (your old GLSL used (size - pos)/size), invert with
+    // float(1.0).sub(...) per axis here.
+    const terrainUVNode = positionWorld.xz
+      .sub(vec2(terrainBounds.minX, terrainBounds.minZ))
+      .div(vec2(terrainBounds.sizeX, terrainBounds.sizeZ));
 
-      float terrainSize = 100.0;
-      vGlobalUV = (terrainSize - grassWorldPos.xz) / terrainSize;
-      vBladeUV = uv;
+    // Keep a handle on the texture node so the texture can be hot-swapped.
+    // const terrainTexNode = texture(opts.terrainTexture, terrainUVNode);
+    // Sample at a high mip level so per-strand detail in the texture
+    // averages out instead of becoming per-blade color noise.
+    const terrainTexNode = texture(opts.terrainTexture, terrainUVNode)
+      .level(float(opts.terrainBlur ?? 5));
 
-      if (uRenderDistance > 0.0) {
-        float distToCam = length(grassWorldPos.xz - cameraPosition.xz);
-        vDistanceFade = 1.0 - smoothstep(uRenderDistance * 0.6, uRenderDistance, distToCam);
-      } else {
-        vDistanceFade = 1.0;
-      }
+    uniforms.terrainTexture = terrainTexNode;
 
-      // Terrain backface culling — hide grass on surfaces facing away from camera
-      vec3 surfaceNormal = normalize((modelMatrix * instanceMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
-      vec3 viewDir = normalize(cameraPosition - grassWorldPos.xyz);
-      if (dot(surfaceNormal, viewDir) < 0.0) {
-        vDistanceFade = 0.0;
-      }
-      // Fade out grass too close to camera
-      float nearDist = length(grassWorldPos.xyz - cameraPosition);
-      vDistanceFade *= smoothstep(0.5, 2.0, nearDist);
+    // Tinted albedo = what the terrain material shows, minus lighting
+    // (grass gets lit by the same lights, so don't bake lighting in twice).
+    // const groundAlbedo = terrainTexNode.rgb.mul(uniforms.uTerrainTint);
+    // Optionally flatten remaining contrast toward the sample's luminance.
+    
+    // @ts-expect-error - RGB does exist, but we should fix this type at some point
+    const rgb = terrainTexNode.rgb;
+    // const flat = vec3(luminance(rgb));
+    // const groundAlbedo = mix(rgb, flat, 0.3)
+    //   .mul(uniforms.uTerrainTint);
+    // Flatten remaining contrast toward the texture's average COLOR
+    // (max mip ≈ single averaged texel) — mixing toward luminance()
+    // gray desaturates, which reads as dull.
+    // @ts-expect-error - same swizzle typing gap
+    const meanColor = texture(opts.terrainTexture, terrainUVNode).level(float(12)).rgb;
+    const groundAlbedo = mix(rgb, meanColor, 0.3)
+      .mul(uniforms.uTerrainTint);
 
-      #include <project_vertex>
-      `,
-    );
+    const matchedBase = groundAlbedo.mul(opts.rootDarken ?? 0.6);
+    const matchedTip  = groundAlbedo.mul(opts.tipBrighten ?? 1.3);
+    const matchedColor = mix(matchedBase, matchedTip, bladeUV.y);
 
-    // ---- Fragment shader ----
+    grassColor = mix(authoredColor, matchedColor, uniforms.uGroundMatch);
+  }
 
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <common>',
-      /* glsl */ `#include <common>
-      uniform vec3 uBaseColor;
-      uniform vec3 uTipColor1;
-      uniform vec3 uTipColor2;
-      uniform sampler2D uNoiseTexture;
-      uniform float uNoiseScale;
-      uniform float uGrassLightIntensity;
-      varying vec2 vBladeUV;
-      varying vec2 vGlobalUV;
-      varying float vDistanceFade;
-      `,
-    );
+  material.colorNode = grassColor.mul(uniforms.uGrassLightIntensity);
 
-    // Override normal to point upward for correct shadow receiving
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <normal_fragment_maps>',
-      /* glsl */ `#include <normal_fragment_maps>
-      normal = vec3(0.0, 1.0, 0.0);
-      `,
-    );
+  // --- Distance fade (XZ plane) ---
+  const worldPos = positionWorld;
+  const distXZ: any = worldPos.xz.sub(cameraPosition.xz).length();
+  const renderDist = uniforms.uRenderDistance;
+  const computedFade = float(1.0).sub(
+    tslSmoothstep(renderDist.mul(0.6), renderDist, distXZ)
+  );
+  // When renderDistance is 0, skip fade (show all grass)
+  const distFade: any = renderDist.greaterThan(0).select(computedFade, float(1.0));
 
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <color_fragment>',
-      /* glsl */ `
-      if (vDistanceFade < 0.01) discard;
+  // --- Backface culling: hide grass on terrain facing away from camera ---
+  const surfaceNormal: any = normalize(modelWorldMatrix.mul(vec4(0, 1, 0, 0)).xyz);
+  const viewDir: any = normalize(cameraPosition.sub(worldPos));
+  const backfaceFade = dot(surfaceNormal, viewDir).greaterThan(0).select(float(1.0), float(0.0));
 
-      vec4 grassVariation = texture2D(uNoiseTexture, vGlobalUV * uNoiseScale);
-      // vec3 tipColor = mix(uTipColor1, uTipColor2, grassVariation.r);
+  // --- Near-camera fade: prevent grass popping at close range ---
+  const nearDist: any = worldPos.sub(cameraPosition).length();
+  const nearFade = tslSmoothstep(float(0.5), float(2.0), nearDist);
 
-      diffuseColor.rgb = mix(uBaseColor, uTipColor1, 1.0 - vBladeUV.y) * uGrassLightIntensity;
-      diffuseColor.a = vDistanceFade;
-      `,
-    );
-  };
+  // --- Combined opacity ---
+  material.opacityNode = distFade.mul(nearFade).mul(backfaceFade);
+
+  // --- Normal override: point upward for consistent shadow receiving ---
+  material.normalNode = vec3(0, 1, 0);
 
   return { material, uniforms };
 }
+
+// function createBladeMaterial(noiseTexture: GrassAssets['noiseTexture'], opts: GrassShaderOptions = {}) {
+//   const uniforms = {
+//     uGrassLightIntensity: { value: opts.lightIntensity ?? 1.0 },
+//     uNoiseScale:          { value: opts.noiseScale ?? 1.5 },
+//     uRenderDistance:      { value: opts.renderDistance ?? 0.0 },
+//     baseColor:            { value: new THREE.Color(opts.baseColor ?? '#3a5a20') },
+//     tipColor1:            { value: new THREE.Color(opts.tipColor1 ?? '#6a9a45') },
+//     tipColor2:            { value: new THREE.Color(opts.tipColor2 ?? '#4a7a30') },
+//     noiseTexture:         { value: noiseTexture },
+//   };
+
+//   const material = new THREE.MeshLambertMaterial({
+//     side: THREE.DoubleSide,
+//     transparent: true,
+//   });
+
+//   material.customProgramCacheKey = () => 'grass-blade-material';
+//   material.onBeforeCompile = (shader) => {
+//     shader.uniforms.uTipColor1           = uniforms.tipColor1;
+//     shader.uniforms.uTipColor2           = uniforms.tipColor2;
+//     shader.uniforms.uBaseColor           = uniforms.baseColor;
+//     shader.uniforms.uGrassLightIntensity = uniforms.uGrassLightIntensity;
+//     shader.uniforms.uNoiseScale          = uniforms.uNoiseScale;
+//     shader.uniforms.uNoiseTexture        = uniforms.noiseTexture;
+//     shader.uniforms.uRenderDistance      = uniforms.uRenderDistance;
+
+//     // ---- Vertex shader ----
+
+//     shader.vertexShader = shader.vertexShader.replace(
+//       '#include <common>',
+//       /* glsl */ `#include <common>
+//       uniform sampler2D uNoiseTexture;
+//       uniform float uNoiseScale;
+//       uniform float uRenderDistance;
+//       varying vec2 vBladeUV;
+//       varying vec2 vGlobalUV;
+//       varying float vDistanceFade;
+//       `,
+//     );
+
+//     shader.vertexShader = shader.vertexShader.replace(
+//       '#include <project_vertex>',
+//       /* glsl */ `
+//       #ifdef USE_INSTANCING
+//         vec4 grassWorldPos = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
+//       #else
+//         vec4 grassWorldPos = modelMatrix * vec4(transformed, 1.0);
+//       #endif
+
+//       float terrainSize = 100.0;
+//       vGlobalUV = (terrainSize - grassWorldPos.xz) / terrainSize;
+//       vBladeUV = uv;
+
+//       if (uRenderDistance > 0.0) {
+//         float distToCam = length(grassWorldPos.xz - cameraPosition.xz);
+//         vDistanceFade = 1.0 - smoothstep(uRenderDistance * 0.6, uRenderDistance, distToCam);
+//       } else {
+//         vDistanceFade = 1.0;
+//       }
+
+//       // Terrain backface culling — hide grass on surfaces facing away from camera
+//       vec3 surfaceNormal = normalize((modelMatrix * instanceMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+//       vec3 viewDir = normalize(cameraPosition - grassWorldPos.xyz);
+//       if (dot(surfaceNormal, viewDir) < 0.0) {
+//         vDistanceFade = 0.0;
+//       }
+//       // Fade out grass too close to camera
+//       float nearDist = length(grassWorldPos.xyz - cameraPosition);
+//       vDistanceFade *= smoothstep(0.5, 2.0, nearDist);
+
+//       #include <project_vertex>
+//       `,
+//     );
+
+//     // ---- Fragment shader ----
+
+//     shader.fragmentShader = shader.fragmentShader.replace(
+//       '#include <common>',
+//       /* glsl */ `#include <common>
+//       uniform vec3 uBaseColor;
+//       uniform vec3 uTipColor1;
+//       uniform vec3 uTipColor2;
+//       uniform sampler2D uNoiseTexture;
+//       uniform float uNoiseScale;
+//       uniform float uGrassLightIntensity;
+//       varying vec2 vBladeUV;
+//       varying vec2 vGlobalUV;
+//       varying float vDistanceFade;
+//       `,
+//     );
+
+//     // Override normal to point upward for correct shadow receiving
+//     shader.fragmentShader = shader.fragmentShader.replace(
+//       '#include <normal_fragment_maps>',
+//       /* glsl */ `#include <normal_fragment_maps>
+//       normal = vec3(0.0, 1.0, 0.0);
+//       `,
+//     );
+
+//     shader.fragmentShader = shader.fragmentShader.replace(
+//       '#include <color_fragment>',
+//       /* glsl */ `
+//       if (vDistanceFade < 0.01) discard;
+
+//       vec4 grassVariation = texture2D(uNoiseTexture, vGlobalUV * uNoiseScale);
+//       // vec3 tipColor = mix(uTipColor1, uTipColor2, grassVariation.r);
+
+//       diffuseColor.rgb = mix(uBaseColor, uTipColor1, 1.0 - vBladeUV.y) * uGrassLightIntensity;
+//       diffuseColor.a = vDistanceFade;
+//       `,
+//     );
+//   };
+
+//   return { material, uniforms };
+// }
+
 
 /* ================================================================== */
 /*  GrassShader                                                        */
@@ -230,7 +443,7 @@ export class GrassShader {
   }
 
   _uniforms: Record<string, any>;
-  _material: THREE.MeshLambertMaterial;
+  _material: MeshLambertNodeMaterial;
   _geo: THREE.BufferGeometry;
   _heightVariation: number;
   _lean: number;
@@ -251,7 +464,40 @@ export class GrassShader {
     const bladeWidth  = opts.bladeWidth  ?? 0.025;
     const bladeHeight = opts.bladeHeight ?? 0.08;
 
-    const { material, uniforms } = createBladeMaterial(assets.noiseTexture, opts);
+    // const { material, uniforms } = createBladeMaterial(assets.noiseTexture, opts);
+    // World matrix is needed before material creation now (bbox for UV mapping)
+    sourceMesh.updateWorldMatrix(true, false);
+    this._worldMatrix = sourceMesh.matrixWorld.clone();
+
+    let terrainBounds: TerrainBounds | null = null;
+    // Auto-detect texture/tint from the source mesh's material if not provided
+    const srcMat = Array.isArray(sourceMesh.material)
+      ? sourceMesh.material[0]
+      : sourceMesh.material;
+    const terrainTexture = opts.terrainTexture
+      ?? (srcMat as THREE.MeshStandardMaterial)?.map
+      ?? undefined;
+    const terrainTint = opts.terrainTint
+      ?? (srcMat as THREE.MeshStandardMaterial)?.color
+      ?? undefined;
+
+    if (terrainTexture) {
+      const bbox = new THREE.Box3().setFromObject(sourceMesh);
+      terrainBounds = {
+        minX: bbox.min.x,
+        minZ: bbox.min.z,
+        sizeX: Math.max(bbox.max.x - bbox.min.x, 1e-6),
+        sizeZ: Math.max(bbox.max.z - bbox.min.z, 1e-6),
+      };
+    }
+
+    // const { material, uniforms } = createBladeMaterial(assets.noiseTexture, opts, terrainBounds);
+    const { material, uniforms } = createBladeMaterial(
+      assets.noiseTexture,
+      { ...opts, terrainTexture, terrainTint },
+      terrainBounds,
+    );
+
     this._uniforms = uniforms;
     this._material = material;
     this._shadows = opts.shadows ?? true;
@@ -260,18 +506,27 @@ export class GrassShader {
     const scaleXZ = opts.scaleXZ ?? 1;
     const scaleY  = opts.scaleY ?? 1;
 
-    if (assets.geometry) {
-      this._geo = assets.geometry.clone();
-      this._geo.scale(scaleXZ, scaleY, scaleXZ);
-    } else {
-      this._geo = createBladeGeometry();
-      this._geo.scale(bladeWidth * scaleXZ, bladeHeight * scaleY, bladeWidth * scaleXZ);
-    }
+    // if (assets.geometry) {
+    //   this._geo = assets.geometry.clone();
+    //   this._geo.scale(scaleXZ, scaleY, scaleXZ);
+    // } else {
+      // this._geo = createBladeGeometry();
+      // this._geo.scale(bladeWidth * scaleXZ, bladeHeight * scaleY, bladeWidth * scaleXZ);
+    // }
+
     
     this._heightVariation = opts.heightVariation ?? 0.4;
     this._lean = opts.lean ?? 0.3;
     this._layer = opts.layer;
 
+    this._geo = createClumpGeometry({
+      bladeCount: 30,
+      radius: 0.15,
+      bladeWidth: bladeWidth * scaleXZ,
+      bladeHeight: bladeHeight * scaleY,
+      heightVariation: this._heightVariation,
+      lean: this._lean,
+    });
 
     this._cellSize = opts.cellSize ?? 5;
     this._maxNewPerFrame = opts.maxNewCellsPerFrame ?? 15;
@@ -283,9 +538,9 @@ export class GrassShader {
     this._cellCache = new Map();
     this._cellTriangles = new Map();
 
-    sourceMesh.updateWorldMatrix(true, false);
+    // sourceMesh.updateWorldMatrix(true, false);
     
-    this._worldMatrix = sourceMesh.matrixWorld.clone();
+    // this._worldMatrix = sourceMesh.matrixWorld.clone();
 
     this._initChunked(sourceMesh);
   }
@@ -304,6 +559,22 @@ export class GrassShader {
   set tipColor2(hex: number)    { this._uniforms.tipColor2.value.set(hex); }
   set lightIntensity(v: number) { this._uniforms.uGrassLightIntensity.value = v; }
   set noiseScale(v: number)     { this._uniforms.uNoiseScale.value = v; }
+  /** Update the tint (no-op if ground matching wasn't enabled). If you passed
+   *  terrainTintNode, prefer setting that shared node's .value directly. */
+  set terrainTint(color: THREE.ColorRepresentation) {
+    this._uniforms.uTerrainTint?.value.set(color);
+  }
+
+  /** 0 = authored colors, 1 = fully ground-matched. Animatable. */
+  set groundMatch(v: number) {
+    if (this._uniforms.uGroundMatch) this._uniforms.uGroundMatch.value = v;
+  }
+
+  /** Hot-swap the terrain texture the grass samples from. */
+  setTerrainTexture(tex: THREE.Texture) {
+    if (!this._uniforms.terrainTexture) return;
+    this._uniforms.terrainTexture.value = tex;
+  }
 
   dispose() {
     this._geo.dispose();
@@ -607,6 +878,7 @@ export class GrassShader {
     const mesh = new THREE.InstancedMesh(this._geo, this._material, count);
     mesh.receiveShadow = this._shadows;
     mesh.frustumCulled = true;
+    mesh.renderOrder = -1;
     if (this._layer !== undefined) mesh.layers.set(this._layer);
     return mesh;
   }

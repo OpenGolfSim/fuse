@@ -123,6 +123,10 @@ export class AppBridge extends EventEmitter<EventMap> {
     }
     this.once('ready', callback);
   }
+  
+  log(message: any) {
+    this.sendMessage({ type: 'log', message });
+  }
 
   setReady() {
     console.log('[runtime] Rapier initialized');

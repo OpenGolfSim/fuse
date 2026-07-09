@@ -1,4 +1,11 @@
 import * as THREE from 'three';
+import { MeshStandardNodeMaterial } from 'three/webgpu';
+// import { positionLocal, vec3, float, smoothstep, mix } from 'three/tsl';
+import {
+  positionWorld, uniform as tslUniform,
+  vec3, vec4, float, smoothstep, mix, Fn, Discard,
+  cameraPosition
+} from 'three/tsl';
 
 
 // Simple Verlet particle
@@ -69,6 +76,8 @@ class FlagConstraint {
  */
 export class FlagStick {
   object: THREE.Group;
+  surfacePoint: any;   // uniform: point on the green's local plane
+  surfaceNormal: any;  // uniform: green's local surface normal
   holeNumber: string;
   elapsed = 0;
   particles: FlagParticle[];
@@ -83,7 +92,7 @@ export class FlagStick {
   #tmpForce: THREE.Vector3;
   #restPositions: THREE.TypedArray;
 
-  constructor(position: THREE.Vector3, holeNumber: string, golfCup?: THREE.Mesh) {
+  constructor(position: THREE.Vector3, holeNumber: string, golfCup?: THREE.Mesh, surfaceNormal?: THREE.Vector3) {
     this.object = new THREE.Group();
     this.holeNumber = holeNumber;
 
@@ -170,17 +179,76 @@ export class FlagStick {
     if (golfCup) {
       console.log('----- ADD GOLF CUP!');
       const cupCopy = golfCup.clone();
-      const mat = new THREE.MeshStandardMaterial({
-        // color: new THREE.Color('#ffffff'),
-        color: new THREE.Color('#dddddd'),
-        metalness: 0,
-        roughness: 0
-      });
+      // const mat = new THREE.MeshStandardMaterial({
+      //   // color: new THREE.Color('#ffffff'),
+      //   color: new THREE.Color('#dddddd'),
+      //   metalness: 0,
+      //   roughness: 0
+      // });
+      const s = 0.1088;                    // cup model scale (keep in sync with scale.set below)
+      // const topY = float(0);              // TODO: your known local top Y of the cup model
+
+      // const dirtDepth = float(0.005 / s); // 3.5 cm soil strip, in local units
+      // const edge = float(0.002 / s);      // AA transition width
+      // this.surfacePoint = tslUniform(position.clone());
+      // this.surfaceNormal = tslUniform(new THREE.Vector3(0, 1, 0));
+      this.surfacePoint = tslUniform(position.clone());
+      this.surfaceNormal = tslUniform(
+        (surfaceNormal ?? new THREE.Vector3(0, 1, 0)).clone().normalize()
+      );
+
+      // Signed height of the fragment above the green's local plane (meters)
+      const h = positionWorld.sub(this.surfacePoint).dot(this.surfaceNormal);
+
+      const dirtDepth = float(0.010);     // world units again — no /s needed
+      const edge = float(0.001);
+      const dirtColor = vec3(0.478, 0.369, 0.255);   // match rimColorRGB in the target shader
+      const plasticColor = vec3(0.85, 0.85, 0.85);
+
+      // 1 near the lip (dirt), 0 below the dirt band (plastic liner)
+      // const dirtT = smoothstep(
+      //   topY.sub(dirtDepth).sub(edge),
+      //   topY.sub(dirtDepth).add(edge),
+      //   positionLocal.y
+      // );
+      // Dirt where h is in (-dirtDepth, 0); plastic below
+      const dirtT = smoothstep(
+        dirtDepth.negate().sub(edge),
+        dirtDepth.negate().add(edge),
+        h
+      );
+
+      // Fade the dirt out with camera distance: full at <=8m, gone by 18m
+      const camDist = positionWorld.sub(cameraPosition).length();
+      const dirtFade = smoothstep(float(18.0), float(8.0), camDist);
+      const dirtVis = dirtT.mul(dirtFade);
+
+      // Cheap AO: darken the liner toward the bottom of the cup
+      // const depthT = smoothstep(topY, topY.sub(0.11 / s), positionLocal.y);
+      const depthT = smoothstep(float(0), float(-0.11), h);
+
+      const shaded = mix(plasticColor, plasticColor.mul(0.55), depthT);
+
+      const mat = new MeshStandardNodeMaterial({ metalness: 0 });
+      // mat.colorNode = mix(shaded, dirtColor, dirtT);
+      mat.colorNode = Fn(() => {
+        // Clip everything above the green surface — rim conforms to slope
+        Discard(h.greaterThan(0.0));
+        // return vec4(mix(shaded, dirtColor, dirtT), 1.0);
+        return vec4(mix(shaded, dirtColor, dirtVis), 1.0);
+      })();
+
+      // mat.roughnessNode = mix(float(0.35), float(1.0), dirtT);
+      mat.roughnessNode = mix(float(0.35), float(1.0), dirtVis);
+
       cupCopy.material = mat;
-      cupCopy.scale.set(0.108, 0.108, 0.108);
-      cupCopy.position.set(0, -(stickHeight / 2) + 0.07, 0);
+      // cupCopy.scale.set(0.108, 0.108, 0.108);
+      cupCopy.scale.set(s, s, s);
+      cupCopy.position.set(0, -(stickHeight / 2) + 0.064, 0);
       // cupCopy.position.copy(position);
-      cupCopy.position.y += 1;
+      // cupCopy.position.y += 1;
+      cupCopy.position.y += 1.02;   // raise so the rim clears the terrain everywhere; clip trims it
+
       this.object.add(cupCopy);
     }
 

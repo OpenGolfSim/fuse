@@ -119,6 +119,23 @@ interface FlowMapImage extends GLTFImage {
   }
 }
 
+interface BlendMapImage extends GLTFImage {
+  extras?: {
+    type: 'blend_map',
+    id?: string,
+    width?: number,
+    height?: number,
+    bounds?: { w: number, h: number, x: number, y: number},
+  }
+}
+
+type BlendMapData = {
+  data: ImageDataArray,
+  width: number,
+  height: number,
+  bounds: { w: number, h: number, x: number, y: number },
+};
+
 interface TreeImage extends GLTFImage {
   extras?: {
     type?: 'tree_mask' | 'tree_billboard',

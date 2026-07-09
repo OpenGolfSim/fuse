@@ -25,10 +25,12 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
   currentLookAt: THREE.Vector3;
   desiredCamPos: THREE.Vector3;
   desiredLookAt: THREE.Vector3;
+  originalFov: number;
   cameraOffsetX: number;
   cameraOffsetYZ: [number, number];
   cameraTrackingOffsetYZ: [number, number];
   isTracking: boolean;
+  // isAiming: boolean;
   aimVelocity: { lateral: number, longitudinal: number };
   aimSpeed: number;
   aimKeys: AimKeys;
@@ -49,15 +51,16 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
   ) {
     const aspect = (window.innerWidth / window.innerHeight);
     const fov = options.fov ?? 20;
-    const near = options.near ?? 0.75;
+    const near = options.near ?? 3;
     const far = options.far ?? 500;
     super(fov, aspect, near, far);
+    this.originalFov = fov;
     this.scene = options.scene;
     this.canvas = options.canvas;
 
     // defaults
     this.cameraOffsetX = options.cameraOffsetX ?? 0;
-    this.cameraOffsetYZ = options.cameraOffsetYZ ?? [1.5, 10];
+    this.cameraOffsetYZ = options.cameraOffsetYZ ?? [2.5, 15];
     this.cameraTrackingOffsetYZ = options.cameraTrackingOffsetYZ ?? [4.5, 15];
 
     this.#activeFrustumOffset = this.cameraOffsetX;
@@ -139,12 +142,91 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     back.y = 0;
     back.normalize();
 
+    const minDistance = 5;
+    const maxDistance = 60;
+    const minFov = this.originalFov - 5;
+    const maxFov = this.originalFov;
+
+    const dist = startPoint.distanceTo(aimPoint);
+    const clampedDistance = Math.max(minDistance, Math.min(dist, maxDistance));
+    const t = (clampedDistance - minDistance) / (maxDistance - minDistance);
+    const targetFov = THREE.MathUtils.lerp(minFov, maxFov, t);
+
+    this.fov = targetFov;
+    this.updateProjectionMatrix();
+    this.projectionMatrix.elements[8] = this.#activeFrustumOffset;
+
+    // --- Binary search for zOffset that places ball at bottom of screen ---
+    const h = this.cameraOffsetYZ[0];
+    // NDC y: -1 = bottom pixel, +1 = top pixel
+    // -0.85 = ball sits ~7.5% up from bottom edge
+    const targetNdcY = -0.85;
+
+    let lo = 3, hi = 40;
+    for (let i = 0; i < 12; i++) {
+      const mid = (lo + hi) / 2;
+      this.position.copy(startPoint).addScaledVector(back, mid);
+      this.position.y += h;
+      this.lookAt(aimPoint);
+      this.updateMatrixWorld(true);
+
+      const ndc = startPoint.clone().project(this);
+
+      if (ndc.y > targetNdcY) {
+        hi = mid;  // ball too high → bring camera closer
+      } else {
+        lo = mid;  // ball too low → push camera back
+      }
+
+    }
+
+    const zOffset = (lo + hi) / 2;
+    this.staticCamPos.copy(startPoint).addScaledVector(back, zOffset);
+    this.staticCamPos.y += h;
+    this.staticLookAt.copy(aimPoint);
+
+    this.shotDirection.subVectors(aimPoint, startPoint);
+    this.shotDirection.y = 0;
+    this.shotDirection.normalize();
+  }
+  setPositionsOLD(startPoint: THREE.Vector3, aimPoint: THREE.Vector3) {
+    const back = this.#tmpBack.subVectors(startPoint, aimPoint).normalize();
+    back.y = 0;
+    back.normalize();
+
+
+    const minDistance = 5;  // Closest distance
+    const maxDistance = 60; // Furthest distance
+    const minFov = this.originalFov - 3;      // Narrow FOV for close-up
+    const maxFov = this.originalFov + 6;      // Wide FOV for zoomed-out view
+    
+    const minZ = this.cameraOffsetYZ[1] + 5;
+    const maxZ = this.cameraOffsetYZ[1] - 4;
+
+    const lerpFactor = 0.05;// Smoothness (0.0 to 1.0)
+
+    const dist = startPoint.distanceTo(aimPoint);
+
+    const clampedDistance = Math.max(minDistance, Math.min(dist, maxDistance));
+
+    const t = (clampedDistance - minDistance) / (maxDistance - minDistance);
+
+    const targetFov = THREE.MathUtils.lerp(minFov, maxFov, t);
+    const targetPos = THREE.MathUtils.lerp(minZ, maxZ, t);
+    console.log(`DYNAMIC FOV, DISTANCE: t:${t} fov:${targetFov}, posZ:${targetPos}`);
+
     // z = behind ball, y = height above ball
-    this.staticCamPos.copy(startPoint)
-      .addScaledVector(back, this.cameraOffsetYZ[1]);
+    this.staticCamPos.copy(startPoint).addScaledVector(back, targetPos);
     this.staticCamPos.y += this.cameraOffsetYZ[0];
 
     this.staticLookAt.copy(aimPoint);
+
+    this.fov = targetFov;
+    this.updateProjectionMatrix();
+
+    // const newFOV = THREE.MathUtils.lerp(0, 100, dist);;
+    // console.log('newFOV', newFOV);
+    // this.fov = this.originalFov + THREE.MathUtils.lerp(0, 100, dist);
 
     this.shotDirection.subVectors(aimPoint, startPoint);
     this.shotDirection.y = 0;
@@ -165,7 +247,9 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     if (Math.abs(this.aimVelocity.lateral) < 0.001) this.aimVelocity.lateral = 0;
     if (Math.abs(this.aimVelocity.longitudinal) < 0.001) this.aimVelocity.longitudinal = 0;
 
-    if (this.aimVelocity.lateral === 0 && this.aimVelocity.longitudinal === 0) return
+    if (this.aimVelocity.lateral === 0 && this.aimVelocity.longitudinal === 0) {
+      return
+    }
 
     const dist = startPoint.distanceTo(aimPoint);
     const angleStep = this.aimSpeed * dt * (Math.PI / 180); // degrees per second
@@ -225,8 +309,10 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     this.currentLookAt.copy(this.staticLookAt);
     this.lookAt(this.currentLookAt);
     this.applyFrustumOffset(dt, this.cameraOffsetX, false);
-    if (aimChanged) return true;
+    
+    // this.isAiming = aimChanged;
 
+    if (aimChanged) return true;
     return false;
   }
 }

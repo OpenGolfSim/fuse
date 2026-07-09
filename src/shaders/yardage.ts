@@ -1,4 +1,12 @@
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
+import { MeshStandardNodeMaterial } from 'three/webgpu';
+import {
+  vec2, vec3, float,
+  uniform as tslUniform,
+  positionWorld, materialColor,
+  texture as tslTexture,
+  mix, dot, step,
+} from 'three/tsl';
 
 function nextPow2(v: number): number {
   return Math.pow(2, Math.ceil(Math.log2(v)));
@@ -18,13 +26,22 @@ export type YardageLinesMaterialOptions = {
 };
 
 export class YardageLinesMaterial {
-  customUniforms: Record<string, { value: any }>;
-  material?: THREE.Material;
+  material?: MeshStandardNodeMaterial;
 
   private lineLength: number;
   private maxDist: number;
   private pxPerMeter: number;
   private maxTexSize: number;
+  private canvas: HTMLCanvasElement;
+  private canvasTex: THREE.CanvasTexture;
+
+  // TSL uniforms
+  private teePosUniform: any;
+  private rangeDirUniform: any;
+  private perpDirUniform: any;
+  private texWorldSizeUniform: any;
+  private lineColorRGBUniform: any;
+  private lineColorAUniform: any;
 
   constructor(
     object: THREE.Object3D,
@@ -52,78 +69,80 @@ export class YardageLinesMaterial {
 
     this.maxDist = Math.max(...distances) + labelGap + labelSize[1] + 2;
 
+    // Create persistent canvas and texture
+    this.canvas = document.createElement('canvas');
     const texW = Math.min(nextPow2(lineLength * this.pxPerMeter), this.maxTexSize);
     const texH = Math.min(nextPow2(this.maxDist * this.pxPerMeter), this.maxTexSize);
+    this.canvas.width = texW;
+    this.canvas.height = texH;
 
-    const tex = this.buildLineTexture(texW, texH, distances, options);
-    tex.anisotropy = maxAniso;
+    this.drawLines(distances, options);
 
-    this.customUniforms = {
-      teePos:       { value: new THREE.Vector3(ballPos.x, 0, ballPos.z) },
-      rangeDir:     { value: dir },
-      perpDir:      { value: perpDir },
-      lineTexture:  { value: tex },
-      texWorldSize: { value: new THREE.Vector2(lineLength, this.maxDist) },
-      lineColor:    { value: new THREE.Vector4(lineColor[0], lineColor[1], lineColor[2], lineColor[3]) },
-    };
+    this.canvasTex = new THREE.CanvasTexture(this.canvas);
+    this.canvasTex.minFilter = THREE.LinearMipmapLinearFilter;
+    this.canvasTex.magFilter = THREE.LinearFilter;
+    this.canvasTex.wrapS = THREE.ClampToEdgeWrapping;
+    this.canvasTex.wrapT = THREE.ClampToEdgeWrapping;
+    this.canvasTex.generateMipmaps = true;
+    this.canvasTex.anisotropy = maxAniso;
+    this.canvasTex.needsUpdate = true;
+
+    // TSL uniforms
+    this.teePosUniform = tslUniform(new THREE.Vector3(ballPos.x, 0, ballPos.z));
+    this.rangeDirUniform = tslUniform(dir);
+    this.perpDirUniform = tslUniform(perpDir);
+    this.texWorldSizeUniform = tslUniform(new THREE.Vector2(lineLength, this.maxDist));
+    this.lineColorRGBUniform = tslUniform(new THREE.Color(lineColor[0], lineColor[1], lineColor[2]));
+    this.lineColorAUniform = tslUniform(lineColor[3]);
 
     if (object instanceof THREE.Mesh) {
-      const mat = object.material.clone();
+      const origMat = object.material as THREE.MeshStandardMaterial;
 
-      mat.onBeforeCompile = (shader: THREE.WebGLProgramParametersWithUniforms) => {
-        Object.assign(shader.uniforms, this.customUniforms);
+      const mat = new MeshStandardNodeMaterial();
 
-        shader.vertexShader = shader.vertexShader.replace(
-          '#include <common>',
-          /* glsl */ `
-            #include <common>
-            varying vec3 vWorldPos;
-          `
-        );
-        shader.vertexShader = shader.vertexShader.replace(
-          '#include <worldpos_vertex>',
-          /* glsl */ `
-            #include <worldpos_vertex>
-            vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-          `
-        );
+      // Copy properties from original GLTF material
+      if (origMat.color) mat.color = origMat.color.clone();
+      if (origMat.map) mat.map = origMat.map;
+      if (origMat.normalMap) mat.normalMap = origMat.normalMap;
+      if (origMat.normalScale) mat.normalScale = origMat.normalScale.clone();
+      if (origMat.roughnessMap) mat.roughnessMap = origMat.roughnessMap;
+      if (origMat.metalnessMap) mat.metalnessMap = origMat.metalnessMap;
+      if (origMat.emissive) mat.emissive = origMat.emissive.clone();
+      if (origMat.emissiveMap) mat.emissiveMap = origMat.emissiveMap;
+      mat.emissiveIntensity = origMat.emissiveIntensity ?? 1.0;
+      mat.roughness = origMat.roughness ?? 1.0;
+      mat.metalness = origMat.metalness ?? 0.0;
+      mat.envMapIntensity = origMat.envMapIntensity ?? 1.0;
+      if (origMat.aoMap) mat.aoMap = origMat.aoMap;
+      mat.aoMapIntensity = origMat.aoMapIntensity ?? 1.0;
+      if (origMat.lightMap) mat.lightMap = origMat.lightMap;
+      mat.lightMapIntensity = origMat.lightMapIntensity ?? 1.0;
+      mat.side = origMat.side;
+      mat.toneMapped = origMat.toneMapped;
 
-        shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <common>',
-          /* glsl */ `
-            #include <common>
-            varying vec3 vWorldPos;
-            uniform vec3 teePos;
-            uniform vec2 rangeDir;
-            uniform vec2 perpDir;
-            uniform sampler2D lineTexture;
-            uniform vec2 texWorldSize;
-            uniform vec4 lineColor;
-          `
-        );
+      // --- TSL: project world position onto range/perp axes ---
+      const offset: any = positionWorld.xz.sub(this.teePosUniform.xz);
+      const downrange = dot(offset, this.rangeDirUniform);
+      const crossrange = dot(offset, this.perpDirUniform);
 
-        shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <map_fragment>',
-          /* glsl */ `
-            #include <map_fragment>
+      // Map to texture UV
+      const u: any = float(0.5).sub(crossrange.div(this.texWorldSizeUniform.x));
+      const v: any = downrange.div(this.texWorldSizeUniform.y);
 
-            vec2 offset      = vWorldPos.xz - teePos.xz;
-            float downrange  = dot(offset, rangeDir);
-            float crossrange = dot(offset, perpDir);
+      // Bounds check: only show where UV is 0-1
+      const inBounds: any = step(float(0), u)
+        .mul(step(u, float(1)))
+        .mul(step(float(0), v))
+        .mul(step(v, float(1)));
 
-            float u = 0.5 - crossrange / texWorldSize.x;
-            float v = downrange / texWorldSize.y;
+      // Sample the line texture
+      const lineSample: any = tslTexture(this.canvasTex, vec2(u, v));
+      const mask: any = lineSample.a.mul(this.lineColorAUniform).mul(inBounds);
 
-            float inBounds = step(0.0, u) * step(u, 1.0)
-                           * step(0.0, v) * step(v, 1.0);
-
-            vec4 lineSample = texture2D(lineTexture, vec2(u, v));
-            float mask = lineSample.a * lineColor.a * inBounds;
-
-            diffuseColor.rgb = mix(diffuseColor.rgb, lineColor.rgb, mask);
-          `
-        );
-      };
+      // Overlay lines onto the base material color
+      // mat.colorNode = mix(materialColor, this.lineColorRGBUniform, mask);
+      // @ts-expect-error materialColor supports .rgb at runtime; @types/three doesn't type it
+      mat.colorNode = mix(materialColor.rgb, this.lineColorRGBUniform, mask);
 
       mat.needsUpdate = true;
       object.material = mat;
@@ -131,11 +150,7 @@ export class YardageLinesMaterial {
     }
   }
 
-  private buildLineTexture(
-    texW: number, texH: number,
-    distances: number[],
-    options: YardageLinesMaterialOptions
-  ): THREE.CanvasTexture {
+  private drawLines(distances: number[], options: YardageLinesMaterialOptions) {
     const lineWidth = options.lineWidth ?? 0.4;
     const feather   = options.feather   ?? 0.08;
     const labelSize = options.labelSize ?? [5, 2.5];
@@ -143,20 +158,20 @@ export class YardageLinesMaterial {
     const labels    = options.labels;
     const font      = options.labelFont;
 
+    const texW = this.canvas.width;
+    const texH = this.canvas.height;
+
     const pxPerMX = texW / this.lineLength;
     const pxPerMY = texH / this.maxDist;
     const aspectCorrection = pxPerMX / pxPerMY;
 
-    const canvas = document.createElement('canvas');
-    canvas.width  = texW;
-    canvas.height = texH;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = this.canvas.getContext('2d')!;
     ctx.clearRect(0, 0, texW, texH);
 
     for (let i = 0; i < distances.length; i++) {
       const d = distances[i];
 
-      // ── Line stripe ──
+      // Line stripe
       const lineY = texH - d * pxPerMY;
       const lineH = Math.max(lineWidth * pxPerMY, 1);
 
@@ -169,7 +184,7 @@ export class YardageLinesMaterial {
       ctx.fillStyle = grad;
       ctx.fillRect(0, lineY - lineH / 2, texW, lineH);
 
-      // ── Text label ──
+      // Text label
       const labelHPx     = labelSize[1] * pxPerMY;
       const labelCenterY = texH - (d + labelGap + labelSize[1] / 2) * pxPerMY;
       const fontSize     = Math.round(labelHPx * 0.8);
@@ -186,15 +201,6 @@ export class YardageLinesMaterial {
       ctx.fillText(text, 0, 0);
       ctx.restore();
     }
-
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.minFilter       = THREE.LinearMipmapLinearFilter;
-    tex.magFilter       = THREE.LinearFilter;
-    tex.wrapS           = THREE.ClampToEdgeWrapping;
-    tex.wrapT           = THREE.ClampToEdgeWrapping;
-    tex.generateMipmaps = true;
-    tex.needsUpdate     = true;
-    return tex;
   }
 
   setDistances(distances: number[], options: YardageLinesMaterialOptions = {}) {
@@ -203,21 +209,24 @@ export class YardageLinesMaterial {
     const texW = Math.min(nextPow2(this.lineLength * this.pxPerMeter), this.maxTexSize);
     const texH = Math.min(nextPow2(this.maxDist * this.pxPerMeter), this.maxTexSize);
 
-    const oldTex = this.customUniforms.lineTexture.value as THREE.CanvasTexture;
-    const aniso  = oldTex.anisotropy;
-    oldTex.dispose();
+    this.canvas.width = texW;
+    this.canvas.height = texH;
+    this.drawLines(distances, options);
 
-    const tex = this.buildLineTexture(texW, texH, distances, options);
-    tex.anisotropy = aniso;
-    this.customUniforms.lineTexture.value = tex;
-    this.customUniforms.texWorldSize.value.set(this.lineLength, this.maxDist);
+    this.canvasTex.needsUpdate = true;
+    this.texWorldSizeUniform.value.set(this.lineLength, this.maxDist);
   }
 
   setLineColor(r: number, g: number, b: number, a: number) {
-    this.customUniforms.lineColor.value.set(r, g, b, a);
+    this.lineColorRGBUniform.value.setRGB(r, g, b);
+    this.lineColorAUniform.value = a;
   }
 
   dispose() {
-    (this.customUniforms.lineTexture.value as THREE.Texture)?.dispose();
+    this.canvasTex.dispose();
+    if (this.material) {
+      this.material.dispose();
+      this.material = undefined;
+    }
   }
 }

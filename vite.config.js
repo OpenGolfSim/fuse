@@ -19,6 +19,10 @@ export default defineConfig({
     emptyOutDir: true,
     target: 'es2020',
     rollupOptions: {
+      external: [
+        'three',
+        /^three\//,
+      ],
       output: {
         inlineDynamicImports: true,
       },
