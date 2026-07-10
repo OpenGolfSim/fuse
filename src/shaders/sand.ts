@@ -61,14 +61,14 @@ export class SandMaterial {
   ) {
     const baseMat = baseMesh.material;
     if (!(baseMat instanceof THREE.MeshStandardMaterial)) {
-      throw new Error('SandMaterial requires a MeshStandardMaterial');
+      throw new Error('Base material requires a MeshStandardMaterial');
     }
     const baseTexture = baseMat.map;
     const baseTint = baseMat.color || new THREE.Color(1, 1, 1);
     const baseTileSize = baseMesh.userData.tileSize || 2.5;
     const baseRoughness = baseMat.roughness ?? 0.9;
     if (!baseTexture) {
-      throw new Error('SandMaterial requires a base texture map');
+      throw new Error('Base material requires a base texture map');
     }
     // Build the new node material
     this.material = new MeshStandardNodeMaterial({
@@ -115,11 +115,13 @@ export class SandMaterial {
     if (blendMap && neighborMesh) {
       const neighborMat = neighborMesh.material;
       if (!(neighborMat instanceof THREE.MeshStandardMaterial)) {
-        throw new Error('SandMaterial requires a MeshStandardMaterial');
+        console.warn(`baseMesh: ${baseMesh.name}`, baseMat);
+        console.warn(`neighborMesh: ${neighborMesh.name}`, neighborMat);
+        throw new Error('Neighbor material requires a MeshStandardMaterial');
       }
       const neighborTexture = neighborMat.map;
       if (!neighborTexture) {
-        throw new Error('SandMaterial requires neighbors to have a base texture');
+        throw new Error('Neighbor material requires neighbors to have a base texture');
       }
       const neighborTint = neighborMat.color || new THREE.Color(1, 1, 1);
       const neighborTileSize = neighborMesh.userData.tileSize || 2.0;

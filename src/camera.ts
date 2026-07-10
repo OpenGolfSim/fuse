@@ -8,6 +8,7 @@ type ShotPerspectiveCameraOptions = {
   near?: number,
   far?: number,
   aimSpeed?: number;
+  autoPosition?: boolean;
   trackingDelay?: number;
   cameraOffsetX?: number;
   cameraOffsetYZ?: [number, number];
@@ -26,9 +27,11 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
   desiredCamPos: THREE.Vector3;
   desiredLookAt: THREE.Vector3;
   originalFov: number;
+  autoPosition: boolean;
   cameraOffsetX: number;
   cameraOffsetYZ: [number, number];
   cameraTrackingOffsetYZ: [number, number];
+  cameraTrackingFov: number;
   isTracking: boolean;
   // isAiming: boolean;
   aimVelocity: { lateral: number, longitudinal: number };
@@ -61,7 +64,9 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     // defaults
     this.cameraOffsetX = options.cameraOffsetX ?? 0;
     this.cameraOffsetYZ = options.cameraOffsetYZ ?? [2.5, 15];
-    this.cameraTrackingOffsetYZ = options.cameraTrackingOffsetYZ ?? [4.5, 15];
+    this.cameraTrackingOffsetYZ = options.cameraTrackingOffsetYZ ?? [6, 25];
+    this.cameraTrackingFov = 35;
+    this.autoPosition = options.autoPosition ?? false;
 
     this.#activeFrustumOffset = this.cameraOffsetX;
     this.projectionMatrix.elements[8] = this.#activeFrustumOffset;
@@ -155,34 +160,45 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     this.fov = targetFov;
     this.updateProjectionMatrix();
     this.projectionMatrix.elements[8] = this.#activeFrustumOffset;
+    
+    
+    let finalY = this.cameraOffsetYZ[0];
+    let finalZ = this.cameraOffsetYZ[1];
 
-    // --- Binary search for zOffset that places ball at bottom of screen ---
-    const h = this.cameraOffsetYZ[0];
-    // NDC y: -1 = bottom pixel, +1 = top pixel
-    // -0.85 = ball sits ~7.5% up from bottom edge
-    const targetNdcY = -0.85;
-
-    let lo = 3, hi = 40;
-    for (let i = 0; i < 12; i++) {
-      const mid = (lo + hi) / 2;
-      this.position.copy(startPoint).addScaledVector(back, mid);
-      this.position.y += h;
-      this.lookAt(aimPoint);
-      this.updateMatrixWorld(true);
-
-      const ndc = startPoint.clone().project(this);
-
-      if (ndc.y > targetNdcY) {
-        hi = mid;  // ball too high → bring camera closer
-      } else {
-        lo = mid;  // ball too low → push camera back
+    if (this.autoPosition) {
+      // --- Binary search for zOffset that places ball at bottom of screen ---
+      // finalY = this.cameraOffsetYZ[0];
+      // NDC y: -1 = bottom pixel, +1 = top pixel
+      // -0.85 = ball sits ~7.5% up from bottom edge
+      const targetNdcY = -0.85;
+  
+      let lo = 3, hi = 40;
+      for (let i = 0; i < 12; i++) {
+        const mid = (lo + hi) / 2;
+        this.position.copy(startPoint).addScaledVector(back, mid);
+        this.position.y += finalY;
+        this.lookAt(aimPoint);
+        this.updateMatrixWorld(true);
+  
+        const ndc = startPoint.clone().project(this);
+  
+        if (ndc.y > targetNdcY) {
+          hi = mid;  // ball too high → bring camera closer
+        } else {
+          lo = mid;  // ball too low → push camera back
+        }
+  
       }
-
+  
+      const zOffset = (lo + hi) / 2;
+      const minZ = 12; // don't crowd the ball on short shots
+      finalZ = Math.max(zOffset, minZ);
     }
 
-    const zOffset = (lo + hi) / 2;
-    this.staticCamPos.copy(startPoint).addScaledVector(back, zOffset);
-    this.staticCamPos.y += h;
+    // this.staticCamPos.copy(startPoint).addScaledVector(back, zOffset);
+    this.staticCamPos.copy(startPoint).addScaledVector(back, finalZ);
+
+    this.staticCamPos.y += finalY;
     this.staticLookAt.copy(aimPoint);
 
     this.shotDirection.subVectors(aimPoint, startPoint);
@@ -295,11 +311,14 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
       this.desiredCamPos.copy(targetPosition).addScaledVector(tmpBack, this.cameraTrackingOffsetYZ[1]);
       this.desiredCamPos.y += this.cameraTrackingOffsetYZ[0];
       this.desiredLookAt.copy(targetPosition);
-
+      
       this.position.lerp(this.desiredCamPos, posSmooth);
       this.currentLookAt.lerp(this.desiredLookAt, lookSmooth);
       this.lookAt(this.currentLookAt);
       this.applyFrustumOffset(dt, 0, true);
+
+      this.fov = this.cameraTrackingFov;
+      console.log("SET FOV!", this.fov);
     }
   }
 
@@ -309,6 +328,7 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     this.currentLookAt.copy(this.staticLookAt);
     this.lookAt(this.currentLookAt);
     this.applyFrustumOffset(dt, this.cameraOffsetX, false);
+
     
     // this.isAiming = aimChanged;
 

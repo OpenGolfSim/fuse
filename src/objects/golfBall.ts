@@ -90,7 +90,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     this.isShotActive = false;
     this.isShotWaiting = false;
 
-    this.ballMaterial = new THREE.MeshBasicMaterial( { color: 0xffffff } );
+    this.ballMaterial = new THREE.MeshBasicMaterial( { color: 0xeeeeee } );
 
     // Create ball mesh once
     const geometry = new THREE.IcosahedronGeometry(this.radius, 5);

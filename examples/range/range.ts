@@ -260,9 +260,10 @@ async function setupRange() {
   if (!gameContext.ground) throw new Error('Ground physics should exist before creating camera');
   gameContext.camera = new ShotPerspectiveCamera({
     scene: gameContext.ground,
-    far: 900,
-    fov: 30,
-    cameraOffsetYZ: [3, 12],
+    far: 1000,
+    autoPosition: true,
+    // fov: 25,
+    // cameraOffsetYZ: [3, 12],
     cameraOffsetX: gameContext.setupData?.cameraOffset ? -(gameContext.setupData.cameraOffset / 100) : 0
   });
 

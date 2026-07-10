@@ -328,6 +328,44 @@ export class PuttingGridMaterial {
   setHolePosition(position: THREE.Vector3) {
     this.holePosUniform.value.set(position.x, 0, position.z);
   }
+
+  updateGrid(camera: ShotPerspectiveCamera) {
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    const newAngle = Math.atan2(dir.x, dir.z);
+
+    // const elevation = Math.asin(Math.abs(dir.y));
+    // const newCompression = Math.min(Math.pow(1 / Math.max(Math.sin(elevation), 0.17), 0.75), 5);
+    // Measure the actual perspective compression by projecting a 1m H
+    // and 1m V edge at the grid center. This accounts for FOV, distance,
+    // and elevation all at once — no formula to get wrong.
+    const cosA = Math.cos(newAngle);
+    const sinA = Math.sin(newAngle);
+    const c = this.gridCenter;
+    // const pA = new THREE.Vector3(c.x, c.y, c.z).project(camera);
+    // const pH = new THREE.Vector3(c.x + cosA, c.y, c.z - sinA).project(camera);
+    // const pV = new THREE.Vector3(c.x + sinA, c.y, c.z + cosA).project(camera);
+    // Measure compression between camera and grid center (biased toward
+    // near cells where foreshortening is most visible). 0.35 = measure
+    // point is 35% of the way from camera to center. Lower = more
+    // compression, higher = less.
+    const mx = camera.position.x + (c.x - camera.position.x) * 0.35;
+    const mz = camera.position.z + (c.z - camera.position.z) * 0.35;
+    const pA = new THREE.Vector3(mx, c.y, mz).project(camera);
+    const pH = new THREE.Vector3(mx + cosA, c.y, mz - sinA).project(camera);
+    const pV = new THREE.Vector3(mx + sinA, c.y, mz + cosA).project(camera);
+
+    const screenH = Math.sqrt((pH.x - pA.x) ** 2 + (pH.y - pA.y) ** 2);
+    const screenV = Math.sqrt((pV.x - pA.x) ** 2 + (pV.y - pA.y) ** 2);
+    const newCompression = screenV > 0.001
+      ? Math.min(Math.max(screenH / screenV, 1.0), 5.0)
+      : this.compression;
+
+    if (Math.abs(newAngle - this.currentAngle) > 0.035 ||
+        Math.abs(newCompression - this.compression) > 0.3) {
+      this.buildGrid(newAngle, newCompression);
+    }
+  }
   update(dt: number, camera: ShotPerspectiveCamera) {
     this.elapsed += dt;
 
@@ -337,43 +375,8 @@ export class PuttingGridMaterial {
     this.intensityUniform.value = this.currentIntensity;
 
     // Update grid angle + compression from camera
-    if (!camera.isTracking && !camera.isAiming) {
-      const dir = new THREE.Vector3();
-      camera.getWorldDirection(dir);
-      const newAngle = Math.atan2(dir.x, dir.z);
-
-      // const elevation = Math.asin(Math.abs(dir.y));
-      // const newCompression = Math.min(Math.pow(1 / Math.max(Math.sin(elevation), 0.17), 0.75), 5);
-      // Measure the actual perspective compression by projecting a 1m H
-      // and 1m V edge at the grid center. This accounts for FOV, distance,
-      // and elevation all at once — no formula to get wrong.
-      const cosA = Math.cos(newAngle);
-      const sinA = Math.sin(newAngle);
-      const c = this.gridCenter;
-      // const pA = new THREE.Vector3(c.x, c.y, c.z).project(camera);
-      // const pH = new THREE.Vector3(c.x + cosA, c.y, c.z - sinA).project(camera);
-      // const pV = new THREE.Vector3(c.x + sinA, c.y, c.z + cosA).project(camera);
-      // Measure compression between camera and grid center (biased toward
-      // near cells where foreshortening is most visible). 0.35 = measure
-      // point is 35% of the way from camera to center. Lower = more
-      // compression, higher = less.
-      const mx = camera.position.x + (c.x - camera.position.x) * 0.35;
-      const mz = camera.position.z + (c.z - camera.position.z) * 0.35;
-      const pA = new THREE.Vector3(mx, c.y, mz).project(camera);
-      const pH = new THREE.Vector3(mx + cosA, c.y, mz - sinA).project(camera);
-      const pV = new THREE.Vector3(mx + sinA, c.y, mz + cosA).project(camera);
-
-      const screenH = Math.sqrt((pH.x - pA.x) ** 2 + (pH.y - pA.y) ** 2);
-      const screenV = Math.sqrt((pV.x - pA.x) ** 2 + (pV.y - pA.y) ** 2);
-      const newCompression = screenV > 0.001
-        ? Math.min(Math.max(screenH / screenV, 1.0), 5.0)
-        : this.compression;
-
-      if (Math.abs(newAngle - this.currentAngle) > 0.035 ||
-          Math.abs(newCompression - this.compression) > 0.3) {
-        this.buildGrid(newAngle, newCompression);
-      }
-    }
+    // if (!camera.isTracking) {
+    // }
 
     // Animate dots with per-edge perspective compensation.
     //
@@ -414,11 +417,11 @@ export class PuttingGridMaterial {
           continue;
         }
 
-        const screenDist = Math.sqrt(
-          (projB.x - projA.x) ** 2 + (projB.y - projA.y) ** 2,
-        );
-        const slopeSpeed = Math.max(this.minSpeed, this.baseSpeed * e.slope);
-        const duration = Math.max(screenDist / (targetScreenSpeed * slopeSpeed), 0.3);
+        // const screenDist = Math.sqrt(
+        //   (projB.x - projA.x) ** 2 + (projB.y - projA.y) ** 2,
+        // );
+        // const slopeSpeed = Math.max(this.minSpeed, this.baseSpeed * e.slope);
+        // const duration = Math.max(screenDist / (targetScreenSpeed * slopeSpeed), 0.3);
         // Fade dot size to 0 between 50m and 60m from camera
         const dotDist = Math.sqrt(
           ((e.start.x + e.end.x) * 0.5 - camera.position.x) ** 2 +
@@ -433,7 +436,9 @@ export class PuttingGridMaterial {
         }
 
 
-        const tt = (this.elapsed % duration) / duration;
+        // const tt = (this.elapsed % duration) / duration;
+        const tt = (this.elapsed % e.duration) / e.duration;
+
         const px = e.start.x + (e.end.x - e.start.x) * tt;
         const py = e.start.y + (e.end.y - e.start.y) * tt;
         const pz = e.start.z + (e.end.z - e.start.z) * tt;

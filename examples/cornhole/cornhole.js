@@ -16,7 +16,8 @@ import {
   generateSetupData,
   UILoadingScreen,
   FuseRenderer,
-  WaterSurface
+  WaterSurface,
+  UIDialog
 } from '@opengolfsim/fuse';
 // import { Water } from 'three/examples/jsm/Addons.js';
 import groundBeachModel from './models/GroundBeach.glb?url';
@@ -45,7 +46,7 @@ const gameContext = {
   startPoint: new THREE.Vector3(0, 0.25, 0),
   round: {
     number: 1,
-    maxPoints: 21,
+    maxPoints: 2,
     bagsPerPlayer: 4,
     throwOrder: [], // queue of player indices for this round
     currentThrowIdx: 0,
@@ -526,7 +527,13 @@ async function setupGame() {
     antialias: true,
     renderMode: 'webgpu'
   });
+  
+  const dialogParent = document.getElementById('game-over');
+  gameContext.gameOverDialog = new UIDialog(dialogParent, { title: 'Game Over', preventClose: true });
 
+  document.getElementById('btn-exit').addEventListener('click', () => app.exit());
+  document.getElementById('btn-replay').addEventListener('click', () => window.location.reload());
+  
   // gameContext.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
   // gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
   // gameContext.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -547,7 +554,8 @@ async function setupGame() {
   
   gameContext.camera = new ShotPerspectiveCamera({
     canvas,
-    fov: 30,
+    fov: 35,
+    autoPosition: false,
     cameraOffsetX: 0,
     cameraOffsetYZ: [1.5, 1],
   });
@@ -813,13 +821,20 @@ function scoreRound() {
 
   // Check for game end
   if (gameContext.scores.red >= gameContext.round.maxPoints || gameContext.scores.blue >= gameContext.round.maxPoints) {
-    // gameOver();
-    console.log('GAME OVER');
+    gameOver();
   } else {
     clearRoundBags();
     gameContext.round.number++;
     startRound();
   }
+}
+
+function gameOver() {
+  const winner = gameContext.scores.red >= gameContext.round.maxPoints ? 'Red' : 'Blue';
+  const win = gameContext.gameOverDialog.content.querySelector('#game-over-winner');
+  win.textContent = gameContext.scores.red >= gameContext.round.maxPoints ? 'Red Wins!' : 'Blue Wins!';
+  win.className = gameContext.scores.red >= gameContext.round.maxPoints ? 'red' : 'blue';
+  gameContext.gameOverDialog.open();
 }
 
 function onShotEnded() {

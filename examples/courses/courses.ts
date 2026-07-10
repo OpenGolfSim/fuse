@@ -84,8 +84,8 @@ const gameContext: {
 };
 
 const defaultSkyColor = 'rgb(177, 205, 236)';
-const defaultFogColor = new THREE.Color('#fff7e0');
-const defaultCloudColor = new THREE.Color('rgb(255, 255, 255)');
+const defaultFogColor = 'rgb(255, 247, 224)';
+const defaultCloudColor = 'rgb(255, 255, 255)';
 // const lightColor = new THREE.Color('rgb(255, 247, 224)');
 
 
@@ -110,7 +110,9 @@ function setupNextShot() {
   gameContext.aimPoint.copy(gameContext.game.aimPoint());
 
   gameContext.camera?.setPositions(gameContext.startPoint, gameContext.aimPoint);
-
+  if (gameContext.camera) {
+    gameContext.course?.updateActiveGreen(gameContext.camera, gameContext.game.getActiveHoleNumber());
+  }
   // recreate ball after each shot to ensure physics are fully reset
   gameContext.golfBall?.reset(gameContext.aimPoint, gameContext.startPoint, gameContext.game.activeHole.waypoints.get('pin'));
 
@@ -127,12 +129,8 @@ function setupNextShot() {
 }
 
 async function setupRenderer() {
-  
   THREE.ColorManagement.enabled = true;
   
-  app.sendMessage({ type: 'log', message: `qualityLevel: ${gameContext.qualityLevel}` });
-  // console.log('Backend:', renderer.backend?.constructor?.name);
-
   const canvas = document.getElementById('canvas');
   if (!canvas || !(canvas instanceof HTMLCanvasElement)) throw new Error('Unable to find canvas in HTML. Make sure you create a root canvas element (e.g. <canvas id="canvas"></canvas>)');
   gameContext.renderer = new FuseRenderer({
@@ -143,28 +141,18 @@ async function setupRenderer() {
   });
 
   await gameContext.renderer.init();
-  // gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
 
   let maxPixelRatio = Math.min(window.devicePixelRatio, 1);
   if (gameContext.qualityLevel >= QualityMode.High) {
     maxPixelRatio = Math.min(window.devicePixelRatio, 2);
   }
-
-  app.sendMessage({ type: 'log', message: `maxPixelRatio: ${maxPixelRatio}` });
-  
-  // gameContext.renderer.setPixelRatio(maxPixelRatio);
-  // gameContext.renderer.shadowMap.enabled = gameContext.qualityLevel >= QualityMode.Medium;
-  // gameContext.renderer.shadowMap.type = THREE.PCFShadowMap;
-  
-
 }
 
 async function setupScene() {
   const skyType = gameContext.course?.sceneSettings?.sky?.type;
   const cloudSettings = gameContext.course?.sceneSettings?.sky?.clouds;
 
-  const skyColor = new THREE.Color('#80cef6');
-  // const skyColor = new THREE.Color(cloudSettings?.skyColor ?? defaultSkyColor);
+  const skyColor = new THREE.Color(cloudSettings?.skyColor ?? defaultSkyColor);
   const fogColor = new THREE.Color(cloudSettings?.fogColor ?? defaultFogColor);
   const cloudColor = new THREE.Color(cloudSettings?.cloudColor ?? defaultCloudColor);
 
@@ -194,6 +182,7 @@ async function setupScene() {
   gameContext.camera = new ShotPerspectiveCamera(
     {
       scene: ground,
+      autoPosition: true,
       cameraOffsetX: (gameContext.setupData?.cameraOffset ? -(gameContext.setupData.cameraOffset / 100) : 0),
     }
   );
@@ -238,7 +227,7 @@ async function setupScene() {
   // Sky/Clouds
   gameContext.clouds = new VolumetricClouds(gameContext.camera, {
     radius: 800,
-    density: 0.28,
+    // density: 0.28,
     opacity: 0.8,
     scale: 4,
     // density: cloudSettings?.density ?? 0.4,
@@ -248,7 +237,8 @@ async function setupScene() {
     fogColor,
     // cloudColor: new THREE.Color('#f4fafc'),
     // fogColor: new THREE.Color('#f7f6f1'),
-    skyColor,
+    // skyColor,
+    skyColor: new THREE.Color('#498daa'),
     position: new THREE.Vector3(0, 0, 0)
   });
   gameContext.scene.add(gameContext.clouds.object);
@@ -445,12 +435,8 @@ async function setupCourse() {
  * Sets up loading screen and kicks off loading of the course and building the scene
  */
 function preLoad() {
-  // if (typeof gameContext.setupData?.qualityLevel !== 'undefined') {
-  //   gameContext.qualityLevel = gameContext.setupData?.qualityLevel;
-  // }
   // allow override with query param
   const qualityParam = (new URLSearchParams(window.location.search)).get('quality');
-  console.log('quality param', qualityParam);
   if (qualityParam) {
     gameContext.qualityLevel = parseInt(qualityParam, 10);
     if (gameContext.setupData) gameContext.setupData.qualityLevel = gameContext.qualityLevel;
@@ -477,19 +463,6 @@ function preLoad() {
         return originalAdd(...args);
       };
     }
-
-
-    // setInterval(() => {
-    //   if (!gameContext.renderer) return;
-    //   const info = gameContext.renderer.renderer.info;
-    //   app.log([
-    //     `Geometries: ${info.memory.geometries}`,
-    //     `Textures: ${info.memory.textures}`,
-    //     `Programs: ${info.memory.programs}`,
-    //     `Total: ${(info.memory.total / 1024 / 1024).toFixed(1)}MB`,
-    //     `TrailPoints: ${gameContext.golfBall?.trail?.points?.length ?? 0}`
-    //   ].join(', '));
-    // }, 5000);
 
   });
   gameContext.loadingScreen.load(setupCourse);
@@ -543,7 +516,7 @@ function animate(animDelta: number) {
           aimPointUpdated();
         }
       }
-      // gameContext.camera?.render(gameContext.scene, gameContext.fog);
+
       if (gameContext.camera) {
         gameContext.renderer?.render(gameContext.scene, gameContext.camera, gameContext.fog);
       }
@@ -562,8 +535,8 @@ function animate(animDelta: number) {
 }
 
 async function initializeDebug() {
-  // used for testing as an example course in the browser
-  // pass a courseUrl as a query param to load any course URL
+  // used for testing an example course in the browser
+  // pass a courseUrl as a query param to load a course
   const params = new URLSearchParams(window.location.search);
   const courseUrl = params.get('courseUrl');
   if (!courseUrl) {

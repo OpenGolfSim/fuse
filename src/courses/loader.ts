@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { WebGPURenderer } from 'three/webgpu';
 import { type World } from '@dimforge/rapier3d-compat';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
@@ -11,10 +10,8 @@ import { TreeGroup, TreePlanter } from '@/trees';
 import { TargetShaderMaterial } from '@/shaders/target';
 import { SandMaterial } from '@/shaders/sand';
 import { GrassAssets, GrassShader } from '@/shaders/grass';
-import { FlatGrassShaderMaterial } from '@/shaders/grassFlat';
 import { FlagStick } from '@/objects/flagStick';
 import { type ShotPerspectiveCamera } from '@/camera';
-// import { GroundPhysics } from '@/physics/groundPhysics';
 import { CourseSurfaceProperties, CourseSurfaces, isCourseSurfaceType } from '@/courses/surfaces';
 import perlinNoise from '@/images/perlinnoise.webp?url';
 import { isMeshObject } from '@/utils/mesh';
@@ -183,9 +180,9 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     }
     this.sceneSettings = this.gltf.userData?.sceneSettings ?? {};
 
-    console.log(' ---- Loaded FUSE course ----');
-    console.dir(this.gltf.userData);
-    console.log(' ----               ----');
+    console.log(' ---- Loaded FUSE course ---- ');
+    console.log(JSON.stringify(this.gltf.userData, null, 1));
+    console.log(' ---------------------------- ');
     
     this.golfCup = await this.meshLoader.load(golfCupModel, true);
 
@@ -256,13 +253,10 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         const blendMapImageData = await getTextureImageData(buffer);
         const blendMap = {
           data: blendMapImageData.data,
-          // width: blendMapRecord.extras.width ?? 0,
-          // height: blendMapRecord.extras.height ?? 0,
           width: blendMapImageData.width,
           height: blendMapImageData.height,
           bounds: blendMapRecord.extras.bounds ?? { w: 0, h: 0, x: 0, y: 0 },
         };
-        console.log(`found blend map for ${blendMapRecord.extras.id}`, blendMap);
         this.#blendMaps.set(blendMapRecord.extras.id, blendMap);
       }
     }
@@ -326,6 +320,8 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
                child.userData.blendSettings || {},
              );
              console.log('blendSand', sand);
+          } else {
+            console.warn(`Unable to find neighbor mesh for ${child.name}`);
           }
 
         } else if (this.qualityLevel > QualityMode.Low && surfaceType === 'rough') {
@@ -392,7 +388,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     
     // Test point just outside the bounding box edge
     const testPoint = new THREE.Vector3(
-      center.x + size.x * 0.5 + 0.5,
+      center.x + size.x * 0.25 + 0.25,
       center.y + 50,
       center.z
     );
@@ -647,9 +643,20 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     this.scene.add(flag.object);
 
     let target;
-    // const target = new TargetShaderMaterial(hit.object, position, { gimmeDistances: this.setupData?.gimmeDistances || DefaultGimmeDistances });
-    const grid = new PuttingGridMaterial(hit.object, { holeWorldPos: position });
+    let grid;
+    if (this.setupData?.puttingEnabled) {
+      grid = new PuttingGridMaterial(hit.object, { holeWorldPos: position });
+    } else {
+      target = new TargetShaderMaterial(hit.object, position, { gimmeDistances: this.setupData?.gimmeDistances || DefaultGimmeDistances });
+    }
 
     return { object: hit.object, flag, target, grid };
+  }
+
+  updateActiveGreen(camera: ShotPerspectiveCamera, activeHole: number) {
+    const hole = this.holes.get(activeHole);
+    if (hole?.green?.grid) {
+      hole.green.grid.updateGrid(camera);
+    }  
   }
 }

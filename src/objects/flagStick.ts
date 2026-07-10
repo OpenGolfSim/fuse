@@ -96,7 +96,7 @@ export class FlagStick {
     this.object = new THREE.Group();
     this.holeNumber = holeNumber;
 
-    const stickHeight = 2.13;
+    const stickHeight = 2.2;
     const stickWidth = 0.01;
     const flagWidth = 0.45;
     const flagHeight = 0.3;
@@ -168,7 +168,7 @@ export class FlagStick {
     const stickGeometry = new THREE.CylinderGeometry(stickWidth, stickWidth, stickHeight, 32);
     const stickMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
     this.stick = new THREE.Mesh(stickGeometry, stickMaterial);
-    this.stick.position.set(0, stickHeight / 2, 0);
+    this.stick.position.set(0, (stickHeight / 2) - 0.07, 0);
     this.stick.castShadow = true;
 
     this.object.add(this.flag);
