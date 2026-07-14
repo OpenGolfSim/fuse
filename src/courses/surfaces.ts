@@ -29,38 +29,40 @@ export type CourseSurfaceProperties = {
   rollResistance: number,
   stopSpeed?: number,
   stopAngular?: number
-  rollResistanceSpeedThreshold?: number
   type?: CourseColliderType,
   hasCollider?: boolean,
+  spinGrip?: number,
 }
 
 export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> = {
   [CourseSurfaceType.Green]: {
     hasCollider: true,
-    friction: 0.4,
+    friction: 0.5,
+    spinGrip: 1.2,
     restitution: 0.40,
     rollResistance: 0.09,
-    // rollResistance: 0.075,
-    // rollResistanceSpeedThreshold: 0.0001,
-    stopSpeed: 0.12,
+    stopSpeed: 0.18,
     stopAngular: 4.8,
   },
   [CourseSurfaceType.Fringe]: {
     hasCollider: true,
     friction: 0.5,
-    restitution: 0.1,
-    rollResistance: 0.15
+    spinGrip: 1.4,
+    restitution: 0.35,
+    rollResistance: 0.10
   },
   [CourseSurfaceType.Fairway]: {
     hasCollider: true,
-    friction: 0.4,
+    friction: 0.3,
     restitution: 0.4,
-    rollResistance: 0.25
+    spinGrip: 0.5,
+    rollResistance: 0.15
   },
   [CourseSurfaceType.FirstCut]: {
     hasCollider: true,
     friction: 0.4,
-    restitution: 0.38,
+    spinGrip: 1.0,
+    restitution: 0.3,
     rollResistance: 0.20
   },
   [CourseSurfaceType.Tee]: {
@@ -73,22 +75,22 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
     hasCollider: true,
     friction: 0.2,
     restitution: 0.3,
-    rollResistance: 0.15,
+    rollResistance: 0.4,
     stopSpeed: 0.20,
   },
   [CourseSurfaceType.Base]: {
     hasCollider: true,
     friction: 0.8,
     restitution: 0.2,
-    rollResistance: 0.30,
+    rollResistance: 0.40,
     stopSpeed: 0.30,
   },
   [CourseSurfaceType.Sand]: {
     hasCollider: true,
     friction: 1.0,
     restitution: 0.02,
-    rollResistance: 0.20,
-    stopSpeed: 0.20,
+    rollResistance: 0.3,
+    stopSpeed: 0.15,
   },
   [CourseSurfaceType.Water]: {
     hasCollider: true,

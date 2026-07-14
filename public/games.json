@@ -15,7 +15,7 @@
       "url": "courses/index.html",
       "gameMode": 2,
       "engine": 2,
-      "courseUrl": "https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v3/mtn-vista-v3.glb",
+      "courseUrl": "https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v3/mtn-vista-v3-ps.glb",
       "posterUrl": "https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mountain-vista-poster.jpg",
       "slug": "fuse_mtn_vista"
     },

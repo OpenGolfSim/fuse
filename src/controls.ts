@@ -155,7 +155,7 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
       case 'Digit1':
       case 'Numpad1':
         // this.emit('testShot', { ballSpeed: 150, verticalLaunchAngle: 11, horizontalLaunchAngle: 0, spinSpeed: 2000, spinAxis: 0 });
-        this.emit('testShot', { ballSpeed: 136, verticalLaunchAngle: 14, horizontalLaunchAngle: -1, spinSpeed: 4699, spinAxis: 7 });
+        this.emit('testShot', { ballSpeed: 150, verticalLaunchAngle: 13, horizontalLaunchAngle: 0, spinSpeed: 2500, spinAxis: 0 });
         break;
       case 'Digit2':
       case 'Numpad2':
@@ -171,11 +171,11 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
         break;
       case 'Digit5':
       case 'Numpad5':
-        this.emit('testShot', { ballSpeed: 60, verticalLaunchAngle: 28, horizontalLaunchAngle: 0, spinSpeed: 7000, spinAxis: 0 });
+        this.emit('testShot', { ballSpeed: 70, verticalLaunchAngle: 28, horizontalLaunchAngle: 0, spinSpeed: 9000, spinAxis: 0 });
         break;
       case 'Digit6': 
       case 'Numpad6':
-        this.emit('testShot', { ballSpeed: 40, verticalLaunchAngle: 28, horizontalLaunchAngle: 0, spinSpeed: 6000, spinAxis: 0 });
+        this.emit('testShot', { ballSpeed: 40, verticalLaunchAngle: 28, horizontalLaunchAngle: -2, spinSpeed: 6000, spinAxis: -1.2 });
         break;
       case 'Digit7':
       case 'Numpad7':

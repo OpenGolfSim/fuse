@@ -50,8 +50,7 @@ export function generateSetupData(playerCount: number = 1, override: Partial<Ope
 
   let qualityLevel = QualityMode.Low;
   
-  console.log('Detected device', getDeviceType());
-
+  // demos get medium quality
   if (getDeviceType() === 'desktop') {
     qualityLevel = QualityMode.Medium;
   }
@@ -61,8 +60,8 @@ export function generateSetupData(playerCount: number = 1, override: Partial<Ope
     players,
     cameraOffset: 0,
     practiceMode: false,
+    puttingEnabled: false,
     qualityLevel,
-    puttingEnabled: true,
     // gimmesEnabled: true,
     gimmeDistances: [...DefaultGimmeDistances],
     elevation: 0,

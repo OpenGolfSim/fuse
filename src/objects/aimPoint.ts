@@ -184,7 +184,7 @@ export class AimPoint {
   #updateDistanceMaterial(distance: number, height: number, units: string) {
     const gap = this.canvas.height * 0.02;
     const topOffset = this.canvas.height * 0.09;
-    const fontSize = this.canvas.height * 0.45;
+    const fontSize = this.canvas.height * (units?.length ? 0.3 : 0.45);
     const fontSizeHeight = this.canvas.height * 0.28;
 
     const distanceTop = topOffset + (this.canvas.height / 2) - (fontSize / 2) - gap;
@@ -203,7 +203,7 @@ export class AimPoint {
     this.ctx.textBaseline = 'middle';
     this.ctx.textAlign = 'center';
     this.ctx.fillText(
-      `${distance.toFixed(0)}`,
+      units?.length ? `${distance.toFixed(0)} ${units}` : distance.toFixed(0),
       (this.canvas.width / 2),
       distanceTop
     );
@@ -274,9 +274,16 @@ export class AimPoint {
     let heightDisplay = height;
     let unitsDisplay = 'm';
     if (this.units === 'imperial') {
-      distanceDisplay = UnitConversions.metersToYards(distanceDisplay);
-      heightDisplay = UnitConversions.metersToYards(heightDisplay);
-      unitsDisplay = 'YD';
+      if (distance <= 30) {
+        distanceDisplay = UnitConversions.metersToFeet(distanceDisplay);
+        heightDisplay = UnitConversions.metersToYards(heightDisplay);
+        unitsDisplay = '\'';
+      } else {
+        distanceDisplay = UnitConversions.metersToYards(distanceDisplay);
+        heightDisplay = UnitConversions.metersToYards(heightDisplay);
+        unitsDisplay = '';
+      }
+      
     }
 
     const texKey = `${distanceDisplay}-${heightDisplay}`;

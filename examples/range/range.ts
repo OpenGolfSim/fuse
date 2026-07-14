@@ -329,6 +329,7 @@ async function setupRange() {
   // if (gameContext.setupData?.players.length) {
   //   gameContext.playerMenu?.update({ player: gameContext.setupData.players[0] });
   // }
+  await gameContext.renderer.compile(gameContext.scene, gameContext.camera);  
 }
 
 async function preLoad() {
@@ -351,7 +352,6 @@ function onShotEnded() {
       club: gameContext.currentPlayer?.currentClub,
     }
   );
-
 }
 
 async function initializeSetup(payload: any) {
@@ -404,6 +404,7 @@ function clubChange(club: OpenGolfSim.Club) {
   gameContext.aimPoint = new THREE.Vector3(0, 0, club.distance);
   gameContext.camera?.setPositions(gameContext.startPoint, gameContext.aimPoint);
   gameContext.playerMenu?.update(gameContext.currentPlayer);
+  app.sendPlayerUpdate(gameContext.currentPlayer, gameContext.startPoint.toArray());
   updateAimPoint();
 }
 
@@ -413,7 +414,10 @@ function setupNextShot(playerStatus?: CoursePlayer) {
   gameContext.golfBall?.reset(gameContext.aimPoint, gameContext.startPoint);
   updateAimPoint()
   
-  if (gameContext.currentPlayer) gameContext.playerMenu?.update(gameContext.currentPlayer);
+  if (gameContext.currentPlayer) {
+    gameContext.playerMenu?.update(gameContext.currentPlayer);
+    app.sendPlayerUpdate(gameContext.currentPlayer, gameContext.startPoint.toArray());
+  }
 }
 
 function updateAimPoint() {

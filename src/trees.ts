@@ -189,6 +189,8 @@ export class TreePlanter {
 
   plantFromMask(trees: TreeGroup[], maskData: { data: ImageDataArray, width: number, height: number }, seed = 12345) {
     const { data, width, height } = maskData;
+    console.log(`PLANT Image Mask ${width} x ${height}`, data);
+    console.log(`PLANT in world ${this.worldSize} x ${this.worldSize}`);
     const cellW = this.worldSize / width;
     const cellH = this.worldSize / height;
     const random = seededRandom(seed);
@@ -324,6 +326,7 @@ export class TreePlanter {
       
       const meshes = this.#buildLODMeshes(trees[treeIdx], matrices, pickedColors, count);
       allResults.push(meshes);
+      console.log(`Plant tree ${treeIdx} (${count})`, meshes, matrices);
     }
     return allResults;
   }

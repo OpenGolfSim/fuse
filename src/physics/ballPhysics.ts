@@ -48,7 +48,8 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   spinDecayRate = 0.987;
   sideSpinDecayRate = 0.95;
   gripStrength = 2.8;
-  
+  stimpLevel = 8;   // green speed, feet of rollout from 1.83 m/s release
+
   // State flags
   isPutt = false;
   isLanded = false;
@@ -67,9 +68,9 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   groundedFramesRequired = 10; // consecutive grounded steps before "rolling"
 
   eventQueue: EventQueue;
-  rigidBody: RigidBody;
-  collider: ColliderWithUserData;
-  ballColliderHandle: number;
+  // rigidBody: RigidBody;
+  // collider: ColliderWithUserData;
+  // ballColliderHandle: number;
 
   // golf hole physics
   holeCenter = new THREE.Vector2();   // (x, z), set when the pin is placed
@@ -100,9 +101,13 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   #rayDirection = new THREE.Vector3(0, -1, 0);
   #vel = new THREE.Vector3();
   #spin = new THREE.Vector3();
+  #surfaceSpin = new THREE.Vector3();
+  #rollFrame = 0;
+
   #gravity = new THREE.Vector3();
   #slopeForce = new THREE.Vector3();
   #normalClone = new THREE.Vector3();
+  #groundNormal = new THREE.Vector3();
   #magnusVec = new THREE.Vector3();
   #normalComponent = new THREE.Vector3();
   #tangentComponent = new THREE.Vector3();
@@ -120,13 +125,18 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     world: World,
     rapier: RapierInstance,
     radius = 0.021335,
-    terrainMeshes: THREE.Mesh[] = []
+    terrainMeshes: THREE.Mesh[] = [],
+    stimpLevel?: number
   ) {
     super();
     this.mesh = mesh;
     this.world = world;
     this.world.integrationParameters.numSolverIterations = 8;
     // this.world.integrationParameters.numAdditionalFrictionIterations = 4;
+
+    if (stimpLevel) {
+      this.stimpLevel = stimpLevel;
+    }
 
     this.rapier = rapier;
     // this.onShotEnded = onShotEnded;
@@ -139,38 +149,33 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     // Event queue for collision callbacks
     this.eventQueue = new this.rapier.EventQueue(true);
 
-    // ── Create Rapier rigid body ──
-    const pos = mesh.position;
-    const bodyDesc = this.rapier.RigidBodyDesc.dynamic()
-      .setTranslation(pos.x, pos.y, pos.z)
-      .setLinearDamping(0)
-      .setAngularDamping(0)
-      .setCcdEnabled(true);              // continuous collision detection
-    this.rigidBody = world.createRigidBody(bodyDesc);
+    // // ── Create Rapier rigid body ──
+    // const pos = mesh.position;
+    // const bodyDesc = this.rapier.RigidBodyDesc.dynamic()
+    //   .setTranslation(pos.x, pos.y, pos.z)
+    //   .setLinearDamping(0)
+    //   .setAngularDamping(0)
+    //   .setCcdEnabled(true);              // continuous collision detection
+    // this.rigidBody = world.createRigidBody(bodyDesc);
 
-    // ── Collider (sphere) ──
-    const colliderDesc = this.rapier.ColliderDesc.ball(this.ballRadius)
-      .setMass(this.ballMass)
-      .setRestitution(0.0)
-      .setRestitutionCombineRule(this.rapier.CoefficientCombineRule.Min)
-      .setFriction(0.6)
-      .setActiveEvents(this.rapier.ActiveEvents.COLLISION_EVENTS);
-    this.collider = world.createCollider(colliderDesc, this.rigidBody);
+    // // ── Collider (sphere) ──
+    // const colliderDesc = this.rapier.ColliderDesc.ball(this.ballRadius)
+    //   .setMass(this.ballMass)
+    //   .setRestitution(0.0)
+    //   .setRestitutionCombineRule(this.rapier.CoefficientCombineRule.Min)
+    //   .setFriction(0.6)
+    //   .setActiveEvents(this.rapier.ActiveEvents.COLLISION_EVENTS);
+    // this.collider = world.createCollider(colliderDesc, this.rigidBody);
+    // // this.collider.setCollisionGroups(
+    // //   (GROUP_BALL << 16) | (GROUP_TERRAIN | GROUP_OBJECT)
+    // // );
     // this.collider.setCollisionGroups(
-    //   (GROUP_BALL << 16) | (GROUP_TERRAIN | GROUP_OBJECT)
+    //   (GROUP_BALL << 16) | GROUP_OBJECT  // trees/objects only, never terrain
     // );
-    this.collider.setCollisionGroups(
-      (GROUP_BALL << 16) | GROUP_OBJECT  // trees/objects only, never terrain
-    );
 
-    // Store the collider handle so we can identify it in events
-    this.ballColliderHandle = this.collider.handle;
+    // // Store the collider handle so we can identify it in events
+    // this.ballColliderHandle = this.collider.handle;
     
-    // Build BVH for each terrain mesh
-    // for (const tm of terrainMeshes) {
-    //   tm.updateMatrixWorld(true);
-    //   this.#terrainBVHs.push({ bvh: new MeshBVH(tm.geometry), mesh: tm });
-    // }
     this.buildTerrainMap(terrainMeshes);
     // Start frozen
     this.freeze();
@@ -272,39 +277,29 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
 
   /** Freeze the ball in place, basically stops the physics */
   freeze() {
-    this.rigidBody.setBodyType(this.rapier.RigidBodyType.Fixed, true);
+    // this.rigidBody.setBodyType(this.rapier.RigidBodyType.Fixed, true);
     this.isShotActive = false;
   }
 
   unfreeze() {
-    this.rigidBody.setBodyType(this.rapier.RigidBodyType.Dynamic, true);
+    // this.rigidBody.setBodyType(this.rapier.RigidBodyType.Dynamic, true);
   }
 
   resetTo(position: THREE.Vector3) {
-    // this.freeze();
-    // this.rigidBody.setTranslation({ x: position.x, y: position.y, z: position.z }, true);
-    // this.rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    // this.rigidBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    // this.rigidBody.resetForces(true);
-    // this.rigidBody.resetTorques(true);
-    // // Also clear any internal state flags you keep (collision-entered, etc.)
-    // this.rigidBody.wakeUp();
     this.isShotActive = false;
     this.#position.copy(position);
     this.#velocity.set(0, 0, 0);
     this.#angularVel.set(0, 0, 0);
-    // this.mesh.position.copy(position);
     
     this.isLanded = false;
     this.isGrounded = false;
     this.isHoled = false;
     this.isEnded = false;
     this.groundedFrames = 0;
-    // this.syncMesh();
   }
   
   remove() {
-    this.world.removeRigidBody(this.rigidBody);
+    // this.world.removeRigidBody(this.rigidBody);
     // this.world.removeCollider(this.groundCollider, wakeUp);
   }
 
@@ -337,12 +332,13 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     // Unfreeze
     // this.unfreeze();
     this.isShotActive = true;
-    // Disable CCD during launch — re-enable once airborne
-    // this.rigidBody.enableCcd(false);
+    this.#rollFrame = 0;
     
     if (isPutt) {
+      console.log('Launching putt', JSON.stringify({ ballSpeed, hla, spinSpeed }));
       this._launchPutt(ballSpeed, hla, spinSpeed);
     } else {
+      console.log('Launching full shot', JSON.stringify({ ballSpeed, vla, hla, spinSpeed, spinAxis }));
       this._launchFull(
         ballSpeed,
         vla,
@@ -365,22 +361,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     this.#velocity.copy(dir);
     this.#angularVel.set(0, 0, 0);
     this.#position.copy(this.mesh.position);
-    
-    // this.rigidBody.setLinvel({ x: dir.x, y: dir.y, z: dir.z }, true);
 
-    // // Spin
-    // const spinRad = spinRPM * 2 * Math.PI / 60;
-    // console.log('APPLY SPIN', spinRad);
-    // // const axisRad = THREE.MathUtils.degToRad(spinAxisDeg * -1);
-    // // const localLeft = right.clone().multiplyScalar(-1);
-
-    // const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.mesh.quaternion);
-    // const spinVec = new THREE.Vector3()
-    //   // .addScaledVector(localLeft, Math.cos(axisRad))
-    //   .addScaledVector(up, 1)
-    //   .multiplyScalar(spinRad);
-
-    // this.rigidBody.setAngvel({ x: spinVec.x, y: spinVec.y, z: spinVec.z }, true);
     const coeffs = this.interpolateBySpeed(speed);
     this.dragCoeff = coeffs.dragCoeff;
     this.spinDecayRate = coeffs.spinDecayRate;
@@ -402,7 +383,6 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     );
     dir.normalize().multiplyScalar(speed);
 
-    // this.rigidBody.setLinvel({ x: dir.x, y: dir.y, z: dir.z }, true);
     this.#velocity.copy(dir);
 
     // Spin
@@ -415,8 +395,8 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
       .addScaledVector(up, Math.sin(axisRad))
       .multiplyScalar(spinRad);
 
-    // this.rigidBody.setAngvel({ x: spinVec.x, y: spinVec.y, z: spinVec.z }, true);
     this.#angularVel.copy(spinVec);
+    this.#surfaceSpin.copy(spinVec);
     this.#position.copy(this.mesh.position);
 
 
@@ -428,123 +408,13 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     this.sideSpinDecayRate = coeffs.sideSpinDecayRate;
   }
 
-  _applyAirForces(dt: number) {
-    const lv = this.rigidBody.linvel();
-    const av = this.rigidBody.angvel();
-    const vel = new THREE.Vector3(lv.x, lv.y, lv.z);
-    const spin = new THREE.Vector3(av.x, av.y, av.z);
-    const vMag = vel.length();
-    if (vMag < 1e-6) return;
-
-    // Drag: apply as direct velocity change (like the original)
-    const dragAccel = vel.clone().multiplyScalar(
-      -0.5 * this.dragCoeff * this.airDensity * this.ballArea * vMag / this.ballMass
-    );
-    vel.addScaledVector(dragAccel, dt);
-
-    // Magnus (only while airborne)
-    if (!this.isLanded) {
-      const magnus = new THREE.Vector3().crossVectors(spin, vel)
-        .multiplyScalar(this.magnusCoeff / this.ballMass);
-      const maxLiftAccel = GRAVITY * 0.83;
-      if (magnus.length() > maxLiftAccel) magnus.setLength(maxLiftAccel);
-      vel.addScaledVector(magnus, dt);
-    }
-
-    // Write velocity back — Rapier's step will then handle collisions
-    this.rigidBody.setLinvel({ x: vel.x, y: vel.y, z: vel.z }, true);
-
-    // Spin decay
-    const decayBack = Math.pow(this.spinDecayRate, dt / 0.02);
-    const decaySide = Math.pow(this.sideSpinDecayRate, dt / 0.02);
-
-    spin.x *= decayBack;
-    spin.z *= decayBack;
-    spin.y *= decaySide;
-
-    this.rigidBody.setAngvel({ x: spin.x, y: spin.y, z: spin.z }, true);
-  }
 
   _handleLanding() {
-    // const lv = this.rigidBody.linvel();
-    // const vel = new THREE.Vector3(lv.x, lv.y, lv.z);
-    // const vMag = THREE.MathUtils.clamp(vel.length(), 0, 25) / 25;
     const vMag = THREE.MathUtils.clamp(this.#velocity.length(), 0, 25) / 25;
     this.emit('landed', vMag);    
   }
 
-  _processCollisions() {
-    this.shotFrames++;
-
-    // Track airborne: ball must rise above launch surface
-    if (!this.hasBeenAirborne && this.shotFrames > 1) {
-      const pos = this.rigidBody.translation();
-      const terrainY = this.getTerrainHeight(pos.x, pos.z);
-      if (pos.y > terrainY + this.ballRadius * 3) {
-        this.hasBeenAirborne = true;
-      }
-    }
-
-    // Detect landing via terrain height, not Rapier contacts
-    if (this.hasBeenAirborne) {
-      const pos = this.rigidBody.translation();
-      const terrainY = this.getTerrainHeight(pos.x, pos.z);
-      if (pos.y <= terrainY + this.ballRadius + 0.01) {
-        if (!this.isLanded) {
-          this.isLanded = true;
-        }
-        // this._handleLanding();
-      }
-    }
-
-
-    // Tree collisions still handled by Rapier
-    this.world.contactPairsWith(this.collider, (otherCollider) => {
-      // // @ts-expect-error
-      // if (otherCollider.userData?.type === 'tree') {
-      //   const ballPos = this.rigidBody.translation();
-      //   const treeBody = otherCollider.parent();
-      //   if (!treeBody) return;
-      //   const treePos = treeBody.translation();
-
-      //   const dx = ballPos.x - treePos.x;
-      //   const dz = ballPos.z - treePos.z;
-      //   const dist = Math.sqrt(dx * dx + dz * dz);
-
-      //   if (dist < 0.01) {
-      //     const angle = Math.random() * Math.PI * 2;
-      //     this.rigidBody.setLinvel({
-      //       x: Math.cos(angle) * 2, y: 2, z: Math.sin(angle) * 2
-      //     }, true);
-      //   } else {
-      //     const nx = dx / dist;
-      //     const nz = dz / dist;
-      //     const lv = this.rigidBody.linvel();
-      //     const speed = Math.sqrt(lv.x * lv.x + lv.y * lv.y + lv.z * lv.z);
-      //     const pushSpeed = Math.max(speed * 0.3, 1.0);
-      //     this.rigidBody.setLinvel({
-      //       x: nx * pushSpeed, y: Math.max(lv.y, 0.5), z: nz * pushSpeed
-      //     }, true);
-      //   }
-      // }
-    });
-
-    this.eventQueue.drainCollisionEvents((handle1, handle2, started) => {
-      const c1 = this.world.getCollider(handle1);
-      const c2 = this.world.getCollider(handle2);
-      if (isColliderWithUserData(c1)) {
-        this.currentSurface = c1.userData;
-      }
-    });
-  }
-
-_updateAirPhysics(dt: number) {
-    // const pos = this.rigidBody.translation();
-    // const lv = this.rigidBody.linvel();
-    // const av = this.rigidBody.angvel();
-    // const vel = this.#vel.set(lv.x, lv.y, lv.z);
-    // const spin = this.#spin.set(av.x, av.y, av.z);
-
+  _updateAirPhysics(dt: number) {
     const pos = this.#position;
     const vel = this.#velocity;
     const spin = this.#angularVel;
@@ -579,16 +449,9 @@ _updateAirPhysics(dt: number) {
     const newY = pos.y + vel.y * dt;
     const newZ = pos.z + vel.z * dt;
 
-    // Update rigid body state
-    // this.rigidBody.setTranslation({ x: newX, y: newY, z: newZ }, true);
-    // this.rigidBody.setLinvel({ x: vel.x, y: vel.y, z: vel.z }, true);
-    // this.rigidBody.setAngvel({ x: spin.x, y: spin.y, z: spin.z }, true);
     pos.set(newX, newY, newZ);
 
-    // Set mesh directly from float64 values to avoid float32 roundtrip jitter
-    // this.mesh.position.set(newX, newY, newZ);
-
-    // Track airborne
+    // Track airborne frames
     this.shotFrames++;
     if (!this.hasBeenAirborne && this.shotFrames > 1) {
       const terrainY = this.getTerrainHeight(newX, newZ);
@@ -602,33 +465,20 @@ _updateAirPhysics(dt: number) {
       const terrainY = this.getTerrainHeight(newX, newZ);
       if (newY <= terrainY + this.ballRadius + 0.01) {
         this.isLanded = true;
-        // this.#position.set(newX, newY, newZ);
-        // this.#velocity.copy(vel);
-        // this.#angularVel.copy(spin);
       }
     }
-  }  
-  
-  // Sync Three.js mesh to Rapier body
-  syncMesh() {
-    const pos = this.rigidBody.translation();
-    const rot = this.rigidBody.rotation();
-    this.mesh.position.set(pos.x, pos.y, pos.z);
-    this.mesh.quaternion.set(rot.x, rot.y, rot.z, rot.w);
 
-    // Make absolute sure the ball can never go past the lowest Y value
-    const p = this.rigidBody.translation();
-    if (p.y < -10) {
-      // Ball has fallen into the void — recover to last known good position
-      const recoveryY = this.getTerrainHeight(p.x, p.z) + this.ballRadius;
-      this.rigidBody.setTranslation({ x: p.x, y: recoveryY, z: p.z }, true);
-      this.rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-      this.rigidBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
-      this.isGrounded = true;
-      this.isLanded = true;
-      this.syncMesh();
-    }    
-  }
+    // Failsafe: a shot that never achieved airborne (mishit/misread scraper)
+    // but is sinking below the surface has landed — without this, the
+    // airborne gate above lets it integrate straight through the ground.
+    if (!this.hasBeenAirborne && this.shotFrames > 2 && vel.y <= 0) {
+      const terrainY = this.getTerrainHeight(newX, newZ);
+      if (newY <= terrainY + this.ballRadius) {
+        this.isLanded = true;
+      }
+    }
+
+  }  
 
   // Main update called every frame with a fixed dt
   update(dt: number) {
@@ -636,6 +486,9 @@ _updateAirPhysics(dt: number) {
 
     if (!this.isLanded) {
       this._updateAirPhysics(dt);
+      // Ground-truth spin for landing physics — flight (#angularVel) is untouched
+      this.#surfaceSpin.multiplyScalar(Math.pow(0.999, dt / 0.02)); // ~3%/s, realistic
+
     } else {
       // Use custom ground physics once landed
       this._updateGroundPhysics(dt);
@@ -644,14 +497,8 @@ _updateAirPhysics(dt: number) {
     // Set mesh position once per step from physics state
     this.mesh.position.copy(this.#position);
 
-    // this.syncMesh();
-
     // Check if ball has come to rest
     if (this.isGrounded && !this.isEnded) {
-      // const lv = this.rigidBody.linvel();
-      // const av = this.rigidBody.angvel();
-      // const speed = Math.sqrt(lv.x * lv.x + lv.y * lv.y + lv.z * lv.z);
-      // const angSpeed = Math.sqrt(av.x * av.x + av.y * av.y + av.z * av.z);
       const vel = this.#velocity;
       const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
 
@@ -664,35 +511,34 @@ _updateAirPhysics(dt: number) {
 
   _endShot() {
     this.isEnded = true;
-    // this.freeze();
     this.isShotActive = false;
     this.emit('shotEnded', this.currentSurface);
   }
 
-  _checkTreeCollision(pos: Vector, vel: THREE.Vector3, spin: THREE.Vector3, dt: number) {
-    const horizontalSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
-    if (horizontalSpeed < 0.01) return false;
+  // _checkTreeCollision(pos: Vector, vel: THREE.Vector3, spin: THREE.Vector3, dt: number) {
+  //   const horizontalSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+  //   if (horizontalSpeed < 0.01) return false;
 
-    const dir = new THREE.Vector3(vel.x, 0, vel.z).normalize();
-    const dist = horizontalSpeed * dt + this.ballRadius;
+  //   const dir = new THREE.Vector3(vel.x, 0, vel.z).normalize();
+  //   const dist = horizontalSpeed * dt + this.ballRadius;
 
-    const ray = new this.rapier.Ray(
-      { x: pos.x, y: pos.y, z: pos.z },
-      { x: dir.x, y: 0, z: dir.z }
-    );
+  //   const ray = new this.rapier.Ray(
+  //     { x: pos.x, y: pos.y, z: pos.z },
+  //     { x: dir.x, y: 0, z: dir.z }
+  //   );
 
-    const hit = this.world.castRayAndGetNormal(ray, dist, true, undefined, undefined, undefined, this.rigidBody);
-    if (!hit || !isColliderWithUserData(hit?.collider)) return false
-    if (hit.collider.userData?.type !== CourseObjectType.Tree) return false;
+  //   const hit = this.world.castRayAndGetNormal(ray, dist, true, undefined, undefined, undefined, this.rigidBody);
+  //   if (!hit || !isColliderWithUserData(hit?.collider)) return false
+  //   if (hit.collider.userData?.type !== CourseObjectType.Tree) return false;
 
-    const n = new THREE.Vector3(hit.normal.x, 0, hit.normal.z).normalize();
-    vel.reflect(n);
-    vel.multiplyScalar(0.25);
-    vel.y = 0;
-    spin.multiplyScalar(0.3);
+  //   const n = new THREE.Vector3(hit.normal.x, 0, hit.normal.z).normalize();
+  //   vel.reflect(n);
+  //   vel.multiplyScalar(0.25);
+  //   vel.y = 0;
+  //   spin.multiplyScalar(0.3);
 
-    return true;
-  }
+  //   return true;
+  // }
 
   _checkWaterCollision() {
     if (
@@ -705,9 +551,6 @@ _updateAirPhysics(dt: number) {
   }
 
   _updateCupFall(dt: number) {
-    // const pos = this.rigidBody.translation();
-    // const lv = this.rigidBody.linvel();
-    // const vel = new THREE.Vector3(lv.x, lv.y, lv.z);
     const pos = this.#position;
     const vel = this.#velocity;
 
@@ -737,9 +580,6 @@ _updateAirPhysics(dt: number) {
       ny = bottomY;
       vel.set(vel.x * 0.3, Math.abs(vel.y) * 0.25, vel.z * 0.3); // small floor bounce
       if (vel.length() < 0.15) {
-        // settled
-        // this.rigidBody.setTranslation({ x: nx, y: bottomY, z: nz }, true);
-        // this.rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
         pos.set(nx, bottomY, nz);
         vel.set(0, 0, 0);
         // this.mesh.position.copy(pos);
@@ -751,10 +591,7 @@ _updateAirPhysics(dt: number) {
       }
     }
 
-    // this.rigidBody.setTranslation({ x: nx, y: ny, z: nz }, true);
-    // this.rigidBody.setLinvel({ x: vel.x, y: vel.y, z: vel.z }, true);
     pos.set(nx, ny, nz);
-    // this.mesh.position.copy(pos);
   }
 
 
@@ -765,54 +602,27 @@ _updateAirPhysics(dt: number) {
       this._updateCupFall(dt);
       return;
     }
-    // if (this.holeState === 'over') {
-    //   this._updateHoleCrossing(dt);
-    //   return;
-    // }
-    // const exitingHole = this.holeState === 'exiting';
-    // if (exitingHole) {
-    //   this.holeState = 'none';
-    // }
-    // const pos = this.rigidBody.translation();
-    // const lv = this.rigidBody.linvel();
-    // const vel = new THREE.Vector3(lv.x, lv.y, lv.z);
-    // const av = this.rigidBody.angvel();
-    // const spin = new THREE.Vector3(av.x, av.y, av.z);
 
     const pos = this.#position;
     const vel = this.#velocity;
-    const spin = this.#angularVel;
-
-    const t0 = performance.now();
-
-    // // Tree collision check — if hit, apply response and skip this frame
-    // if (this._checkTreeCollision(pos, vel, spin, dt)) {
-    //   this.rigidBody.setLinvel({ x: vel.x, y: vel.y, z: vel.z }, true);
-    //   this.rigidBody.setAngvel({ x: spin.x, y: spin.y, z: spin.z }, true);
-    //   this.syncMesh();
-    //   return;
-    // }
+    // separate spin calculation for ground/roll
+    const spin = this.#surfaceSpin;
 
     // Apply gravity
     vel.y -= GRAVITY * dt;
 
-    // Move
+    // Calculate new ball position
     const newX = pos.x + vel.x * dt;
     const newZ = pos.z + vel.z * dt;
     const newY = pos.y + vel.y * dt;
 
     const terrain = this.getTerrainInfo(newX, newZ);
     const terrainY = terrain.height;
-    // console.log('terrain.userData', terrain);
-    const normal = terrain.normal;
-    // const normal = this._getTerrainNormal(newX, newZ);
-    // console.log(`getTerrainInfo: ${(performance.now() - t0).toFixed(1)}ms`);
+    const normal = this.#groundNormal.copy(terrain.normal);
+    // Note: Make sure ground always faces up to guard against flipped winding
+    if (normal.y < 0) normal.negate();
 
-    
-    // if (this._checkHole(pos, newX, newZ, vel, terrainY)) {
     if (this.holeState !== 'exiting' && this._checkHole(pos, newX, newZ, vel, terrainY)) {
-
-      // pos.set(newX, newY, newZ);
       // Advance to closest approach point, not the endpoint (which may be past the hole)
       const segX = newX - pos.x;
       const segZ = newZ - pos.z;
@@ -824,90 +634,100 @@ _updateAirPhysics(dt: number) {
         );
         pos.x += segX * t;
         pos.z += segZ * t;
-        // Keep Y at terrain height
+        // Keep ball Y at terrain height
         pos.y = terrainY + this.ballRadius;
       }
-
-      // this.rigidBody.setLinvel({ x: vel.x, y: vel.y, z: vel.z }, true);
-      // this.syncMesh();
-      // this.mesh.position.copy(pos);
       return;
     }
-    
-    // const t1 = performance.now();
-    // console.log(`_checkHole: ${(performance.now() - t1).toFixed(1)}ms`);
 
     if (this._checkWaterCollision()) {
       this.mesh.visible = false;
       this._endShot();
       return;
     }
-    // const t2 = performance.now();
-    // console.log(`_checkHole: ${(performance.now() - t2).toFixed(1)}ms`);    
     
     this.currentSurface = terrain?.surface;
 
     const minY = terrainY + (this.ballRadius * 2);
 
-    // if (newY <= minY) {
     if (newY <= minY && this.holeState !== 'exiting') {
-      
-      // === BOUNCE or ROLL ===
+      // Handle bounce and roll
       const speed = vel.length();
       const impactVelAlongNormal = -vel.dot(normal);
 
       if (impactVelAlongNormal > 0.5) {
-        // Descent angle — 0 = shallow, 1 = straight down
         const descentAngle = Math.abs(vel.y) / speed;
 
-        const restitutionRaw = this.currentSurface?.restitution ?? 0.25; // this._getRestitution(speed);
-        // Steep descent = more energy absorbed by turf
+        const restitutionRaw = this.currentSurface?.restitution ?? 0.25;
+        // Steep descent means more energy is absorbed by the turf
         const descentRestitution = THREE.MathUtils.lerp(1.0, 0.8, descentAngle);
         const restitution = restitutionRaw * descentRestitution;
-        // Steep descent also kills more forward momentum
-        const tangentRetention = THREE.MathUtils.lerp(0.9, 0.5, descentAngle);
+        const tangentRetention = THREE.MathUtils.lerp(0.92, 0.75, descentAngle);
 
         vel.reflect(normal);
 
-        // const normalComponent = vel.clone().projectOnVector(normal);
-        // const tangentComponent = vel.clone().sub(normalComponent);
         const normalComponent = this.#normalComponent.copy(vel).projectOnVector(normal);
         const tangentComponent = this.#tangentComponent.copy(vel).sub(normalComponent);
 
-        vel.copy(tangentComponent.multiplyScalar(tangentRetention))
-          .add(normalComponent.multiplyScalar(restitution));
+        vel.copy(tangentComponent.multiplyScalar(tangentRetention)).add(normalComponent.multiplyScalar(restitution));
 
         this._handleLanding();
-        // const spinMag = spin.length();
-        // console.log('Bounce spin magnitude:', spinMag.toFixed(1), 'rad/s');
-        // if (spinMag > 1.0) {
-        //   const forward = tangentComponent.clone().normalize();
-        //   const up = normal.clone();
-        //   const right = new THREE.Vector3().crossVectors(up, forward).normalize();
+        console.log('[impact] vN=', impactVelAlongNormal.toFixed(1), 'spin rad/s=', spin.length().toFixed(0));
 
-        //   // Negative because launch sets backspin along -right (localLeft)
-        //   const backspin = -spin.dot(right);
-        //   const sidespin = spin.dot(up);
+        // Spin-friction impulse (check-up / spin-back)
+       const spinMag = spin.length();
+       if (spinMag > 1.0) {
+          // Ball-surface velocity at contact: ω × (-R·n̂)
+          const contact = this.#normalClone.copy(normal).multiplyScalar(-this.ballRadius);
+          const spinSurfaceVel = new THREE.Vector3().crossVectors(spin, contact);
+          // Turf bite: soft surfaces grip spin harder than rigid contact allows
+          // spinSurfaceVel.multiplyScalar(this.currentSurface?.spinGrip ?? 1.0);
+          // Turf bite ramps with spin: ~rigid physics below 1500 RPM,
+          // full surface spinGrip by ~6500 RPM, smooth in between
+          const rpm = spinMag * 9.549; // rad/s → RPM
+          const bite = THREE.MathUtils.smoothstep(rpm, 1500, 6500);
+          const grip = THREE.MathUtils.lerp(1.0, this.currentSurface?.spinGrip ?? 1.0, bite);
+          spinSurfaceVel.multiplyScalar(grip);
 
-        //   const backspinEffect = 0.005;
-        //   const sidespinEffect = 0.002;
+          // Slip of ball surface relative to ground, in the surface plane
+          const slip = tangentComponent.clone().add(spinSurfaceVel);
+          slip.addScaledVector(normal, -slip.dot(normal));
 
-        //   // Backspin reduces forward speed, topspin increases it
-        //   vel.addScaledVector(forward, -backspin * backspinEffect);
+          // Turf brakes; it never shoves the ball forward (kills the over-spin refund)
+          if (slip.dot(tangentComponent) < 0) {
+            slip.set(0, 0, 0);
+          }
+         
+         const slipSpeed = slip.length();
+         if (slipSpeed > 0.05) {
+           const mu = this.currentSurface?.friction ?? 0.4;
+           // Friction impulse ∝ normal impulse; capped so it can't overshoot the slip
+           const maxImpulse = mu * (1 + restitution) * impactVelAlongNormal;
+          //  const impulse = Math.min(maxImpulse, slipSpeed);
+          //  const impulse = Math.min(maxImpulse, slipSpeed / 3.5); // rolling-condition
+           const gripImpulse = slipSpeed / 3.5; // impulse that reaches pure rolling
+           const impulse = Math.min(maxImpulse, gripImpulse);
 
-        //   // Sidespin kicks ball sideways
-        //   vel.addScaledVector(right, sidespin * sidespinEffect);
+           slip.divideScalar(slipSpeed); // normalize
+           vel.addScaledVector(slip, -impulse);
+          // TEMP: per-bounce friction audit
+          console.log('[bounce-audit]',
+            'vN=' + impactVelAlongNormal.toFixed(2),
+            'impulse=' + impulse.toFixed(2),
+            'capBound=' + (maxImpulse < gripImpulse ? 'mu' : 'roll'),
+            'fwdPush=' + (slip.dot(tangentComponent) > 0 ? 'no' : 'YES'));
 
-        //   console.log('Backspin:', backspin.toFixed(1), 'Sidespin:', sidespin.toFixed(1));
+           // Spin pays for the work: Δω = (5/2)·Δv / R for a solid sphere
+          //  const spinLoss = (2.5 * impulse) / (this.ballRadius * spinMag);
+          //  spin.multiplyScalar(THREE.MathUtils.clamp(1 - spinLoss, 0.2, 1));
+          // Spin converges toward rolling by the fraction of grip achieved
+            const f = impulse / gripImpulse; // 0..1
+            const vtAfter = new THREE.Vector3().copy(vel).addScaledVector(normal, -vel.dot(normal));
+            const rollSpin = new THREE.Vector3().crossVectors(normal, vtAfter).divideScalar(this.ballRadius);
+            spin.lerp(rollSpin, f);
+         }
+       }
 
-        //   spin.multiplyScalar(0.6);
-        // }
-
-        // this.rigidBody.setTranslation(
-        //   { x: newX, y: terrainY + this.ballRadius, z: newZ }, true
-        // );
-        // this.rigidBody.setLinvel({ x: vel.x, y: vel.y, z: vel.z }, true);
-        // this.rigidBody.setAngvel({ x: spin.x, y: spin.y, z: spin.z }, true);
 
         pos.set(newX, terrainY + this.ballRadius, newZ);
         // this.mesh.position.copy(pos);        
@@ -916,51 +736,29 @@ _updateAirPhysics(dt: number) {
         this.isGrounded = true;
 
         // Project velocity onto surface plane
-        // vel.sub(normal.clone().multiplyScalar(vel.dot(normal)));
         vel.sub(this.#normalClone.copy(normal).multiplyScalar(vel.dot(normal)));
 
-        // // Slope acceleration
-        // // const gravity = new THREE.Vector3(0, -GRAVITY, 0);
-        // // const slopeForce = gravity.clone().sub(
-        // //   normal.clone().multiplyScalar(gravity.dot(normal))
-        // // );
-        // const gravity = this.#gravity.set(0, -GRAVITY, 0);
-        // const slopeForce = this.#slopeForce.copy(gravity).sub(
-        //   this.#normalClone.copy(normal).multiplyScalar(gravity.dot(normal))
-        // );
-        // vel.add(slopeForce.multiplyScalar(dt));
-
         // Rolling resistance
-        // const resistance = this._getRollingResistance();
         let resistance = this.currentSurface?.rollResistance ?? CourseSurfaces.base.rollResistance;
-        // if (this.isPutt) {
-        //   resistance *= 0.25;
-        // }
-        const horizontalSpeedThreshold = this.currentSurface?.rollResistanceSpeedThreshold ?? CourseSurfaces.base.rollResistanceSpeedThreshold;
+        // const horizontalSpeedThreshold = this.currentSurface?.rollResistanceSpeedThreshold ?? CourseSurfaces.base.rollResistanceSpeedThreshold;
         const horizontalSpeed = vel.length();
-        // if (horizontalSpeed > horizontalSpeedThreshold) {
-          // const friction = Math.min(resistance * GRAVITY * dt, horizontalSpeed);
-          // vel.addScaledVector(vel.clone().normalize(), -friction);
-          // Coulomb friction (constant deceleration) — dominates at high speed
-          // vel.addScaledVector(vel.clone().normalize(), -friction);
-          
-          // const friction = Math.min(resistance * GRAVITY * dt, horizontalSpeed);
-          const normalForce = normal.y; // cos(θ): 1.0 on flat, less on slopes
-          const friction = Math.min(resistance * GRAVITY * normalForce * dt, horizontalSpeed);
+        const normalForce = normal.y; // cos(θ): 1.0 on flat, less on slopes
+        // const friction = Math.min(resistance * GRAVITY * normalForce * dt, horizontalSpeed);
+        // Stimp-driven roll on the green: Stimpmeter releases at 1.83 m/s,
+        // rating = rollout in feet, so constant decel a = 5.49 / stimp
+        const useStimpLevel = this.currentSurface?.type === CourseSurfaceType.Green;
+        const decel = useStimpLevel
+          ? 5.49 / this.stimpLevel
+          : resistance * GRAVITY;
+        const friction = Math.min(decel * normalForce * dt, horizontalSpeed);
 
 
-          vel.addScaledVector(this.#normalClone.copy(vel).normalize(), -friction);
+        vel.addScaledVector(this.#normalClone.copy(vel).normalize(), -friction);
 
-          // // Viscous damping — dominates at low speed, prevents endless creep
-          // if (!this.isPutt) {
-          //   const dampingFactor = Math.exp(-resistance * 8.0 * dt);
-          //   vel.multiplyScalar(dampingFactor);
-          // }
-          const dampingMultiplier = this.isPutt ? 3.0 : 8.0;
-          const dampingFactor = Math.exp(-resistance * dampingMultiplier * normalForce * dt);
+        if (!useStimpLevel) {
+          const dampingFactor = Math.exp(-resistance * 8.0 * normalForce * dt);
           vel.multiplyScalar(dampingFactor);
-
-        // }
+        }          
         // Hard cutoff — anything below this is just numerical noise
         if (vel.length() < 0.02) {
           vel.set(0, 0, 0);
@@ -968,139 +766,65 @@ _updateAirPhysics(dt: number) {
 
         // Spin deflection during roll — ω × r gives surface velocity at contact
         if (spin.length() > 1.0 && horizontalSpeed > 0.1) {
-          // const contactPoint = normal.clone().multiplyScalar(-this.ballRadius);
-          // const spinSurfaceVel = new THREE.Vector3().crossVectors(spin, contactPoint);
+          // Friction acts on contact-point slip, not raw spin so a rolling ball has zero slip and feels zero force (no runaway)
           const contactPoint = this.#normalClone.copy(normal).multiplyScalar(-this.ballRadius);
-          const spinSurfaceVel = this.#slopeForce.crossVectors(spin, contactPoint);
-          vel.addScaledVector(spinSurfaceVel, -this.gripStrength * dt);
+          const slipVel = this.#slopeForce.crossVectors(spin, contactPoint).add(vel);
+          slipVel.addScaledVector(normal, -slipVel.dot(normal));
+          const slipLen = slipVel.length();
+
+          if (slipLen > 0.02) {
+            const mu = this.currentSurface?.friction ?? 0.4;
+            // Friction decel, capped so it can't overshoot rolling this frame
+            const dv = Math.min(mu * GRAVITY * Math.max(normal.y, 0) * dt, slipLen / 3.5);
+            slipVel.divideScalar(slipLen);
+            vel.addScaledVector(slipVel, -dv);
+
+            // Spin converges toward rolling by the same fraction
+            const f = dv / (slipLen / 3.5);
+            const rollSpin = new THREE.Vector3().crossVectors(normal, vel).divideScalar(this.ballRadius);
+            spin.lerp(rollSpin, f);
+          }
+
         }
 
-        // this.rigidBody.setTranslation(
-        //   { x: newX, y: terrainY + this.ballRadius, z: newZ }, true
-        // );
-        // this.rigidBody.setLinvel({ x: vel.x, y: 0, z: vel.z }, true);
-
-        // // Ground spin decay
-        // const grassDampen = 4.5;
-        // if (spin.length() > 3.0) {
-        //   const factor = THREE.MathUtils.clamp(1 - grassDampen * dt, 0, 1);
-        //   spin.multiplyScalar(factor);
-        // }
-        // this.rigidBody.setAngvel({ x: spin.x, y: spin.y, z: spin.z }, true);
-
         pos.set(newX, terrainY + this.ballRadius, newZ);
-        // vel.y = 0;
-        // if (!exitingHole) vel.y = 0;
         vel.y = 0;
-        // this.mesh.position.copy(pos);
-
       }
     } else {
       // Airborne between bounces
       this.isGrounded = false;
       this.currentSurface = undefined;
-      // this.rigidBody.setTranslation({ x: newX, y: newY, z: newZ }, true);
-      // this.rigidBody.setLinvel({ x: vel.x, y: vel.y, z: vel.z }, true);
       pos.set(newX, newY, newZ);
       if (this.holeState === 'exiting') {
         this.holeState = 'none';
       }
-      // this.mesh.position.copy(pos);
     }
 
     // Final check for lowest ground point (don't let the ball fall through)
-    // const finalPos = this.rigidBody.translation();
-    // // const safeY = this.getTerrainHeight(finalPos.x, finalPos.z) + this.ballRadius;
-    // const checkY = this.getTerrainHeight(finalPos.x, finalPos.z);
     const checkY = this.getTerrainHeight(pos.x, pos.z);
     const safeY = (checkY + this.ballRadius);
 
-
-    // if (finalPos.y < safeY) {
-    // if (finalPos.y < safeY - 0.005) {
     if (pos.y < safeY - 0.005) {
       console.warn('Ball fallen below ground');
-      // this.rigidBody.setTranslation(
-      //   { x: finalPos.x, y: safeY, z: finalPos.z }, true
-      // );
-      // // Kill downward velocity so it doesn't immediately tunnel again
-      // const lv = this.rigidBody.linvel();
-      // if (lv.y < 0) {
-      //   this.rigidBody.setLinvel({ x: lv.x, y: 0, z: lv.z }, true);
-      // }
       pos.y = safeY;
       if (vel.y < 0) vel.y = 0;
-      // this.mesh.position.copy(pos);
     }
   }
 
-  _getRollingResistance() {
-    // TODO: query surface type at ball position
-    // if (this.isPutt) return 0.65;
-    return 0.45;
-  }
-
   getTerrainInfo(x: number, z: number) {
-    // // const ray = new this.rapier.Ray(
-    // //   new this.rapier.Vector3(x, 500, z),
-    // //   new this.rapier.Vector3(0, -1, 0)
-    // // );
-    // // const hit = this.world.castRay(ray, 1000, true);
-    // // if (!hit || !isColliderWithUserData(hit.collider)) {
-    // //   return this.#lastTerrainInfo;
-    // // }
-    // this.#rayOrigin.set(x, 500, z);
-
-    // let closestDist = Infinity;
-    // let closestPoint: THREE.Vector3 | null = null;
-    // let closestMesh: THREE.Mesh | null = null;
-
-    // for (const { bvh, mesh } of this.#terrainBVHs) {
-    //   this.#invMatrix.copy(mesh.matrixWorld).invert();
-    //   this.#terrainRay.origin.copy(this.#rayOrigin).applyMatrix4(this.#invMatrix);
-    //   this.#terrainRay.direction.copy(this.#rayDirection).transformDirection(this.#invMatrix);
-
-    //   const hit = bvh.raycastFirst(this.#terrainRay);
-    //   if (hit) {
-    //     hit.point.applyMatrix4(mesh.matrixWorld);
-    //     const dist = this.#rayOrigin.distanceTo(hit.point);
-    //     if (dist < closestDist) {
-    //       closestDist = dist;
-    //       closestPoint = hit.point;
-    //       closestMesh = mesh;
-    //     }
-    //   }
-    // }
-
-    // if (!closestPoint || !closestMesh) {
     if (!this.#mergedBVH) {
       return this.#lastTerrainInfo;
     }
 
-    // // const collider = this.world.getCollider(hit.colliderHandle);
-    // // Or if using newer Rapier: hit.collider directly
-    // const surface = closestMesh.userData as CourseSurfaceProperties | undefined;
-
-    this.#terrainRay.origin.set(x, 500, z);
+    this.#terrainRay.origin.set(x, 1000, z);
     this.#terrainRay.direction.set(0, -1, 0);
 
-    const hit = this.#mergedBVH.raycastFirst(this.#terrainRay);
+    const hit = this.#mergedBVH.raycastFirst(this.#terrainRay, THREE.DoubleSide);
     if (!hit) {
+      console.warn('[terrain] raycast MISS at', x.toFixed(1), z.toFixed(1));
       return this.#lastTerrainInfo;
     }
 
-    // // Find which surface this triangle belongs to
-    // let surface: CourseSurfaceProperties | undefined;
-    // if (hit.faceIndex != null && this.#mergedMesh.geometry.groups.length > 0) {
-    //   const vertIndex = hit.faceIndex * 3;
-    //   for (const group of this.#mergedMesh.geometry.groups) {
-    //     if (vertIndex >= group.start && vertIndex < group.start + group.count) {
-    //       surface = this.#surfaceMap[group.materialIndex ?? 0];
-    //       console.log(`surface: `, surface);
-    //       break;
-    //     }
-    //   }
-    // }
     let surfaceKey = 'base';
     if (hit.faceIndex != null && this.#mergedMesh.geometry.groups.length > 0) {
       const vertIndex = hit.faceIndex * 3;
@@ -1112,36 +836,19 @@ _updateAirPhysics(dt: number) {
       }
     }
 
-    // const surfaceSettings = isCourseSurfaceType(surfaceKey)
-    //   ? CourseSurfaces[surfaceKey]
-    //   : CourseSurfaces.base;
-
     const validSurfaceKey = isCourseSurfaceType(surfaceKey) ? surfaceKey : CourseSurfaceType.Base;
     const surfaceSettings = CourseSurfaces[validSurfaceKey];
 
-    // const normal = hit.face
-    //   ? hit.face.normal.clone()
-    //   : new THREE.Vector3(0, 1, 0);
     const normal = hit.face
       ? this.#hitNormal.copy(hit.face.normal)
       : this.#hitNormal.set(0, 1, 0);
 
     this.#lastTerrainInfo = {
-      // height: 500 - hit.timeOfImpact,
-      // restitution: hit.collider.restitution(),
-      // friction: hit.collider.friction(),
-      // surface: hit.collider.userData,
-      // height: closestPoint.y,
       height: hit.point.y,
       restitution: surfaceSettings.restitution ?? 0.35,
       friction: surfaceSettings.friction ?? 0.6,
       surface: { type: validSurfaceKey, ...surfaceSettings },
       normal
-      // surface: { type: surfaceKey as CourseColliderType, ...surfaceSettings },
-
-      // restitution: surface?.restitution ?? 0.35,
-      // friction: surface?.friction ?? 0.6,
-      // surface,
     };
     return this.#lastTerrainInfo;
   }
@@ -1212,7 +919,6 @@ _updateAirPhysics(dt: number) {
     // === Ball path crosses the hole (closestDist < R + r) ===
 
     // How centrally does the path cross? 1 = dead center, 0 = rim edge
-    // const centrality = Math.max(0, 1 - closestDist / R);
     const centrality = Math.max(0, 1 - closestDist / (R + r));
 
 
@@ -1220,7 +926,6 @@ _updateAirPhysics(dt: number) {
     // Dead center: up to ~7 mph (3.0 m/s) drops in
     // Half off-center: up to ~4.5 mph (2.0 m/s)
     // Rim edge: up to ~2 mph (1.0 m/s)
-    // const fallInSpeed = 1.0 + centrality * 2.0;
     const fallInSpeed = 1.0 + centrality * 2.5;
 
     if (vh < fallInSpeed) {
@@ -1228,7 +933,7 @@ _updateAirPhysics(dt: number) {
       return true;
     }
 
-    // === Ball crosses too fast to drop — compute lip-out ===
+    // When the ball crosses too fast to drop, we compute a lip-out
     // How long the ball spends over the hole determines lip impact
     // Fast ball = short crossing time = barely affected
     const chord = 2 * Math.sqrt(Math.max(0, (R + r) * (R + r) - closestDist * closestDist));
@@ -1281,11 +986,6 @@ _updateAirPhysics(dt: number) {
     const awayZ = exitZ - C.y;
     const awayDist = Math.hypot(awayX, awayZ);
     if (awayDist > 0.001) {
-      // const offCenter = 1.0 - centrality;
-      // const deflectionStrength = dipFactor * (0.3 + offCenter * 0.8);
-      // vel.x += (awayX / awayDist) * deflectionStrength;
-      // vel.z += (awayZ / awayDist) * deflectionStrength;
-
       // Tangent to the rim circle — curves ball around the hole, not away from it
       const radialX = awayX / awayDist;
       const radialZ = awayZ / awayDist;
@@ -1300,13 +1000,9 @@ _updateAirPhysics(dt: number) {
 
       // Blend velocity toward tangential — more for off-center crossings
       const offCenter = 1.0 - centrality;
-      // const deflectAmount = dipFactor * offCenter * 0.5;
-      // Only off-center crossings get tangential curve
-      // Dead center = no sideways deflection, just vertical bounce
 
       // Only apply rim deflection for genuinely off-center crossings
       // Center crossings just bounce straight up
-
       const rimCurveStrength = offCenter * offCenter * 1.0;
       const deflectAmount = dipFactor * rimCurveStrength;
 

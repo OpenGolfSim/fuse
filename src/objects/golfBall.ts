@@ -175,9 +175,10 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
   }
 
   getPosition() {
-    if (this.physics?.rigidBody) {
-      return this.physics.rigidBody.translation();
-    }
+    return this.physics.mesh.position;
+    // if (this.physics?.rigidBody) {
+    //   return this.physics.rigidBody.translation();
+    // }
   }
   
   isOnGreen(preShot = false) {
@@ -277,7 +278,8 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
         this.#accumulator -= FIXED_DT;
         steps++;
       }
-      if (steps !== 1) console.log(`Steps: ${steps}, accum: ${this.#accumulator.toFixed(5)}`);
+      // useful for debugging physics on slower devices
+      // if (steps !== 1) console.log(`Steps: ${steps}, accum: ${this.#accumulator.toFixed(5)}`);
     }
     if (this.trail) {
       this.trail.update(this.isShotActive);

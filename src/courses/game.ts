@@ -128,9 +128,11 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     this.activePlayer.scorecard.set(holeKey, newHoleScore);
     
     if (endOfHole) {
-      const diff = (newHoleScore - this.activeHole.par);
-      console.log(`Adding diff to par score: ${diff}`);
-      this.activePlayer.toPar += diff;
+      this.activePlayer.toPar = this.#orderedHoles.slice(0, this.currentHoleIndex + 1).reduce((prev, hole) => {
+        const s = this.activePlayer.scorecard.get(`${hole.number}`);
+        const diff = (s || 0) - hole.par;
+        return prev + diff;
+      }, 0);
     }
   }
 
@@ -156,6 +158,7 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
       if (this.golfBall.physics?.isHoled) {
         this.activePlayer.disabled = true;
         this._nextPlayer();
+        console.log(`Ball in hole! End hole`);
         this._addStrokes(0, true);
       } else if (surface?.type === 'green' && !this.puttingEnabled) {
         // total score

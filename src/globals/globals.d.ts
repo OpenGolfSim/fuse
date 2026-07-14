@@ -66,6 +66,7 @@ namespace OpenGolfSim {
     roll: number;
     lateral: number;
   }
+  
 
   type SetupData = {
     players: OpenGolfSim.Player[],
@@ -99,6 +100,13 @@ namespace OpenGolfSim {
     heightSamples?: number[];
     distanceSamples?: number[];
     lateralSamples?: number[];
+  }
+  
+  interface PlayerUpdateEvent {
+    type: 'player';
+    player: OpenGolfSim.Player;
+    currentPosition: [number, number, number];
+    club: Club;
   }
 
 }

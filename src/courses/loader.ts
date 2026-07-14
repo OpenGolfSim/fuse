@@ -295,7 +295,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       if (child.material instanceof THREE.MeshStandardMaterial) {
         // child.material
         // grassTexture.anisotropy = this.#renderer.getMaxAnisotropy() || 1;
-        if (this.qualityLevel >= QualityMode.Medium) {
+        if (this.qualityLevel > QualityMode.Medium) {
           if (child.material.map) child.material.map.anisotropy = this.#renderer.getMaxAnisotropy() || 1;
         }
         child.material.vertexColors = false;
@@ -311,7 +311,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         if (blendMap) {
 
           const neighborMesh = this.findNeighborMesh(child, allSurfaceMeshes);
-          if (neighborMesh && this.grassAssets) {
+          if (neighborMesh && this.grassAssets?.noiseTexture) {
              const sand = new SandMaterial(
                child,
                this.grassAssets.noiseTexture,
@@ -319,7 +319,6 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
                neighborMesh,
                child.userData.blendSettings || {},
              );
-             console.log('blendSand', sand);
           } else {
             console.warn(`Unable to find neighbor mesh for ${child.name}`);
           }
@@ -361,14 +360,10 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
             maxNewCellsPerFrame: 10,
             scaleXZ: 0.8,
             scaleY: 0.6,
-            // baseColor: '#394e12',   // match your terrain's green
-            // tipColor1: '#4d6b21',
-            // tipColor2: '#59792d',
           });
           this.scene.add(grass.mesh);
           this.grasses.set(child.uuid, grass);
         }
-        console.log('add surface', child.name);
 
         this.surfaces.set(child.uuid, { ...surfaceOptions, mesh: child });
       }

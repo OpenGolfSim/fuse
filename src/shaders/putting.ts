@@ -96,12 +96,12 @@ export class PuttingGridMaterial {
 
   constructor(object: THREE.Object3D, options: PuttingGridMaterialOptions = {}) {
     this.gridSize    = options.gridSize    ?? 0.7;
-    this.lineWidth   = options.lineWidth   ?? 0.025;
-    this.lineColor   = options.lineColor   ?? new THREE.Color(1.0, 0.9, 0.02);
-    this.lineOpacity = options.lineOpacity ?? 0.07;
-    this.dotRadius   = options.dotRadius   ?? 0.015;
+    this.lineWidth   = options.lineWidth   ?? 0.005;
+    this.lineColor   = options.lineColor   ?? new THREE.Color(1.0, 0.5, 0.02);
+    this.lineOpacity = options.lineOpacity ?? 0.2;
+    this.dotRadius   = options.dotRadius   ?? 0.008;
     this.dotColor    = options.dotColor    ?? new THREE.Color(1.0, 1.0, 1.0);
-    this.dotOpacity  = options.dotOpacity  ?? 0.8;
+    this.dotOpacity  = options.dotOpacity  ?? 0.1;
     this.baseSpeed   = options.baseSpeed   ?? 5;
     this.minSpeed    = options.minSpeed    ?? 0.05;
 

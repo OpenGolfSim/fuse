@@ -113,6 +113,7 @@ function setupNextShot() {
   if (gameContext.camera) {
     gameContext.course?.updateActiveGreen(gameContext.camera, gameContext.game.getActiveHoleNumber());
   }
+
   // recreate ball after each shot to ensure physics are fully reset
   gameContext.golfBall?.reset(gameContext.aimPoint, gameContext.startPoint, gameContext.game.activeHole.waypoints.get('pin'));
 
@@ -125,6 +126,7 @@ function setupNextShot() {
 
   gameContext.game.autoSelectClub();
   gameContext.playerMenu?.update(gameContext.game.activePlayer);
+  app.sendPlayerUpdate(gameContext.game.activePlayer, gameContext.startPoint.toArray());
 
 }
 
@@ -178,7 +180,6 @@ async function setupScene() {
     throw new Error('Course object does not exist!');
   }
   const ground = gameContext.course.getGroundMeshes();
-  console.log('ground', ground);
   gameContext.camera = new ShotPerspectiveCamera(
     {
       scene: ground,
@@ -187,7 +188,9 @@ async function setupScene() {
     }
   );
   
-  gameContext.renderer.setupPostProcessing(gameContext.scene, gameContext.camera);
+  if (gameContext.setupData?.qualityLevel && gameContext.setupData?.qualityLevel > QualityMode.Medium) {
+    gameContext.renderer.setupPostProcessing(gameContext.scene, gameContext.camera);
+  }
 
   // Aim point
   gameContext.visualAimPoint = new AimPoint(gameContext.camera, {
@@ -219,27 +222,22 @@ async function setupScene() {
   gameContext.controls.on('testShot', launchShot);
   gameContext.controls.on('toggleStats', () => gameContext.stats?.toggle());
 
-
-  console.log('-----');
-  console.log('cloudSettings', cloudSettings)
-  console.log(`sky: ${skyColor.getHexString()}, cloud: ${cloudColor.getHexString()}, fog: ${cloudColor.getHexString()}`);
-  // TODO: move to course loader..
   // Sky/Clouds
+  // QUESTION: move to course loader?
   gameContext.clouds = new VolumetricClouds(gameContext.camera, {
     radius: 800,
-    // density: 0.28,
     opacity: 0.8,
-    scale: 4,
-    // density: cloudSettings?.density ?? 0.4,
+    scale: 3,
+    density: cloudSettings?.density,
     // opacity: cloudSettings?.opacity ?? 0.8,
     // scale: cloudSettings?.scale ?? 6,
     cloudColor,
     fogColor,
     // cloudColor: new THREE.Color('#f4fafc'),
     // fogColor: new THREE.Color('#f7f6f1'),
-    // skyColor,
-    skyColor: new THREE.Color('#498daa'),
-    position: new THREE.Vector3(0, 0, 0)
+    skyColor,
+    // skyColor: new THREE.Color('#498daa'),
+    position: new THREE.Vector3(0, -40, 0)
   });
   gameContext.scene.add(gameContext.clouds.object);
   
@@ -419,6 +417,7 @@ async function setupCourse() {
     if (gameContext.game) {
       gameContext.game.selectClub(club);
       gameContext.playerMenu?.update(gameContext.game.activePlayer);
+      app.sendPlayerUpdate(gameContext.game.activePlayer, gameContext.startPoint.toArray());
     }
   });
 
@@ -429,6 +428,9 @@ async function setupCourse() {
   gameContext.courseMap?.on('updateAim', adjustAimPoint);
   gameContext.courseMap?.on('updateStart', adjustStartPoint);
 
+  if (gameContext.camera) {
+    await gameContext.renderer.compile(gameContext.scene, gameContext.camera);  
+  }
 }
 
 /**
@@ -436,10 +438,16 @@ async function setupCourse() {
  */
 function preLoad() {
   // allow override with query param
-  const qualityParam = (new URLSearchParams(window.location.search)).get('quality');
+  const params = new URLSearchParams(window.location.search);
+  const qualityParam = params.get('quality');
   if (qualityParam) {
     gameContext.qualityLevel = parseInt(qualityParam, 10);
     if (gameContext.setupData) gameContext.setupData.qualityLevel = gameContext.qualityLevel;
+  }
+  const practiceParam = params.get('practice');
+  if (practiceParam) {
+    const practiceMode = practiceParam === '1' || practiceParam === 'true';
+    if (gameContext.setupData) gameContext.setupData.practiceMode = practiceMode;
   }
 
   console.log('[debug] Setup Data', gameContext.setupData);
@@ -542,7 +550,7 @@ async function initializeDebug() {
   if (!courseUrl) {
     throw new Error('No courseUrl provided');
   }
-  gameContext.setupData = generateSetupData(2);
+  gameContext.setupData = generateSetupData(1);
   gameContext.gameData = { id: 'web', courseUrl, gameMode: 2 };
   if (courseUrl) {
     preLoad();

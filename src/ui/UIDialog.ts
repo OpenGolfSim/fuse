@@ -42,7 +42,6 @@ export class UIDialog extends UIElementBase<UIDialogEvents> {
     this.element.append(this.header);
 
     const existingContent = this.parent.querySelector('.content');
-    console.log('EXISTING', existingContent);
     if (existingContent) {
       this.content = existingContent;
     } else {

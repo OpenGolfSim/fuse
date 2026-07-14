@@ -84,7 +84,6 @@ export class WaterSurface {
     }
 
     this.water.geometry.setAttribute('uv', new THREE.BufferAttribute(uvAttr, 2));
-    console.log('[FLOWMAP] Mesh bounds:', JSON.stringify({ minX, minZ, maxX, maxZ: maxZ }));
 
     const opts = {
       speed: 0.25,
@@ -303,7 +302,6 @@ export class WaterSurface {
     this.material.envMap = envMap;
     this.material.envNode = pmremTexture(envMap);
     this.material.needsUpdate = true;
-    console.log('updateEnvironment called, envMap:', envMap);
   }
   
   update(_dt?: number) {

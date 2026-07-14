@@ -56,7 +56,6 @@ export class FuseRenderer {
       this.renderer = new WebGLRenderer({ canvas: options.canvas, antialias: options.antialias });
       // Enable TSL node material support for WebGLRenderer
       // (WebGPURenderer handles this natively)
-      console.log(`Using WebGL renderer adding nodes handler`);
       this.renderer.setNodesHandler(new WebGLNodesHandler());
     }
     this.renderer.setSize(this.width, this.height);  
@@ -66,24 +65,18 @@ export class FuseRenderer {
     
     this.qualityLevel = options.qualityLevel ?? QualityMode.Medium;
 
-    // if (this.qualityLevel >= QualityMode.Medium) {
-      this.renderer.toneMapping = ACESFilmicToneMapping; // or whatever you pick
-      this.renderer.toneMappingExposure = 1.1;
-    // }
+    this.renderer.toneMapping = ACESFilmicToneMapping; // or whatever you pick
+    this.renderer.toneMappingExposure = 1.1;
 
     window.addEventListener('resize', this._handleResize.bind(this));
 
     const resizeObserver = new ResizeObserver((entries) => this._handleResize());
     resizeObserver.observe(this.container);
-    
-    // setTimeout(() => this._handleResize(), 4000);
-    // requestAnimationFrame(() => this._handleResize());
   }
   
   _handleResize() {  
     this.width = this.container.offsetWidth;
     this.height = this.container.offsetHeight;
-    console.log(`width: ${this.width}`);
     this.renderer.setSize(this.width, this.height);  
   }
 
@@ -91,6 +84,38 @@ export class FuseRenderer {
     if (this.renderer instanceof WebGPURenderer) {
       await this.renderer.init();
     }
+
+
+    // Debug renderer
+    const b: any = (this.renderer as any).backend;
+    console.warn('[backend]', b?.constructor?.name);
+    //  for (const fn of ['createRenderPipeline', 'createShaderModule']) {
+    //    const t = b?.device; if (t?.[fn]) { const o = t[fn].bind(t); t[fn] = (d: any) => (console.warn('[compile]', d?.label ?? fn), o(d)); }
+    //  }
+    //  if (b?.gl) { const o = b.gl.linkProgram.bind(b.gl); b.gl.linkProgram = (p: any) => (console.warn('[compile] gl'), o(p)); }
+
+  }
+
+  async compile(scene: Scene, camera: Camera) {
+    // WebGLRenderer compiles cheaply on demand only need for WebGPURenderer
+    if (!(this.renderer instanceof WebGPURenderer)) return;
+    if (this.pipeline) {
+      // Real frames go through the pipeline — warm that path,
+      // with culling disabled so every material compiles.
+      const culled: any[] = [];
+      scene.traverse((o: any) => {
+        if (o.frustumCulled) {
+          o.frustumCulled = false;
+          culled.push(o);
+        }
+      });
+      this.pipeline.render();
+      for (const o of culled) o.frustumCulled = true;
+    } else {
+      // No post-processing
+      await this.renderer.compileAsync(scene, camera);
+    }
+
   }
 
   clear() {
@@ -101,9 +126,8 @@ export class FuseRenderer {
     if (fog) {
       scene.fog = fog;
     }
-    // this.renderer.render(scene, camera);
     if (this.pipeline) {
-      this.pipeline.render();  // replaces renderer.render()
+      this.pipeline.render();
     } else {
       this.renderer.render(scene, camera);
     }
@@ -123,19 +147,6 @@ export class FuseRenderer {
     if (!this.renderer) {
       throw new Error('Missing renderer');
     }
-    // if (!sky) return;
-
-    // const tempScene = new Scene();
-    // tempScene.background = scene.background || new Color('#c8dbe5');
-    // tempScene.add(sky);
-    
-    // const pmrem = this.renderer instanceof WebGPURenderer ? new WebGPUPMREMGenerator(this.renderer) : new PMREMGenerator(this.renderer);
-    // this.environment = pmrem.fromScene(tempScene, 0, 0.1, 10000).texture;
-    // pmrem.dispose();
-    
-    // // Move sky back to the real scene
-    // scene.add(sky);
-    // scene.environment = this.environment;
 
     const tempScene = new Scene();
     tempScene.background = scene.background || new Color('#c8dbe5');
@@ -173,9 +184,9 @@ export class FuseRenderer {
 
     // Create the bloom effect
     // const strength = 0.08;
-    const strength = 0.085;
+    const strength = 0.075;
     const radius = 0.1;
-    const threshold = 0.60;
+    const threshold = 0.65;
     const bloomPass = bloom(scenePassColor, strength, radius, threshold);
 
     // Combine: original scene + bloom glow
