@@ -189,8 +189,6 @@ export class TreePlanter {
 
   plantFromMask(trees: TreeGroup[], maskData: { data: ImageDataArray, width: number, height: number }, seed = 12345) {
     const { data, width, height } = maskData;
-    console.log(`PLANT Image Mask ${width} x ${height}`, data);
-    console.log(`PLANT in world ${this.worldSize} x ${this.worldSize}`);
     const cellW = this.worldSize / width;
     const cellH = this.worldSize / height;
     const random = seededRandom(seed);
@@ -205,12 +203,8 @@ export class TreePlanter {
     }
     cumulativeWeights[cumulativeWeights.length - 1] = 1.0;
 
-    // Phase 1: scatter XZ from mask
+    // Scatter XZ from mask
     const scattered: { x: number, z: number }[][] = trees.map(() => []);
-    // const grids = trees.map((t) => {
-    //   console.log('config-grid', t);
-    //   return t.minDistance ? new SpatialHash2D(t.minDistance) : null
-    // });
     const sharedGrid = new SpatialHash2D(
       Math.min(...trees.map(t => t.minDistance ?? Infinity)) || 1
     );
@@ -246,32 +240,8 @@ export class TreePlanter {
         }
       }
     }
-    
 
-    // for (let py = 0; py < height; py++) {
-    //   for (let px = 0; px < width; px++) {
-    //     const val = data[(py * width + px) * 4];
-    //     if (val === 0) continue;
-
-    //     const cellDensity = (val / 255) * totalDensity;
-    //     const count = Math.floor(cellDensity);
-    //     const extra = random() < (cellDensity - count) ? 1 : 0;
-
-    //     for (let t = 0; t < count + extra; t++) {
-    //       const r = random();
-    //       let treeIdx = 0;
-    //       for (let i = 0; i < cumulativeWeights.length; i++) {
-    //         if (r <= cumulativeWeights[i]) { treeIdx = i; break; }
-    //       }
-    //       scattered[treeIdx].push({
-    //         x: (px + random()) * cellW,
-    //         z: (py + random()) * cellH,
-    //       });
-    //     }
-    //   }
-    // }
-
-    // Phase 2: raycast for Y + build matrices per tree type
+    // Raycast for Y + build matrices per tree type
     const dummy = new THREE.Object3D();
     const allResults = [];
 
@@ -302,19 +272,19 @@ export class TreePlanter {
       if (matrices.length === 0) { allResults.push(null); continue; }
 
       // Colliders (only when physics available AND tree config opts in)
-      if (wantColliders) {
-        const pos = new THREE.Vector3();
-        const scale = new THREE.Vector3();
-        const quat = new THREE.Quaternion();
+      // if (wantColliders) {
+      //   const pos = new THREE.Vector3();
+      //   const scale = new THREE.Vector3();
+      //   const quat = new THREE.Quaternion();
 
-        for (let i = 0; i < matrices.length; i++) {
-          matrices[i].decompose(pos, quat, scale);
-          this._addCollider(pos, scale.x, baseHeight, baseRadius, {
-            type: 'tree',
-            treeIdx,
-          });
-        }
-      }
+      //   for (let i = 0; i < matrices.length; i++) {
+      //     matrices[i].decompose(pos, quat, scale);
+      //     this._addCollider(pos, scale.x, baseHeight, baseRadius, {
+      //       type: 'tree',
+      //       treeIdx,
+      //     });
+      //   }
+      // }
 
 
       const count = matrices.length;
@@ -326,7 +296,6 @@ export class TreePlanter {
       
       const meshes = this.#buildLODMeshes(trees[treeIdx], matrices, pickedColors, count);
       allResults.push(meshes);
-      console.log(`Plant tree ${treeIdx} (${count})`, meshes, matrices);
     }
     return allResults;
   }

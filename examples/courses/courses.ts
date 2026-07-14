@@ -339,28 +339,32 @@ async function setupCourse() {
   console.log('Course settings', gameContext.course.sceneSettings);
   if (!gameContext.course.scene) throw new Error('Unable to load course scene');
 
+  console.log('Loading audio files...');
   // load audio
   gameContext.audioPlayer = new AudioPlayer();
   await gameContext.audioPlayer.load(HoleOutSound);  
   await gameContext.audioPlayer.load(GroundThudSound);
 
+  console.log('Creating base scene...');
   // create the initial scene
   await setupScene();
   if (!gameContext.scene) {
     throw new Error('Unable to create main scene (does not exist)');
   }
   
+  console.log('Adding course scene...');
   // add loaded course to the scene
   gameContext.scene?.add(gameContext.course.scene);
 
 
+  console.log('Create golf ball...');
   // create the golf ball
   gameContext.golfBall = new GolfBall(gameContext.scene, app.world, app.rapier, {
     setupData: gameContext.setupData,
     groundMeshes: gameContext.course.getGroundMeshes()
   });
   gameContext.golfBall.on('landed', (velocity: number) => {
-    // gameContext.audioPlayer?.play(GroundThudSound, velocity);
+    gameContext.audioPlayer?.play(GroundThudSound, velocity);
   });
   gameContext.golfBall.on('holedOut', () => {
     gameContext.audioPlayer?.play(HoleOutSound);
@@ -376,6 +380,7 @@ async function setupCourse() {
     );
   });
   
+  console.log('Setup game logic...');
   // setup course game controller
   gameContext.game = new CourseGame(gameContext.course, gameContext.golfBall, { setupData: gameContext.setupData });
   gameContext.game?.on('nextShot', (player) => {
@@ -421,7 +426,7 @@ async function setupCourse() {
     }
   });
 
-  
+  console.log('Setting up first shot...');
   // gameContext.camera?.setScene(gameContext.course.getGroundMeshes());
   setupNextShot();
 
@@ -429,6 +434,7 @@ async function setupCourse() {
   gameContext.courseMap?.on('updateStart', adjustStartPoint);
 
   if (gameContext.camera) {
+    console.log('Precompiling shaders...');
     await gameContext.renderer.compile(gameContext.scene, gameContext.camera);  
   }
 }
