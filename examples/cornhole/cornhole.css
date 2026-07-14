@@ -145,6 +145,28 @@
   font-weight: 800;
 }
 
+#game-over-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+#game-over-content #game-over-winner {
+  margin: 0 0 3vh 0;
+  font-size: 4vh;
+  text-transform: uppercase;
+  text-align: center;
+}
+#game-over-content #game-over-winner.red {
+  color: var(--red-color);
+}
+#game-over-content #game-over-winner.blue {
+  color: var(--blue-color);
+}
+#game-over-content #game-over-options {
+  display: flex;
+  flex-direction: column;  
+}
 @media (min-height: 500px) {
   .unit {
     font-size: 1.5vh;

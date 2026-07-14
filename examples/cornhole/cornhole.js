@@ -15,9 +15,11 @@ import {
   app,
   generateSetupData,
   UILoadingScreen,
-  FuseRenderer
+  FuseRenderer,
+  WaterSurface,
+  UIDialog
 } from '@opengolfsim/fuse';
-import { Water } from 'three/examples/jsm/Addons.js';
+// import { Water } from 'three/examples/jsm/Addons.js';
 import groundBeachModel from './models/GroundBeach.glb?url';
 import cornHoleBoardModel from './models/CornHoleBoard.glb?url';
 import sandCastleModel from './models/SandCastle.glb?url';
@@ -44,7 +46,7 @@ const gameContext = {
   startPoint: new THREE.Vector3(0, 0.25, 0),
   round: {
     number: 1,
-    maxPoints: 21,
+    maxPoints: 2,
     bagsPerPlayer: 4,
     throwOrder: [], // queue of player indices for this round
     currentThrowIdx: 0,
@@ -205,6 +207,79 @@ async function loadGameBoards() {
   setupBoard('red', boardMeshOriginal);
 }
 
+function createWater(tex) {
+
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(100, 100); // tile 50x across, 100x down the 100x200 plane
+  tex.colorSpace = THREE.SRGBColorSpace; // correct color rendering
+  tex.anisotropy = gameContext.renderer.getMaxAnisotropy();
+
+  const waterGroup = new THREE.Group();
+  const underwaterGeometry = new THREE.PlaneGeometry(300, 100);
+  underwaterGeometry.rotateX(-Math.PI / 2);
+  const underwaterMaterial = new THREE.MeshStandardMaterial({
+    // color: new THREE.Color('#486e5d'),
+    map: tex,
+    roughness: 0,
+    metalness: 0,
+    color: new THREE.Color('#318da6')
+    // opacity: 0.8,
+    // transparent: true
+  });
+  const underwaterPlane = new THREE.Mesh(underwaterGeometry, underwaterMaterial);
+  waterGroup.add(underwaterPlane);
+  
+
+  const waterSurfaceGeometry = new THREE.PlaneGeometry(300, 100);
+  waterSurfaceGeometry.rotateX(-Math.PI / 2);
+
+  const waterSurfaceMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color('#1a5972') });
+  const waterMesh = new THREE.Mesh(waterSurfaceGeometry, waterSurfaceMaterial);
+  gameContext.waterSurface = new WaterSurface(waterMesh, undefined, {
+      speed: 0.25,              // slower — ocean swells are lazy
+      flowStrength: 0.32,       // gentle drift, not directional flow
+      sideFlowStrength: 0.35,   // a bit of cross-chop for variety
+      uvTiling: [2, 2],         // this is the big one — 3x larger wave patterns than your lake
+      normalStrength: 3.0,      // push normals harder so the bigger waves still read
+      shallowColor: new THREE.Color('#50a3ba'),
+      deepColor: new THREE.Color('#225d76'),
+      depthRange: 20,           // much wider gradient — ocean is deep
+      roughness: 0.01,          // glassier surface = sharper reflections on swells
+      opacity: 0.5,
+      envMapIntensity: 0.3,     // more sky/environment reflection
+      foamWidth: 12.5,
+      foamColor: new THREE.Color('#c8e0dc'),
+      foamDensity: 0.6,
+      foamSharpness: 0.15,
+      foamOpacity: 0.8,
+      yOffset: 0
+  });
+
+  // const radians = -89.5 * (Math.PI / 180);
+  // underwaterPlane.rotation.x = radians;
+  // underwaterPlane.rotation.z = 2;
+  // underwaterPlane.position.y = -10.6; // just below the water
+  underwaterPlane.position.z = -48.5;
+  underwaterPlane.rotation.x = -0.025;  // far edge dips down ~5 units
+  underwaterPlane.position.y = -1.5;  // start it slightly below the water surface
+
+  
+  // gameContext.waterSurface.water.rotation.copy(underwaterPlane.rotation);
+  // // gameContext.waterSurface.water.rotation.x = radians;
+  // // gameContext.waterSurface.water.rotation.x = underwaterPlane.rotation.x;
+  // gameContext.waterSurface.water.position.copy(underwaterPlane.position);
+  // gameContext.waterSurface.water.position.y += 0.006;
+  // // gameContext.waterSurface.water.position.z = -50;
+  
+  gameContext.waterSurface.water.position.set(0, 0.005, -48.5);
+
+  waterGroup.add(gameContext.waterSurface.water);
+  waterGroup.position.y = 0;
+  waterGroup.position.z = -20;
+  gameContext.scene.add(waterGroup);
+
+}
 async function setupScene() {
   gameContext.scene = new THREE.Scene();
   gameContext.scene.background = new THREE.Color(skyColor);
@@ -213,71 +288,43 @@ async function setupScene() {
   const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
   gameContext.scene.add(ambientLight);
   
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
-  directionalLight.position.set(-5, 20, 0);
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+  directionalLight.position.set(-10, 80, -40);
   directionalLight.castShadow = true;
-  directionalLight.shadow.mapSize.width = 2048; // Higher = crisper shadows
-  directionalLight.shadow.mapSize.height = 2048;
+  directionalLight.shadow.mapSize.width = 4096;
+  directionalLight.shadow.mapSize.height = 4096;
   directionalLight.shadow.camera.near = 1;
-  directionalLight.shadow.camera.far = 50;
-  directionalLight.shadow.camera.left = -50;
-  directionalLight.shadow.camera.right = 50;
-  directionalLight.shadow.camera.top = 50;
-  directionalLight.shadow.camera.bottom = -50;
+  directionalLight.shadow.camera.far = 200;
+  directionalLight.shadow.camera.left = -60;
+  directionalLight.shadow.camera.right = 60;
+  directionalLight.shadow.camera.top = 60;
+  directionalLight.shadow.camera.bottom = -60;
+  // directionalLight.shadow.bias = -0.001;
+  // directionalLight.shadow.normalBias = 0.02;
+  // directionalLight.shadow.bias = 0;
+  // directionalLight.shadow.normalBias = 0.05;
+
+  directionalLight.shadow.camera.updateProjectionMatrix();
+  directionalLight.target.position.set(10, 1, 50);
+  directionalLight.target.updateMatrixWorld();
   gameContext.scene.add(directionalLight);
-  directionalLight.target.position.set(0, 0, 0);
 
-  const waterGroup = new THREE.Group();
-  const underwaterGeometry = new THREE.PlaneGeometry(300, 100);
-  const underwaterMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color('#1a5972') });
-  const underwaterPlane = new THREE.Mesh(underwaterGeometry, underwaterMaterial);
-  // underwaterPlane.rotation.x = -Math.PI / 2;
-  
-  // underwaterPlane.rotation.y = -90 * (Math.PI / 180);
+  // directionalLight.position.set(-2, 80, 0);
+  // directionalLight.castShadow = true;
+  // directionalLight.shadow.mapSize.width = 2048; // Higher = crisper shadows
+  // directionalLight.shadow.mapSize.height = 2048;
+  // directionalLight.shadow.camera.near = 1;
+  // directionalLight.shadow.camera.far = 30;
+  // directionalLight.shadow.camera.left = -30;
+  // directionalLight.shadow.camera.right = 30;
+  // directionalLight.shadow.camera.top = 30;
+  // directionalLight.shadow.camera.bottom = -30;
+  // // directionalLight.shadow.bias = -0.002;
+  // // directionalLight.shadow.normalBias = 0.02;
 
-  waterGroup.add(underwaterPlane);
-  
-
-  const waterGeometry = new THREE.PlaneGeometry(300, 100);
-
-  gameContext.water.object = new Water(waterGeometry, {
-    textureWidth: 256,
-    textureHeight: 256,
-    waterNormals: textureLoader.load(
-      waterNormals,
-      (texture) => {
-        texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-      }
-    ),
-    alpha: 0.4,
-    sunColor: new THREE.Color('#ffffff'),
-    waterColor: new THREE.Color('#3a8fc4'),
-    distortionScale: 5.0,
-    speed: 0.5,
-    sunDirection: new THREE.Vector3(0, 2, 0.70707),
-    fog: gameContext.scene.fog !== undefined,
-  });
-  
-  gameContext.water.object.material.transparent = true;
-  // gameContext.water.object.rotation.x = -Math.PI / 2;
-
-  const radians = -89.5 * (Math.PI / 180);
-  underwaterPlane.rotation.x = radians;
-  // underwaterPlane.rotation.z = 2;
-  // underwaterPlane.position.y = -10.6; // just below the water
-  underwaterPlane.position.z = -50;
-  
-  gameContext.water.object.rotation.copy(underwaterPlane.rotation);
-  // gameContext.water.object.rotation.x = radians;
-  // gameContext.water.object.rotation.x = underwaterPlane.rotation.x;
-  gameContext.water.object.position.copy(underwaterPlane.position);
-  gameContext.water.object.position.y += 0.006;
-  // gameContext.water.object.position.z = -50;
-
-  waterGroup.add(gameContext.water.object);
-  waterGroup.position.y = 0;
-  waterGroup.position.z = -20;
-  gameContext.scene.add(waterGroup);
+  // gameContext.scene.add(directionalLight);
+  // directionalLight.target.position.set(2, 1, 5);
+  // directionalLight.target.updateMatrixWorld();
 
 
 
@@ -305,9 +352,7 @@ function createSky() {
   gameContext.scene.add(gameContext.clouds.object);
 }
 
-async function createGround(width = 100, depth = 100) {
-
-  const tex = textureLoader.load(sandTexture);
+async function createGround(tex, width = 100, depth = 100) {
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(100, 100); // tile 50x across, 100x down the 100x200 plane
@@ -479,9 +524,16 @@ async function setupGame() {
   }
   gameContext.renderer = new FuseRenderer({
     canvas,
-    antialias: true
-    // renderMode: 'webgpu'
+    antialias: true,
+    renderMode: 'webgpu'
   });
+  
+  const dialogParent = document.getElementById('game-over');
+  gameContext.gameOverDialog = new UIDialog(dialogParent, { title: 'Game Over', preventClose: true });
+
+  document.getElementById('btn-exit').addEventListener('click', () => app.exit());
+  document.getElementById('btn-replay').addEventListener('click', () => window.location.reload());
+  
   // gameContext.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
   // gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
   // gameContext.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -502,7 +554,8 @@ async function setupGame() {
   
   gameContext.camera = new ShotPerspectiveCamera({
     canvas,
-    fov: 30,
+    fov: 35,
+    autoPosition: false,
     cameraOffsetX: 0,
     cameraOffsetYZ: [1.5, 1],
   });
@@ -510,8 +563,11 @@ async function setupGame() {
   await gameContext.renderer.init();
 
   gameContext.meshLoader = new MeshLoader(gameContext.renderer);  
+  
+  const tex = textureLoader.load(sandTexture);
 
-  await createGround();
+  await createWater(tex);
+  await createGround(tex);
 
   gameContext.camera.setScene(gameContext.ground.mesh);
 
@@ -525,12 +581,18 @@ async function setupGame() {
   gameContext.scene.add(gameContext.aimMesh);
 
   gameContext.camera?.setPositions(gameContext.startPoint, gameContext.aimPoint);
-  // createSky();
+  createSky();
 
 
   await loadGameBoards();
   await loadModels();
   
+
+  // gameContext.renderer.generateEnvironment(gameContext.scene, gameContext.clouds.object);
+  // if (gameContext.renderer.environment) {
+  //   gameContext.waterSurface.updateEnvironment(gameContext.renderer.environment);
+  //   // gameContext.course.updateEnvironment(gameContext.renderer.environment);
+  // }
 
   startRound();
   updateScoreboard();
@@ -759,13 +821,20 @@ function scoreRound() {
 
   // Check for game end
   if (gameContext.scores.red >= gameContext.round.maxPoints || gameContext.scores.blue >= gameContext.round.maxPoints) {
-    // gameOver();
-    console.log('GAME OVER');
+    gameOver();
   } else {
     clearRoundBags();
     gameContext.round.number++;
     startRound();
   }
+}
+
+function gameOver() {
+  const winner = gameContext.scores.red >= gameContext.round.maxPoints ? 'Red' : 'Blue';
+  const win = gameContext.gameOverDialog.content.querySelector('#game-over-winner');
+  win.textContent = gameContext.scores.red >= gameContext.round.maxPoints ? 'Red Wins!' : 'Blue Wins!';
+  win.className = gameContext.scores.red >= gameContext.round.maxPoints ? 'red' : 'blue';
+  gameContext.gameOverDialog.open();
 }
 
 function onShotEnded() {
@@ -848,9 +917,12 @@ function animate(animDelta) {
   }
 
   
-  if (gameContext.water.object) {
-    gameContext.water.object.material.uniforms['time'].value += gameContext.water.speed / 60.0;
+  if (gameContext.waterSurface) {
+    gameContext.waterSurface.update();
   }
+  // if (gameContext.water.object) {
+  //   gameContext.water.object.material.uniforms['time'].value += gameContext.water.speed / 60.0;
+  // }
 
   if (gameContext.debug.enabled) {
     const { vertices, colors } = app.world.debugRender();

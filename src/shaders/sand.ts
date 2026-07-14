@@ -1,223 +1,213 @@
-import * as THREE from 'three';
+// src/fuse/SandBlendMaterial.js
+import * as THREE from 'three/webgpu';
+import { MeshStandardNodeMaterial } from 'three/webgpu';
+import {
+  texture as tslTexture,
+  vec2,
+  vec3,
+  vec4,
+  float,
+  mix,
+  smoothstep,
+  positionWorld,
+  uniform,
+  cameraPosition,
+} from 'three/tsl';
 
-const VERT = /* glsl */ `
-  varying float vTint;
-
-  void main() {
-    // Pull the red channel from the vertex color you painted
-    vTint = color.r;
-
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+type SurfaceConfig = {
+  roughnessFactor?: number,
+  tileSize?: number,
+  tint?: string,
+  blending?: {
+    distance?: number,
+    noiseFreq?: number,
+    noiseAmp?: number,
+    sandNoiseFreq?: number,
+    sandBaseHeight?: number,
+    sandLowDarken?: number,
+    sandVariationStrength?: number,
+    lipDarken?: number,
+    dirtTint?: string,
+    dirtWidth?: number,
+    dirtStrength?: number,
+    distanceExaggeration?: number,
   }
-`;
-
-const FRAG = /* glsl */ `
-  uniform vec3 uSandColor;
-  uniform vec3 uEdgeColor;
-  uniform float uTintStrength;
-
-  varying float vTint;
-
-  void main() {
-    // Mix from sand → dark edge based on the red vertex color
-    float t = clamp(vTint * uTintStrength, 0.0, 1.0);
-    vec3 finalColor = mix(uSandColor, uEdgeColor, t);
-
-    gl_FragColor = vec4(finalColor, 1.0);
-  }
-`;
-
-
-
-function buildVertex(base: string) {
-  return base
-    .replace(
-      'void main() {',
-      `attribute float aTint;
-        varying float vTint;
-        varying vec2 vDetailUv;
-        void main() {`
-    )
-    .replace(
-      '#include <begin_vertex>',
-      `#include <begin_vertex>
-        vTint = aTint;
-        vDetailUv = uv;`
-    );
 }
 
-function buildFragment(base: string) {
-  return base
-    .replace(
-      'void main() {',
-      `uniform vec3 uEdgeColor;
-        uniform float uTintStrength;
-        uniform sampler2D uDetailMap;
-        uniform float uDetailScale;
-        varying float vTint;
-        varying vec2 vDetailUv;
-        void main() {`
-    )
-    .replace(
-      '#include <dithering_fragment>',
-      `#include <dithering_fragment>
-        // float t = clamp(vTint * uTintStrength, 0.0, 1.0);
 
-        // Future: grass-to-sand breakup
-        // vec4 detail = texture2D(uDetailMap, vDetailUv * uDetailScale);
-        // gl_FragColor.rgb = mix(gl_FragColor.rgb, detail.rgb, t * detail.a);
-
-        // gl_FragColor.rgb = mix(gl_FragColor.rgb, uEdgeColor, t);
-        float t = clamp(vTint * uTintStrength, 0.0, 1.0);
-        t = smoothstep(0.0, 1.0, t);
-        gl_FragColor.rgb = mix(gl_FragColor.rgb, uEdgeColor, t);`
-    );
+type SandMaterialOptions = {
+  baseTexture?: THREE.Texture,
+  neighborTexture?: THREE.Texture,
+  noiseTexture?: THREE.Texture,
+  blendMap?: {
+    data: Uint8Array,
+    width: number,
+    height: number,
+    bounds: { w: number, h: number, x: number, y: number },
+  },
+  config?: SurfaceConfig,
+  neighborConfig?: SurfaceConfig,
 }
 
-type SandShaderMaterialOptions = {
-  edgeColor?: THREE.Color,
-  tintStrength?: number,
-  exposure?: number
-}
+export class SandMaterial {
+  material;
 
-export class SandShaderMaterial extends THREE.ShaderMaterial {
-  
-  constructor(baseMaterial: THREE.MeshStandardMaterial, options: SandShaderMaterialOptions = {}) {
-    const map = baseMaterial.map;
-    const normalMap = baseMaterial.normalMap;
-
-    const {
-      // edgeColor = new THREE.Color(0.478, 0.463, 0.333),
-      edgeColor = new THREE.Color('#372813'),
-      tintStrength = 0.5,
-      exposure = 1.08,
-    } = options;
-
-    super({
-      uniforms: THREE.UniformsUtils.merge([
-        THREE.UniformsLib.lights,
-        // @ts-expect-error
-        THREE.UniformsLib.shadowmap,
-        {
-          uMap: { value: map },
-          uNormalMap: { value: normalMap },
-          uNormalScale: { value: baseMaterial.normalScale || new THREE.Vector2(1, 1) },
-          uTileScale: { value: map?.repeat?.clone() || new THREE.Vector2(1, 1) },
-          uTileOffset: { value: map?.offset?.clone() || new THREE.Vector2(0, 0) },
-          uRoughness: { value: baseMaterial.roughness ?? 0.8 },
-          uEdgeColor: { value: edgeColor },
-          uTintStrength: { value: tintStrength },
-          uExposure: { value: exposure },
-          directionalShadowMap: { value: [] },
-          directionalShadowMatrix: { value: [] },
-          pointShadowMap: { value: [] },
-          pointShadowMatrix: { value: [] },
-          spotShadowMap: { value: [] },
-          spotLightMatrix: { value: [] },
-          spotLightMap: { value: [] },
-
-        }
-      ]),
-      vertexShader: `
-        attribute vec3 color;
-        varying vec3 vColor;
-        varying vec2 vUv;
-        varying vec3 vNormal;
-        varying vec3 vViewPosition;
-
-        void main() {
-          vColor = color;
-          vUv = uv;
-          vNormal = normalize(normalMatrix * normal);
-
-          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          vViewPosition = -mvPosition.xyz;
-
-          gl_Position = projectionMatrix * mvPosition;
-        }
-      `,
-      fragmentShader: `
-        #include <common>
-        #include <lights_pars_begin>
-
-        uniform sampler2D uMap;
-        uniform sampler2D uNormalMap;
-        uniform vec2 uNormalScale;
-        uniform vec2 uTileScale;
-        uniform vec2 uTileOffset;
-        uniform float uRoughness;
-        uniform vec3 uEdgeColor;
-        uniform float uTintStrength;
-        uniform float uExposure;
-
-        varying vec3 vColor;
-        varying vec2 vUv;
-        varying vec3 vNormal;
-        varying vec3 vViewPosition;
-
-        void main() {
-          vec2 tiledUv = vUv * uTileScale + uTileOffset;
-
-          vec4 texColor = texture2D(uMap, tiledUv);
-          vec3 normalTex = texture2D(uNormalMap, tiledUv).rgb * 2.0 - 1.0;
-          normalTex.xy *= uNormalScale;
-          vec3 normal = normalize(vNormal + normalTex);
-
-          // Ambient from scene
-          vec3 lighting = ambientLightColor;
-
-          // Directional lights from scene
-          #if NUM_DIR_LIGHTS > 0
-            for (int i = 0; i < NUM_DIR_LIGHTS; i++) {
-              float diff = max(dot(normal, directionalLights[i].direction), 0.0);
-              lighting += directionalLights[i].color * diff * RECIPROCAL_PI;
-            }
-          #endif
-
-          // Point lights from scene
-          #if NUM_POINT_LIGHTS > 0
-            for (int i = 0; i < NUM_POINT_LIGHTS; i++) {
-              vec3 lightVec = pointLights[i].position - vViewPosition;
-              float dist = length(lightVec);
-              vec3 lightDir = normalize(lightVec);
-              float diff = max(dot(normal, lightDir), 0.0);
-              float attenuation = 1.0 / (1.0 + dist * dist * 0.01);
-              lighting += pointLights[i].color * diff * attenuation * RECIPROCAL_PI;
-            }
-          #endif
-
-          // Vertex color tint
-          float t = 1.0 - min(min(vColor.r, vColor.g), vColor.b);
-          t = smoothstep(0.0, 1.0, t * uTintStrength);
-
-          vec3 finalColor = mix(texColor.rgb, uEdgeColor, t);
-          finalColor *= lighting * uExposure;
-
-          gl_FragColor = vec4(finalColor, 1.0);
-        }
-      `,
-      lights: true,
+  constructor(
+    baseMesh: THREE.Mesh,
+    noiseTexture: THREE.Texture,
+    blendMap?: BlendMapData,
+    neighborMesh?: THREE.Mesh,
+    blendSettings: SurfaceConfig['blending'] = {}
+  ) {
+    const baseMat = baseMesh.material;
+    if (!(baseMat instanceof THREE.MeshStandardMaterial)) {
+      throw new Error('Base material requires a MeshStandardMaterial');
+    }
+    const baseTexture = baseMat.map;
+    const baseTint = baseMat.color || new THREE.Color(1, 1, 1);
+    const baseTileSize = baseMesh.userData.tileSize || 2.5;
+    const baseRoughness = baseMat.roughness ?? 0.9;
+    if (!baseTexture) {
+      throw new Error('Base material requires a base texture map');
+    }
+    // Build the new node material
+    this.material = new MeshStandardNodeMaterial({
+      transparent: false,
     });
+    this.material.roughness = baseRoughness;
+
+    // Copy normal map if present
+    if (baseMat.normalMap) {
+      this.material.normalMap = baseMat.normalMap;
+      this.material.normalScale = baseMat.normalScale?.clone() || new THREE.Vector2(1, 1);
+    }
+
+    // Base texture tiled by world position
+    const baseTiledUV = positionWorld.xz.div(float(baseTileSize));
+    const baseColorTex = tslTexture(baseTexture, baseTiledUV);
+    const baseColor = baseColorTex.mul(vec3(baseTint.r, baseTint.g, baseTint.b));
+
+    const sandNoiseFreq = float(blendSettings.sandNoiseFreq || 0.15);
+    const sandNoiseUV1 = positionWorld.xz.mul(sandNoiseFreq);
+    const sandNoise1 = tslTexture(noiseTexture, sandNoiseUV1).r;
+    // const sandNoiseUV2 = positionWorld.xz.mul(float(blendSettings.sandNoiseFreq || 0.15).mul(4.0));
+    const sandNoiseUV2 = positionWorld.xz.mul(sandNoiseFreq.mul(4.0));
+
+    const sandNoise2 = tslTexture(noiseTexture, sandNoiseUV2).r;
+    const sandVariation = sandNoise1.mul(0.6).add(sandNoise2.mul(0.4));
+
+    const heightRef = float(blendSettings.sandBaseHeight || 0);
+    const heightFactor = positionWorld.y.sub(heightRef).clamp(-2, 2).div(2.0);
+    const lowSpotDarken = float(1.0).sub(
+      float(1.0).sub(heightFactor).clamp(0, 1).mul(float(blendSettings.sandLowDarken || 0.25))
+    );
+    const sandDarkenAmount = float(1.0).sub(
+      float(1.0).sub(sandVariation).mul(float(blendSettings.sandVariationStrength || 0.5))
+    );
+    const finalSand = baseColor.mul(sandDarkenAmount).mul(lowSpotDarken);
+
+
+    // ── Combine ──
+    // const surfaceColor = mix(tintedGrass, finalSand, isSand);
+    // this.material.colorNode = surfaceColor.mul(lipDarken);
+
+    // ── Edge blending (only if neighbor + blendMap provided) ──
+    if (blendMap && neighborMesh) {
+      const neighborMat = neighborMesh.material;
+      if (!(neighborMat instanceof THREE.MeshStandardMaterial)) {
+        console.warn(`baseMesh: ${baseMesh.name}`, baseMat);
+        console.warn(`neighborMesh: ${neighborMesh.name}`, neighborMat);
+        throw new Error('Neighbor material requires a MeshStandardMaterial');
+      }
+      const neighborTexture = neighborMat.map;
+      if (!neighborTexture) {
+        throw new Error('Neighbor material requires neighbors to have a base texture');
+      }
+      const neighborTint = neighborMat.color || new THREE.Color(1, 1, 1);
+      const neighborTileSize = neighborMesh.userData.tileSize || 2.0;
+
+      const neighborTiledUV = positionWorld.xz.div(float(neighborTileSize));
+      const neighborColorTex = tslTexture(neighborTexture, neighborTiledUV);
+      const neighborColor = neighborColorTex.mul(vec3(neighborTint.r, neighborTint.g, neighborTint.b));
+
+      const blendTex = new THREE.DataTexture(
+        new Uint8Array(blendMap.data),
+        blendMap.width,
+        blendMap.height,
+        THREE.RGBAFormat
+        // THREE.RedFormat,
+      );
+      blendTex.needsUpdate = true;
+      blendTex.magFilter = THREE.LinearFilter;
+      blendTex.minFilter = THREE.LinearFilter;
+      blendTex.generateMipmaps = false;
+      blendTex.colorSpace = THREE.NoColorSpace;
+      blendTex.wrapS = THREE.ClampToEdgeWrapping;
+      blendTex.wrapT = THREE.ClampToEdgeWrapping;
+
+      const boundsX = uniform(blendMap.bounds.x);
+      const boundsY = uniform(blendMap.bounds.y);
+      const boundsW = uniform(blendMap.bounds.w);
+      const boundsH = uniform(blendMap.bounds.h);
+
+      const blendU = positionWorld.x.sub(boundsX).div(boundsW);
+      const blendV = positionWorld.z.sub(boundsY).div(boundsH);
+      const blendSample = tslTexture(blendTex, vec2(blendU, blendV)).r;
+
+      const noiseFreq = float(blendSettings.noiseFreq || 0.5);
+      const noiseAmp = float(blendSettings.noiseAmp || 0.3);
+      const noiseUV = positionWorld.xz.mul(noiseFreq);
+      const noiseSample = tslTexture(noiseTexture, noiseUV).r;
+
+      const distFromEdge = blendSample.sub(0.5).mul(2.0).clamp(0, 1);
+
+      const cameraDist = positionWorld.sub(cameraPosition).length();
+      const distSoften = smoothstep(float(20.0), float(120.0), cameraDist);
+      const distScale = smoothstep(float(10.0), float(100.0), cameraDist)
+        .mul(float(blendSettings.distanceExaggeration || 1.5))
+        .add(1.0);
+
+      const noiseUV2 = positionWorld.xz.mul(noiseFreq.mul(3.2));
+      const noiseSample2 = tslTexture(noiseTexture, noiseUV2).r;
+      const combinedNoise = noiseSample.mul(0.6).add(noiseSample2.mul(0.4));
+
+      const effectiveNoiseAmp = noiseAmp.mul(float(1.0).sub(distSoften.mul(0.7)));
+      const scaledNoiseAmp = effectiveNoiseAmp.mul(distScale);
+      const cutoff = combinedNoise.mul(scaledNoiseAmp);
+
+      const transitionWidth = float(0.02).add(distSoften.mul(0.15));
+      const isSand = smoothstep(cutoff, cutoff.add(transitionWidth), distFromEdge);
+
+      const dirtColor = vec3(
+        new THREE.Color(blendSettings.dirtTint || '#5a4a32').r,
+        new THREE.Color(blendSettings.dirtTint || '#5a4a32').g,
+        new THREE.Color(blendSettings.dirtTint || '#5a4a32').b,
+      );
+      const dirtWidth = float(blendSettings.dirtWidth || 0.15).mul(distScale);
+      const dirtAmount = smoothstep(cutoff.sub(dirtWidth), cutoff, distFromEdge)
+        .mul(float(blendSettings.dirtStrength || 0.5));
+      const tintedGrass = mix(neighborColor, vec4(dirtColor, 1.0), dirtAmount);
+
+      const lipWidth = float(0.08).mul(distScale);
+      const lipStart = cutoff.sub(lipWidth);
+      const lipEnd = cutoff.add(0.02);
+      const lipStrength = float(blendSettings.lipDarken || 0.25);
+      const lipAmount = smoothstep(lipStart, lipEnd, distFromEdge)
+        .mul(float(1.0).sub(smoothstep(lipEnd, lipEnd.add(0.05), distFromEdge)));
+      const lipDarken = float(1.0).sub(lipAmount.mul(lipStrength));
+
+      const surfaceColor = mix(tintedGrass, finalSand, isSand);
+      this.material.colorNode = surfaceColor.mul(lipDarken);
+    } else {
+      this.material.colorNode = finalSand;
+    }
+
+    // Apply to the mesh
+    baseMesh.material = this.material;
   }
 
-  get edgeColor() { return this.uniforms.uEdgeColor.value; }
-  set edgeColor(c) { this.uniforms.uEdgeColor.value = c; }
-
-  get tintStrength() { return this.uniforms.uTintStrength.value; }
-  set tintStrength(v) { this.uniforms.uTintStrength.value = v; }
-
-  get tileScale() { return this.uniforms.uTileScale.value; }
-  set tileScale(v) { this.uniforms.uTileScale.value = v; }
-
-  get tileOffset() { return this.uniforms.uTileOffset.value; }
-  set tileOffset(v) { this.uniforms.uTileOffset.value = v; }
-
-  get normalScale() { return this.uniforms.uNormalScale.value; }
-  set normalScale(v) { this.uniforms.uNormalScale.value = v; }
-
-  get roughness() { return this.uniforms.uRoughness.value; }
-  set roughness(v) { this.uniforms.uRoughness.value = v; }
-
-  get exposure() { return this.uniforms.uExposure.value; }
-  set exposure(v) { this.uniforms.uExposure.value = v; }
+  dispose() {
+    this.material.dispose();
+  }
 }
+

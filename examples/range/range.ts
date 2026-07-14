@@ -30,9 +30,9 @@ import fairwayTexture from './textures/gen_fairway_tex.png?url';
 import fairwayMap from './textures/gen_fairway_map.png?url';
 import { PlayerState } from '@/courses/types';
 
-const sunColor = new THREE.Color('#fffbec');
-const skyColor = new THREE.Color('#d5e4e9');
-const fogColor = new THREE.Color('#7e9096');
+const sunColor = new THREE.Color('#fdf0d8');
+const skyColor = new THREE.Color('#abd0db');
+const fogColor = new THREE.Color('#9bb0b7');
 const cloudColor = new THREE.Color('#ffffff');
 const mountainColor = new THREE.Color('#687e80');
 const hashMarks = [50, 100, 150, 200, 250, 300];
@@ -97,13 +97,20 @@ function launchShot(shot: OpenGolfSim.Shot) {
   }
 }
 
-function setupWorld() {
+async function setupWorld() {
   gameContext.timer.connect(document);
 
   const canvas = document.getElementById('canvas');
   if (!canvas || !(canvas instanceof HTMLCanvasElement)) throw new Error('Unable to find canvas in HTML. Make sure you create a root canvas element (e.g. <canvas id="canvas"></canvas>)');
   
-  gameContext.renderer = new FuseRenderer({ canvas, antialias: true });
+  gameContext.renderer = new FuseRenderer({
+    canvas,
+    antialias: true,
+    renderMode: 'webgpu',
+    qualityLevel: gameContext.setupData?.qualityLevel ?? 2
+  });
+
+  await gameContext.renderer.init();
 }
 
 
@@ -149,6 +156,8 @@ async function createGroundPlane() {
   gameContext.ground.position.y = 0;
   gameContext.ground.position.z = 140;
   gameContext.ground.receiveShadow = true;
+  gameContext.ground.userData.surface = 'fairway';
+
 
   // console.log('mat', mat);
 
@@ -160,10 +169,10 @@ async function createGroundPlane() {
   gameContext.scene.add(gameContext.groundLines);
 
   
-  gameContext.groundCollider = new GroundPhysics(gameContext.ground, app.world, app.rapier, {
-    type: CourseSurfaceType.Fairway,
-    ...CourseSurfaces.fairway
-  });  
+  // gameContext.groundCollider = new GroundPhysics(gameContext.ground, app.world, app.rapier, {
+  //   type: CourseSurfaceType.Fairway,
+  //   ...CourseSurfaces.fairway
+  // });  
 
 
   const downrange = new THREE.Vector3(0, 0, 1); // looking down -Z
@@ -224,7 +233,7 @@ async function loadMountain(
 }
 
 async function setupRange() {
-  setupWorld();
+  await setupWorld();
   const player = gameContext.setupData?.players?.[0];
   if (!player) throw new Error('No player found in setup data');
   if (!player.clubs?.length) throw new Error('No clubs found for player');
@@ -239,7 +248,7 @@ async function setupRange() {
 
   gameContext.scene = new THREE.Scene();
   gameContext.scene.background = skyColor;
-  gameContext.lightGroup = new CourseLight(sunColor);
+  gameContext.lightGroup = new CourseLight({ color: sunColor });
   gameContext.scene.add(gameContext.lightGroup);
 
   gameContext.fog = new THREE.Fog(fogColor, 200, 1000);
@@ -251,7 +260,10 @@ async function setupRange() {
   if (!gameContext.ground) throw new Error('Ground physics should exist before creating camera');
   gameContext.camera = new ShotPerspectiveCamera({
     scene: gameContext.ground,
-    far: 900,
+    far: 1000,
+    autoPosition: true,
+    // fov: 25,
+    // cameraOffsetYZ: [3, 12],
     cameraOffsetX: gameContext.setupData?.cameraOffset ? -(gameContext.setupData.cameraOffset / 100) : 0
   });
 
@@ -261,6 +273,7 @@ async function setupRange() {
   await gameContext.visualAimPoint.load();
   gameContext.scene.add(gameContext.visualAimPoint.object);
 
+
   gameContext.controls = new CourseKeyboardControls({ testShots: true });
   gameContext.controls.on('aim', aimKeys => {
     if (gameContext.camera) gameContext.camera.aimKeys = aimKeys;
@@ -269,7 +282,7 @@ async function setupRange() {
   gameContext.controls.on('testShot', shot => launchShot(shot));
   
   // start hidden (press S to toggle)
-  gameContext.stats = new UIStats('#render-stats', { hidden: true });
+  gameContext.stats = new UIStats('#render-stats', { hidden: false });
 
   // Sky/Clouds
   gameContext.clouds = new VolumetricClouds(gameContext.camera, {
@@ -284,10 +297,13 @@ async function setupRange() {
   });
   gameContext.scene.add(gameContext.clouds.object);
   
+  
   if (!app.world) throw new Error('Missing physics world. Did you call app.initialize() first?');
+  if (!gameContext.setupData) throw new Error('Missing setupData');
   gameContext.golfBall = new GolfBall(gameContext.scene, app.world, app.rapier, {
     setupData: gameContext.setupData,
-    clearTrail: 'start'
+    clearTrail: 'start',
+    groundMeshes: [gameContext.ground]
   });
   gameContext.golfBall.on('shotEnded', onShotEnded);
 
@@ -304,11 +320,16 @@ async function setupRange() {
   });
   gameContext.playerMenu.on('selectClub', club => clubChange(club));
   
+
+  gameContext.renderer.generateEnvironment(gameContext.scene, gameContext.clouds.object);
+  gameContext.renderer.setupPostProcessing(gameContext.scene, gameContext.camera);
+
   setupNextShot();
 
   // if (gameContext.setupData?.players.length) {
   //   gameContext.playerMenu?.update({ player: gameContext.setupData.players[0] });
   // }
+  await gameContext.renderer.compile(gameContext.scene, gameContext.camera);  
 }
 
 async function preLoad() {
@@ -331,7 +352,6 @@ function onShotEnded() {
       club: gameContext.currentPlayer?.currentClub,
     }
   );
-
 }
 
 async function initializeSetup(payload: any) {
@@ -384,6 +404,7 @@ function clubChange(club: OpenGolfSim.Club) {
   gameContext.aimPoint = new THREE.Vector3(0, 0, club.distance);
   gameContext.camera?.setPositions(gameContext.startPoint, gameContext.aimPoint);
   gameContext.playerMenu?.update(gameContext.currentPlayer);
+  app.sendPlayerUpdate(gameContext.currentPlayer, gameContext.startPoint.toArray());
   updateAimPoint();
 }
 
@@ -393,7 +414,10 @@ function setupNextShot(playerStatus?: CoursePlayer) {
   gameContext.golfBall?.reset(gameContext.aimPoint, gameContext.startPoint);
   updateAimPoint()
   
-  if (gameContext.currentPlayer) gameContext.playerMenu?.update(gameContext.currentPlayer);
+  if (gameContext.currentPlayer) {
+    gameContext.playerMenu?.update(gameContext.currentPlayer);
+    app.sendPlayerUpdate(gameContext.currentPlayer, gameContext.startPoint.toArray());
+  }
 }
 
 function updateAimPoint() {
@@ -413,7 +437,7 @@ function animate(animDelta: number) {
     gameContext.golfBall.update(delta);
   }
 
-  gameContext.renderer?.clear();
+  // gameContext.renderer?.clear();
 
   if (gameContext.controls) gameContext.controls.update(delta);
   

@@ -3,7 +3,7 @@ import { type World } from '@dimforge/rapier3d-compat';
 import { seededRandom } from '@/utils/random';
 import { isMeshObject } from '@/utils/mesh';
 import { GROUP_BALL, GROUP_OBJECT } from './physics/ballPhysics';
-import { GroundUtils } from './physics/groundPhysics';
+// import { GroundUtils } from './physics/groundPhysics';
 import { QualityMode } from './utils/quality';
 
 export type TreePlanterOptions = {
@@ -88,6 +88,8 @@ export class TreePlanter {
   #raycaster: THREE.Raycaster;
   lodEntries: LODEntry[] = [];
   #init: boolean = false;
+  #lastCamX = 0;
+  #lastCamZ = 0;  
   #frameNum = 0;
 
   constructor(options: TreePlanterOptions) {
@@ -126,18 +128,18 @@ export class TreePlanter {
   #getGroundY(x: number, z: number) {
     const originY = 200;
 
-    if (this.physicsEnabled) {
-      const ray = new this.rapier!.Ray(
-        { x, y: originY, z },
-        { x: 0, y: -1, z: 0 }
-      );
-      const hit = this.world!.castRay(ray, 500, true);
-      if (hit == null) {
-        console.log('No ground hit...');
-        return null;
-      }
-      return originY - hit.timeOfImpact;
-    }
+    // if (this.physicsEnabled) {
+    //   const ray = new this.rapier!.Ray(
+    //     { x, y: originY, z },
+    //     { x: 0, y: -1, z: 0 }
+    //   );
+    //   const hit = this.world!.castRay(ray, 500, true);
+    //   if (hit == null) {
+    //     console.log('No ground hit...');
+    //     return null;
+    //   }
+    //   return originY - hit.timeOfImpact;
+    // }
 
     // Three.js fallback
     if (!this.groundMeshes || Array.isArray(this.groundMeshes) && this.groundMeshes?.length === 0) return 0; // no ground info, plant at y=0
@@ -187,6 +189,8 @@ export class TreePlanter {
 
   plantFromMask(trees: TreeGroup[], maskData: { data: ImageDataArray, width: number, height: number }, seed = 12345) {
     const { data, width, height } = maskData;
+    console.log(`PLANT Image Mask ${width} x ${height}`, data);
+    console.log(`PLANT in world ${this.worldSize} x ${this.worldSize}`);
     const cellW = this.worldSize / width;
     const cellH = this.worldSize / height;
     const random = seededRandom(seed);
@@ -322,6 +326,7 @@ export class TreePlanter {
       
       const meshes = this.#buildLODMeshes(trees[treeIdx], matrices, pickedColors, count);
       allResults.push(meshes);
+      console.log(`Plant tree ${treeIdx} (${count})`, meshes, matrices);
     }
     return allResults;
   }
@@ -384,7 +389,7 @@ export class TreePlanter {
         }
 
         instanced.instanceMatrix.needsUpdate = true;
-        instanced.castShadow = level !== maxLevel;
+        instanced.castShadow = true; // level !== maxLevel;
         instanced.receiveShadow = false;
         instanced.frustumCulled = false;
 
@@ -474,6 +479,7 @@ export class TreePlanter {
       const distsSq = lodDistances.map(d => d * d);
       if (!lodMeshes.length) { return; }
       const counts = new Array(lodMeshes.length).fill(0);
+      const prevCounts = lodMeshes.map(meshes => meshes[0]?.count ?? 0);
 
       for (let i = 0; i < allMatrices.length; i++) {
         pos.setFromMatrixPosition(allMatrices[i]);
@@ -497,9 +503,11 @@ export class TreePlanter {
       // console.log(`level: ${level}`);
 
       for (let l = 0; l < lodMeshes.length; l++) {
+        const changed = counts[l] !== prevCounts[l];
         for (const mesh of lodMeshes[l]) {
           mesh.count = counts[l];
-          mesh.instanceMatrix.needsUpdate = true;
+          // mesh.instanceMatrix.needsUpdate = true;
+          if (changed) mesh.instanceMatrix.needsUpdate = true;
         }
       }
     }
@@ -511,7 +519,14 @@ export class TreePlanter {
     //   this.#updateLODs(camera);
     // }
     this.#frameNum++;
-    if (this.#frameNum % 4 === 0) {
+    // if (this.#frameNum % 4 === 0) {
+    if (this.#frameNum % 10 === 0) {
+      const dx = camera.position.x - this.#lastCamX;
+      const dz = camera.position.z - this.#lastCamZ;
+      if (dx * dx + dz * dz < 1.0) return; // less than 1m moved, skip
+      this.#lastCamX = camera.position.x;
+      this.#lastCamZ = camera.position.z;
+
       this.#updateLODs(camera);
     }
   }

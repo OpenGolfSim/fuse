@@ -1,5 +1,11 @@
-import * as THREE from 'three';
-import { MeshLineGeometry, MeshLineMaterial, raycast } from 'meshline'
+import * as THREE from 'three/webgpu';
+import { MeshLine, MeshLineGeometry } from 'makio-meshline';
+import {
+  Fn, float, smoothstep,
+  uniform as tslUniform,
+  cameraPosition, positionWorld, distance,
+} from 'three/tsl';
+import type { UniformNode } from 'three/webgpu';
 
 const MAX_POINTS = 4000;
 
@@ -31,32 +37,6 @@ function resampleByArcLength(points: THREE.Vector3[], spacing: number) {
   return out;
 }
 
-function createTrailAlphaMap() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 1;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    throw new Error('Unable to get 2d canvas context');
-  }
-  const gradient = ctx.createLinearGradient(0, 0, 256, 0);
-  // Fade at the OLD end of the trail (U=0). Flip stops if you want
-  // the fade at the ball end instead.
-  gradient.addColorStop(0.00, 'rgba(255, 255, 255, 0)');
-  gradient.addColorStop(0.05, 'rgba(255, 255, 255, 1)');
-  gradient.addColorStop(1.00, 'rgba(255, 255, 255, 1)');
-
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, 256, 1);
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.minFilter = THREE.LinearFilter;
-  tex.magFilter = THREE.LinearFilter;
-  tex.generateMipmaps = false;
-  tex.needsUpdate = true;
-  return tex;
-}
-
 type BallTrailOptions = {
   maxPoints?: number;
   lineWidth?: number;
@@ -74,116 +54,101 @@ export class BallTrail {
   lineWidth: number;
   fadeLength: number;
   resampleSpacing: number;
-  color: THREE.Color | number;
-  uCamFadeNear: { value: number };
-  uCamFadeFar: { value: number };
-  material: MeshLineMaterial;
+  color: THREE.Color;
 
   points: THREE.Vector3[];
   frameNum: number;
-  trail: THREE.Mesh | null;
-  geom: MeshLineGeometry | null;
-  #alphaCanvas: HTMLCanvasElement;
-  #alphaCtx: CanvasRenderingContext2D | null;
-  #alphaTex: THREE.CanvasTexture;
+  line: MeshLine;
+  fadeFracUniform: UniformNode<"float", number>;
+  camFadeNear: UniformNode<"float", number>;
+  camFadeFar: UniformNode<"float", number>;
+  activeRatioUniform: UniformNode<"float", number>;
+
+  renderOrder = 1;
+  #positions: Float32Array;
+  #activePoints = 0;
+  #needsFullFill = true;
+  #built = false;
 
   constructor(scene: THREE.Scene, golfBall: THREE.Object3D, options: BallTrailOptions = {}) {
     this.scene = scene;
     this.golfBall = golfBall;
     this.maxPoints = options.maxPoints ?? MAX_POINTS;
-    this.lineWidth = options.lineWidth ?? 0.1;
-    this.color = options.color ?? new THREE.Color('#fc4723');
-    this.fadeLength = options.fadeLength ?? 2.0;        // world units
+    this.lineWidth = options.lineWidth ?? 0.03;
+    this.fadeLength = options.fadeLength ?? 2.0;
     this.resampleSpacing = options.resampleSpacing ?? 0.15;
-    // Camera-distance fade controls (in world units)
-    this.uCamFadeNear = { value: options.cameraFadeNear ?? 6 }; // fully transparent here
-    this.uCamFadeFar = { value: options.cameraFadeFar  ?? 12 }; // fully opaque past here
+    this.color = options.color instanceof THREE.Color
+      ? options.color
+      : new THREE.Color(options.color ?? '#fc4723');
 
     this.points = [];
     this.frameNum = 0;
-    this.trail = null;
-    this.geom = null;
 
-    // Reusable alpha-map canvas; we redraw the gradient each frame
-    this.#alphaCanvas = document.createElement('canvas');
-    this.#alphaCanvas.width = 256;
-    this.#alphaCanvas.height = 1;
-    this.#alphaCtx = this.#alphaCanvas.getContext('2d');
+    // Uniforms for dynamic fade control
+    this.fadeFracUniform = tslUniform(0.01);
+    this.camFadeNear = tslUniform(options.cameraFadeNear ?? 15);
+    this.camFadeFar = tslUniform(options.cameraFadeFar ?? 20);
+    this.activeRatioUniform = tslUniform(1.0);
 
-    this.#alphaTex = new THREE.CanvasTexture(this.#alphaCanvas);
-    this.#alphaTex.minFilter = THREE.LinearFilter;
-    this.#alphaTex.magFilter = THREE.LinearFilter;
-    this.#alphaTex.generateMipmaps = false;
-
-    this.material = new MeshLineMaterial({
-      color: this.color,
-      lineWidth: this.lineWidth,
-      resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
-      sizeAttenuation: 1,
-      useAlphaMap: 1,
-      alphaMap: this.#alphaTex,
+    // TSL hook: fade opacity at both ends of the trail.
+    // Receives (alpha, progress, side) where progress is 0→1 along the line.
+    // Returns modified alpha with smoothstep fade at both ends.
+    // @ts-expect-error - makio-meshline Fn hook typing
+    const trailOpacityFn = Fn(([alpha, progress, side]) => {
+      // const fadeIn = smoothstep(float(0), this.fadeFracUniform, progress);
+      // const fadeOut = smoothstep(float(0), this.fadeFracUniform, float(1).sub(progress));
+      // Remap progress from [0, activeRatio] to [0, 1]
+      const remapped = progress.div(this.activeRatioUniform).clamp(0, 1);
+      const fadeIn = smoothstep(float(0), this.fadeFracUniform, remapped);
+      const fadeOut = smoothstep(float(0), this.fadeFracUniform, float(1).sub(remapped));
+      return alpha.mul(fadeIn).mul(fadeOut);
     });
 
-    this.material.transparent = true;
-    this.material.depthWrite = true;
-    this.material.depthTest = true;
-    this.material.uniforms.uCamFadeNear = this.uCamFadeNear;
-    this.material.uniforms.uCamFadeFar  = this.uCamFadeFar;
+    // TSL hook: fade based on camera distance.
+    // Receives (alpha, uv, progress, side). Fully transparent when close
+    // to the camera (< cameraFadeNear), fully opaque past cameraFadeFar.
+    // @ts-expect-error - makio-meshline Fn hook typing
+    const trailAlphaFn = Fn(([alpha, uv, progress, side]) => {
+      const dist = distance(positionWorld, cameraPosition);
+      const camFade = smoothstep(this.camFadeNear, this.camFadeFar, dist);
+      return alpha.mul(camFade);
+    });
 
-    // Vertex shader: forward world position to fragment shader
-    this.material.vertexShader = this.material.vertexShader
-      .replace(
-        'void main()',
-        'varying vec3 vWorldPos;\nvoid main()'
-      )
-      .replace(
-        'void main() {',
-        'void main() {\n  vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;'
-      );
+    // Pre-allocate fixed-size positions buffer
+    this.#positions = new Float32Array(this.maxPoints * 3);
 
-    // Fragment shader: fade alpha based on world-space distance to camera
-    this.material.fragmentShader = this.material.fragmentShader
-      .replace(
-        'void main()',
-        `uniform float uCamFadeNear;
-        uniform float uCamFadeFar;
-        varying vec3 vWorldPos;
-        void main()`
-      )
-      .replace(
-        'gl_FragColor = diffuseColor;',
-        `diffuseColor.a *= smoothstep(uCamFadeNear, uCamFadeFar, distance(vWorldPos, cameraPosition));
-        gl_FragColor = diffuseColor;`
-      );      
+    // Create the line with dummy points — updated in _rebuild
+    this.line = new MeshLine({
+      // lines: new Float32Array([0, 0, 0, 0.001, 0, 0]),
+      lines: this.#positions,
+      color: this.color,
+      lineWidth: this.lineWidth,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 1.0,
+      opacityFn: trailOpacityFn,
+      fragmentAlphaFn: trailAlphaFn,
+    });
 
-    this.material.needsUpdate = true;
+    // Build immediately to pre-allocate GPU buffers and compile shaders
+    this.line.lines(this.#positions).build();
+    this.#built = true;
 
+    this.line.layers.set(2);
+    this.line.frustumCulled = false;
+    this.line.visible = false;
+    this.line.renderOrder = this.renderOrder;
+    // @ts-expect-error makio-meshline raycast signature doesn't match Object3D
+    scene.add(this.line);
   }
 
-  _updateAlphaMap(totalLength: number) {
-    const ctx = this.#alphaCtx;
-    if (!ctx) {
-      throw new Error('Invalid canvas context!');
-    }
-    // Fraction of U that should be the fade region at each end
-    const fade = Math.min(0.49, this.fadeLength / Math.max(totalLength, 0.0001));
-    ctx.clearRect(0, 0, 256, 1);
-    const g = ctx.createLinearGradient(0, 0, 256, 0);
-    g.addColorStop(0.0,        'rgba(255,255,255,0)');
-    g.addColorStop(fade,       'rgba(255,255,255,1)');
-    g.addColorStop(1.0 - fade, 'rgba(255,255,255,1)');
-    g.addColorStop(1.0,        'rgba(255,255,255,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 256, 1);
-    this.#alphaTex.needsUpdate = true;
-  }
   clear() {
     this.points = [];
-    this._rebuild();
+    this.#activePoints = 0;
+    this.line.visible = false;
   }
 
   addPoint() {
-    // Skip duplicates so MeshLine doesn't choke on zero-length segments
     const p = this.golfBall.position;
     const last = this.points[this.points.length - 1];
     if (!last || last.distanceToSquared(p) > 1e-6) {
@@ -192,129 +157,159 @@ export class BallTrail {
   }
 
   update(collectPoints = false) {
-    let dirty = false;
+    // let dirty = false;
 
-    if (collectPoints && this.frameNum % 4 === 0 && this.points.length < this.maxPoints) {
+    // if (collectPoints && this.frameNum % 4 === 0 && this.points.length < this.maxPoints) {
+    if (collectPoints && this.frameNum % 2 === 0 && this.points.length < this.maxPoints) {
       this.addPoint();
-      dirty = true;
+      // dirty = true;
     }
 
-    // During an active shot, also update for the live ball position
-    // but throttle to every other frame
-    if (collectPoints && this.frameNum % 2 === 0) {
-      dirty = true;
-    }
+    // if (collectPoints && this.frameNum % 2 === 0) {
+    //   dirty = true;
+    // }
 
     this.frameNum++;
 
-    if (dirty) {
-      this._rebuild();
+    // if (dirty) {
+    //   this._rebuild();
+    // }
+    if (collectPoints && this.frameNum % 2 === 0) {
+      this._updatePositions();
     }
+
   }
 
-  // update(collectPoints = false) {
-
-  //   if (collectPoints && this.frameNum % 4 === 0 && this.points.length < this.maxPoints) {
-  //     this.addPoint();
-  //   }
-  //   this.frameNum++;
-  //   this._rebuild();
-  // }
-
   _rebuild() {
-    if (this.trail) {
-      this.scene.remove(this.trail);
-      if (this.geom) {
-        this.geom.dispose();
-        // Force-clear MeshLineGeometry's internal arrays
-        (this.geom as any).positions = null;
-        (this.geom as any).previous = null;
-        (this.geom as any).next = null;
-        (this.geom as any).side = null;
-        (this.geom as any).width_ = null;
-        (this.geom as any).counters = null;
-        (this.geom as any).uvs = null;
-        (this.geom as any).indices_array = null;
-      }
-      this.trail = null;
-      this.geom = null;
-    }
-
-    // if (this.trail) {
-    //   this.scene.remove(this.trail);
-    //   if (this.geom) this.geom.dispose()
-    //   this.trail = null;
-    //   this.geom = null;
-    // }
-
     const live = this.golfBall.position;
     const last = this.points[this.points.length - 1];
     const raw = (!last || last.distanceToSquared(live) > 1e-6)
       ? [...this.points, live.clone()]
       : this.points;
 
-    if (raw.length < 2) return;
+    if (raw.length < 2) {
+      this.line.visible = false;
+      return;
+    }
 
-    // Densify so UV ≈ arc length, and so the fade region has plenty of vertices
     const head = resampleByArcLength(raw, this.resampleSpacing);
-    if (head.length < 2) return;
+    if (head.length < 2) {
+      this.line.visible = false;
+      return;
+    }
 
-    // Total arc length, used to size the fade region
+    // Compute total arc length for fade fraction
     let total = 0;
-    for (let i = 1; i < head.length; i++) total += head[i].distanceTo(head[i - 1]);
-    this._updateAlphaMap(total);
+    for (let i = 1; i < head.length; i++) {
+      total += head[i].distanceTo(head[i - 1]);
+    }
 
-    const flat = new Float32Array(head.length * 3);
+    // Update the fade fraction: fadeLength / totalLength
+    // Capped at 0.49 so both ends don't overlap
+    this.fadeFracUniform.value = Math.min(0.49, this.fadeLength / Math.max(total, 0.0001));
+
+    // Build flat positions array
+    const positions = new Float32Array(head.length * 3);
     for (let i = 0; i < head.length; i++) {
-      flat[i * 3]     = head[i].x;
-      flat[i * 3 + 1] = head[i].y;
-      flat[i * 3 + 2] = head[i].z;
+      positions[i * 3]     = head[i].x;
+      positions[i * 3 + 1] = head[i].y;
+      positions[i * 3 + 2] = head[i].z;
     }
 
-    this.geom = new MeshLineGeometry();
-    this.geom.setPoints(flat);
-
-    this.trail = new THREE.Mesh(this.geom, this.material);
-    this.trail.layers.set(2);
-    this.trail.frustumCulled = false;
-    this.scene.add(this.trail);
+    // Update the line geometry and rebuild
+    this.line.lines(positions).build();
+    this.line.visible = true;
+    this.line.frustumCulled = false;
+    this.line.layers.set(2);
+    this.line.renderOrder = this.renderOrder;
   }
 
-  // Add to BallTrail class:
   dispose() {
-    if (this.trail) {
-      this.scene.remove(this.trail);
-      this.trail = null;
+    // @ts-expect-error makio-meshline raycast signature doesn't match Object3D
+    this.scene.remove(this.line);
+    this.line.geometry.dispose();
+    // this.line.material.dispose();
+    const mat = this.line.material;
+    if (Array.isArray(mat)) {
+      mat.forEach(m => m.dispose());
+    } else {
+      mat.dispose();
     }
-    if (this.geom) {
-      this.geom.dispose();
-      this.geom = null;
-    }
-    this.material.dispose();
-    this.#alphaTex.dispose();
+
   }
-  
+
   reset(updatedTarget?: THREE.Object3D) {
     if (updatedTarget) {
       this.golfBall = updatedTarget;
     }
-    // Remove current trail mesh from scene and dispose geometry
-    if (this.trail) {
-      console.log('REMOVE TRAIL');
-      this.scene.remove(this.trail);
-      this.trail = null;
-    }
-    if (this.geom) {
-      console.log('DISPOSE GEOM');
-      this.geom.dispose();
-      this.geom = null;
-    }
-    // Clear points but keep the material and texture alive
+    this.line.visible = false;
     this.points = [];
     this.frameNum = 0;
+    this.#activePoints = 0;
+    this.#built = false;
+    this.#needsFullFill = true;
   }
 
-  // remove() {
-  //   if (this.trail) this.scene.remove(this.trail);
-  // }
+  _updatePositions() {
+    const live = this.golfBall.position;
+    const last = this.points[this.points.length - 1];
+    const raw = (!last || last.distanceToSquared(live) > 1e-6)
+      ? [...this.points, live.clone()]
+      : this.points;
+
+    if (raw.length < 2) {
+      this.line.visible = false;
+      return;
+    }
+
+    const head = resampleByArcLength(raw, this.resampleSpacing);
+    if (head.length < 2) {
+      this.line.visible = false;
+      return;
+    }
+
+    let total = 0;
+    for (let i = 1; i < head.length; i++) {
+      total += head[i].distanceTo(head[i - 1]);
+    }
+    this.fadeFracUniform.value = Math.min(0.49, this.fadeLength / Math.max(total, 0.0001));
+    this.activeRatioUniform.value = this.#activePoints / this.maxPoints;
+
+    this.#activePoints = Math.min(head.length, this.maxPoints);
+    for (let i = 0; i < this.#activePoints; i++) {
+      this.#positions[i * 3]     = head[i].x;
+      this.#positions[i * 3 + 1] = head[i].y;
+      this.#positions[i * 3 + 2] = head[i].z;
+    }
+
+    // const lastPt = head[this.#activePoints - 1];
+    // for (let i = this.#activePoints; i < this.maxPoints; i++) {
+    //   this.#positions[i * 3]     = lastPt.x;
+    //   this.#positions[i * 3 + 1] = lastPt.y;
+    //   this.#positions[i * 3 + 2] = lastPt.z;
+    // }
+    if (this.#needsFullFill) {
+      const lastPt = head[this.#activePoints - 1];
+      for (let i = this.#activePoints; i < this.maxPoints; i++) {
+        this.#positions[i * 3]     = lastPt.x;
+        this.#positions[i * 3 + 1] = lastPt.y;
+        this.#positions[i * 3 + 2] = lastPt.z;
+      }
+      this.#needsFullFill = false;
+    }
+
+
+    if (!this.#built) {
+      this.line.lines(this.#positions).build();
+      this.#built = true;
+    } else {
+      // this.line.geometry.setPositions(this.#positions, true);
+      (this.line.geometry as MeshLineGeometry).setPositions(this.#positions, true);
+    }
+
+    this.line.visible = true;
+    this.line.frustumCulled = false;
+    this.line.layers.set(2);
+    this.line.renderOrder = this.renderOrder;
+  }
 }

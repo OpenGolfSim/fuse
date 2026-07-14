@@ -2,6 +2,7 @@ import * as RAPIER from '@dimforge/rapier3d-compat';
 import EventEmitter from 'eventemitter3';
 import { GRAVITY_VECTOR } from '@/physics/constants';
 import { ShotStats } from '@/objects/golfBall';
+import { type CoursePlayer } from '@/courses/player';
 
 export enum OGSKeyCommands {
   AimLeft = 0,
@@ -42,11 +43,6 @@ export type CommandMessage = {
 
 export type ReadyMessage = {
   type: 'ready'
-};
-
-export type PlayerUpdateMessage = {
-  type: 'player',
-  player: OpenGolfSim.Player
 };
 
 interface EventMap {
@@ -123,11 +119,26 @@ export class AppBridge extends EventEmitter<EventMap> {
     }
     this.once('ready', callback);
   }
+  
+  log(message: any) {
+    this.sendMessage({ type: 'log', message });
+  }
 
   setReady() {
     console.log('[runtime] Rapier initialized');
     this.isReady = true;
     this.sendMessage({ type: 'ready' });
+  }
+
+  sendPlayerUpdate(player: CoursePlayer, position: [number, number, number]) {
+    const { name, id, clubs } = player;
+    const update: OpenGolfSim.PlayerUpdateEvent = {
+      type: 'player',
+      player: { name, id, clubs },
+      currentPosition: position,
+      club: player.currentClub
+    };
+    this.sendMessage(update);
   }
 
   sendShotResult(options: {

@@ -41,9 +41,15 @@ export class UIDialog extends UIElementBase<UIDialogEvents> {
 
     this.element.append(this.header);
 
-    this.content = document.createElement('div');
-    this.content.classList.add(styles.dialogContentBody);
+    const existingContent = this.parent.querySelector('.content');
+    if (existingContent) {
+      this.content = existingContent;
+    } else {
+      this.content = document.createElement('div');
+    }
+    
     this.element.append(this.content);
+    this.content.classList.add(styles.dialogContentBody);
   }
 
   disableClose() {

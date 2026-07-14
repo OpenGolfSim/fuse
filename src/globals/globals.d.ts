@@ -66,6 +66,7 @@ namespace OpenGolfSim {
     roll: number;
     lateral: number;
   }
+  
 
   type SetupData = {
     players: OpenGolfSim.Player[],
@@ -100,6 +101,13 @@ namespace OpenGolfSim {
     distanceSamples?: number[];
     lateralSamples?: number[];
   }
+  
+  interface PlayerUpdateEvent {
+    type: 'player';
+    player: OpenGolfSim.Player;
+    currentPosition: [number, number, number];
+    club: Club;
+  }
 
 }
 
@@ -118,6 +126,23 @@ interface FlowMapImage extends GLTFImage {
     riverId?: string,
   }
 }
+
+interface BlendMapImage extends GLTFImage {
+  extras?: {
+    type: 'blend_map',
+    id?: string,
+    width?: number,
+    height?: number,
+    bounds?: { w: number, h: number, x: number, y: number},
+  }
+}
+
+type BlendMapData = {
+  data: ImageDataArray,
+  width: number,
+  height: number,
+  bounds: { w: number, h: number, x: number, y: number },
+};
 
 interface TreeImage extends GLTFImage {
   extras?: {

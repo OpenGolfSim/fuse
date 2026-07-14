@@ -83,15 +83,15 @@ const gameContext: {
   dialogs: {}
 };
 
-const defaultSkyColor = 'rgb(192, 215, 241)';
-const defaultFogColor = new THREE.Color('#fff7e0');
-const defaultCloudColor = new THREE.Color('rgb(255, 255, 255)');
+const defaultSkyColor = 'rgb(177, 205, 236)';
+const defaultFogColor = 'rgb(255, 247, 224)';
+const defaultCloudColor = 'rgb(255, 255, 255)';
 // const lightColor = new THREE.Color('rgb(255, 247, 224)');
 
 
 function launchShot(shot: OpenGolfSim.Shot) {
   if (!gameContext.golfBall) return;
-  console.log('[DEBUG] Received new shot data:', shot);
+
   if (shot.ballSpeed && !gameContext.golfBall.isShotActive) {
     gameContext.shotData?.updateShotData(shot);
     gameContext.golfBall.launchShot(shot);
@@ -110,6 +110,9 @@ function setupNextShot() {
   gameContext.aimPoint.copy(gameContext.game.aimPoint());
 
   gameContext.camera?.setPositions(gameContext.startPoint, gameContext.aimPoint);
+  if (gameContext.camera) {
+    gameContext.course?.updateActiveGreen(gameContext.camera, gameContext.game.getActiveHoleNumber());
+  }
 
   // recreate ball after each shot to ensure physics are fully reset
   gameContext.golfBall?.reset(gameContext.aimPoint, gameContext.startPoint, gameContext.game.activeHole.waypoints.get('pin'));
@@ -123,36 +126,28 @@ function setupNextShot() {
 
   gameContext.game.autoSelectClub();
   gameContext.playerMenu?.update(gameContext.game.activePlayer);
+  app.sendPlayerUpdate(gameContext.game.activePlayer, gameContext.startPoint.toArray());
 
 }
 
-function setupRenderer() {
-  
+async function setupRenderer() {
   THREE.ColorManagement.enabled = true;
-  
-  app.sendMessage({ type: 'log', message: `qualityLevel: ${gameContext.qualityLevel}` });
   
   const canvas = document.getElementById('canvas');
   if (!canvas || !(canvas instanceof HTMLCanvasElement)) throw new Error('Unable to find canvas in HTML. Make sure you create a root canvas element (e.g. <canvas id="canvas"></canvas>)');
   gameContext.renderer = new FuseRenderer({
     canvas,
+    renderMode: 'webgpu',
     qualityLevel: gameContext.qualityLevel,
     antialias: true // gameContext.qualityLevel >= QualityMode.Medium
   });
-  // gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
+
+  await gameContext.renderer.init();
 
   let maxPixelRatio = Math.min(window.devicePixelRatio, 1);
   if (gameContext.qualityLevel >= QualityMode.High) {
     maxPixelRatio = Math.min(window.devicePixelRatio, 2);
   }
-
-  app.sendMessage({ type: 'log', message: `maxPixelRatio: ${maxPixelRatio}` });
-  
-  // gameContext.renderer.setPixelRatio(maxPixelRatio);
-  // gameContext.renderer.shadowMap.enabled = gameContext.qualityLevel >= QualityMode.Medium;
-  // gameContext.renderer.shadowMap.type = THREE.PCFShadowMap;
-  
-
 }
 
 async function setupScene() {
@@ -166,12 +161,15 @@ async function setupScene() {
   // Base scene
   // TODO: move to course loader?
   gameContext.scene = new THREE.Scene(); 
-  gameContext.scene.background = new THREE.Color(skyColor);
+  gameContext.scene.background = skyColor;
 
-  gameContext.fog = new THREE.Fog(fogColor, 100, 800);
+  gameContext.fog = new THREE.Fog(fogColor, 300, 800);
   gameContext.scene.fog = gameContext.fog;
 
-  gameContext.lightGroup = new CourseLight();
+  gameContext.lightGroup = new CourseLight({
+    qualityLevel: gameContext.qualityLevel,
+    color: new THREE.Color('#fffac0')
+  });
   gameContext.scene.add(gameContext.lightGroup);
 
   // Main Camera
@@ -182,14 +180,18 @@ async function setupScene() {
     throw new Error('Course object does not exist!');
   }
   const ground = gameContext.course.getGroundMeshes();
-  console.log('ground', ground);
   gameContext.camera = new ShotPerspectiveCamera(
     {
       scene: ground,
+      autoPosition: true,
       cameraOffsetX: (gameContext.setupData?.cameraOffset ? -(gameContext.setupData.cameraOffset / 100) : 0),
     }
   );
   
+  if (gameContext.setupData?.qualityLevel && gameContext.setupData?.qualityLevel > QualityMode.Medium) {
+    gameContext.renderer.setupPostProcessing(gameContext.scene, gameContext.camera);
+  }
+
   // Aim point
   gameContext.visualAimPoint = new AimPoint(gameContext.camera, {
     units: gameContext.setupData?.units
@@ -220,18 +222,22 @@ async function setupScene() {
   gameContext.controls.on('testShot', launchShot);
   gameContext.controls.on('toggleStats', () => gameContext.stats?.toggle());
 
-
-  // TODO: move to course loader..
   // Sky/Clouds
+  // QUESTION: move to course loader?
   gameContext.clouds = new VolumetricClouds(gameContext.camera, {
     radius: 800,
-    density: cloudSettings?.density ?? 0.4,
-    opacity: cloudSettings?.opacity ?? 0.8,
-    scale: cloudSettings?.scale ?? 6,
-    skyColor,
+    opacity: 0.8,
+    scale: 3,
+    density: cloudSettings?.density,
+    // opacity: cloudSettings?.opacity ?? 0.8,
+    // scale: cloudSettings?.scale ?? 6,
     cloudColor,
     fogColor,
-    position: new THREE.Vector3(...cloudSettings?.position ?? [0, -50, 0])
+    // cloudColor: new THREE.Color('#f4fafc'),
+    // fogColor: new THREE.Color('#f7f6f1'),
+    skyColor,
+    // skyColor: new THREE.Color('#498daa'),
+    position: new THREE.Vector3(0, -40, 0)
   });
   gameContext.scene.add(gameContext.clouds.object);
   
@@ -299,7 +305,6 @@ async function setupCourse() {
   if (!app.world) {
     throw new Error('Physics world does not exist');
   }
-  
   if (!gameContext?.setupData) {
     throw new Error('Missing setupData!');
   }
@@ -309,7 +314,9 @@ async function setupCourse() {
   if (typeof gameContext.setupData?.qualityLevel !== 'undefined') {
     gameContext.qualityLevel = gameContext.setupData.qualityLevel;
   }
-  setupRenderer();
+  
+  await setupRenderer();
+  
   if (!gameContext.renderer) {
     throw new Error('Missing renderer!');
   }
@@ -350,9 +357,10 @@ async function setupCourse() {
   // create the golf ball
   gameContext.golfBall = new GolfBall(gameContext.scene, app.world, app.rapier, {
     setupData: gameContext.setupData,
+    groundMeshes: gameContext.course.getGroundMeshes()
   });
   gameContext.golfBall.on('landed', (velocity: number) => {
-    gameContext.audioPlayer?.play(GroundThudSound, velocity);
+    // gameContext.audioPlayer?.play(GroundThudSound, velocity);
   });
   gameContext.golfBall.on('holedOut', () => {
     gameContext.audioPlayer?.play(HoleOutSound);
@@ -409,6 +417,7 @@ async function setupCourse() {
     if (gameContext.game) {
       gameContext.game.selectClub(club);
       gameContext.playerMenu?.update(gameContext.game.activePlayer);
+      app.sendPlayerUpdate(gameContext.game.activePlayer, gameContext.startPoint.toArray());
     }
   });
 
@@ -418,20 +427,27 @@ async function setupCourse() {
 
   gameContext.courseMap?.on('updateAim', adjustAimPoint);
   gameContext.courseMap?.on('updateStart', adjustStartPoint);
-  
+
+  if (gameContext.camera) {
+    await gameContext.renderer.compile(gameContext.scene, gameContext.camera);  
+  }
 }
 
 /**
  * Sets up loading screen and kicks off loading of the course and building the scene
  */
 function preLoad() {
-  // if (typeof gameContext.setupData?.qualityLevel !== 'undefined') {
-  //   gameContext.qualityLevel = gameContext.setupData?.qualityLevel;
-  // }
   // allow override with query param
-  const qualityParam = (new URLSearchParams(window.location.search)).get('quality');
+  const params = new URLSearchParams(window.location.search);
+  const qualityParam = params.get('quality');
   if (qualityParam) {
     gameContext.qualityLevel = parseInt(qualityParam, 10);
+    if (gameContext.setupData) gameContext.setupData.qualityLevel = gameContext.qualityLevel;
+  }
+  const practiceParam = params.get('practice');
+  if (practiceParam) {
+    const practiceMode = practiceParam === '1' || practiceParam === 'true';
+    if (gameContext.setupData) gameContext.setupData.practiceMode = practiceMode;
   }
 
   console.log('[debug] Setup Data', gameContext.setupData);
@@ -442,6 +458,20 @@ function preLoad() {
       requestAnimationFrame(animate);
       gameContext.isReady = true;
     }
+
+    if (gameContext.scene) {
+
+      // Right after scene creation, before anything is added
+      const originalAdd = gameContext.scene.add.bind(gameContext.scene);
+
+      gameContext.scene.add = function(...args: any[]) {
+        for (const obj of args) {
+          console.log('Scene.add:', obj.type, obj.constructor.name);
+        }
+        return originalAdd(...args);
+      };
+    }
+
   });
   gameContext.loadingScreen.load(setupCourse);
   document.body.style.opacity = '1';
@@ -464,11 +494,11 @@ function animate(animDelta: number) {
   gameContext.controls?.update(delta);
   gameContext.clouds?.update(delta);
 
-  if (gameContext.camera && gameContext.isReady) {
-    gameContext.course?.update(delta, gameContext.camera, gameContext.golfBall?.isShotActive);
+  if (gameContext.camera && gameContext.golfBall && gameContext.isReady) {
+    gameContext.course?.update(delta, gameContext.camera, gameContext.golfBall, gameContext.game?.getActiveHoleNumber());
   }
 
-  gameContext.game?.update(delta);
+  // gameContext.game?.update(delta);
 
   if (gameContext.scene && gameContext.game) {
     gameContext.courseMap?.render(
@@ -494,7 +524,7 @@ function animate(animDelta: number) {
           aimPointUpdated();
         }
       }
-      // gameContext.camera?.render(gameContext.scene, gameContext.fog);
+
       if (gameContext.camera) {
         gameContext.renderer?.render(gameContext.scene, gameContext.camera, gameContext.fog);
       }
@@ -513,14 +543,14 @@ function animate(animDelta: number) {
 }
 
 async function initializeDebug() {
-  // used for testing as an example course in the browser
-  // pass a courseUrl as a query param to load any course URL
+  // used for testing an example course in the browser
+  // pass a courseUrl as a query param to load a course
   const params = new URLSearchParams(window.location.search);
   const courseUrl = params.get('courseUrl');
   if (!courseUrl) {
     throw new Error('No courseUrl provided');
   }
-  gameContext.setupData = generateSetupData(2);
+  gameContext.setupData = generateSetupData(1);
   gameContext.gameData = { id: 'web', courseUrl, gameMode: 2 };
   if (courseUrl) {
     preLoad();

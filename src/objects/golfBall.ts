@@ -5,7 +5,7 @@ import { BallPhysics } from '@/physics/ballPhysics';
 import { BallTrail } from '@/objects/ballTrail';
 import { CourseColliderType, CourseSurfaceProperties, CourseSurfaceType } from '@/courses/surfaces';
 
-const FIXED_DT = 1 / 120;
+const FIXED_DT = 1 / 60;
 
 export interface GolfBallEvents {
   shotEnded: (details: { surface?: CourseSurfaceProperties, isHoled: boolean }) => void,
@@ -17,9 +17,10 @@ type BallTrailClearMode = 'start' | 'end' | 'never';
 
 type GolfBallOptions = {
   waitTime?: number;
-  setupData?: Partial<OpenGolfSim.SetupData>;
+  setupData: Partial<OpenGolfSim.SetupData>;
   /** Clear ball trail before the shot. Default is to clear when the shot ends. */
   clearTrail?: BallTrailClearMode;
+  groundMeshes: THREE.Mesh[];
 }
 
 export type ShotStats = {
@@ -52,11 +53,11 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
   isShotWaiting: boolean;
   startPoint: THREE.Vector3;
   aimPoint: THREE.Vector3;
-  object?: THREE.Object3D;
+  object: THREE.Object3D;
   trail?: BallTrail;
-  physics?: BallPhysics;
+  physics: BallPhysics;
   clearTrail: BallTrailClearMode;
-  #setupData?: Partial<OpenGolfSim.SetupData>;
+  #setupData: Partial<OpenGolfSim.SetupData>;
   #waitTime: number;
   #timeout?: number;
   #scene: THREE.Scene;
@@ -66,12 +67,16 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
   #frameNum: 0;
   lastShot?: OpenGolfSim.Shot;
   ballMaterial: THREE.MeshBasicMaterial;
+  groundMeshes: THREE.Mesh[];
 
-  constructor(scene: THREE.Scene, world: World, R: RapierInstance, options: GolfBallOptions = {}) {
+  constructor(scene: THREE.Scene, world: World, R: RapierInstance, options: GolfBallOptions) {
     super();
     this.radius = 0.0213;
     this.stats = createDefaultStats();
-    this.clearTrail = options.clearTrail || 'end';
+    
+    const opts = options || {};
+    this.groundMeshes = options.groundMeshes;
+    this.clearTrail = options.clearTrail ?? 'end';
     this.#setupData = options.setupData;
     this.#waitTime = options.waitTime ?? 3000;
     this.#scene = scene;
@@ -84,58 +89,41 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     this.isShotActive = false;
     this.isShotWaiting = false;
 
-    this.ballMaterial = new THREE.MeshBasicMaterial( { color: 0xffffff } );
+    this.ballMaterial = new THREE.MeshBasicMaterial( { color: 0xeeeeee } );
+
+    // Create ball mesh once
+    const geometry = new THREE.IcosahedronGeometry(this.radius, 5);
+    this.object = new THREE.Mesh(geometry, this.ballMaterial);
+    this.object.castShadow = false;
+    this.object.frustumCulled = false;
+    this.#scene.add(this.object);
+
+    // Create physics once — reused across all shots
+    this.physics = new BallPhysics(this.object, this.#world, this.#rapier, this.radius, this.groundMeshes);
+    this.physics.on('shotEnded', surface => this._onShotEnded(surface));
+    this.physics.on('holedOut', () => this.emit('holedOut'));
+    this.physics.on('landed', (v) => this.emit('landed', v));
+    this.physics.setElevation(this.#setupData?.elevation);
 
   }
 
   reset(aimPoint: THREE.Vector3, startPoint: THREE.Vector3, holePoint?: THREE.Vector3) {
-    if (this.object) {
-      // remove existing ball object and physics
-      this.#scene.remove(this.object);
-      if (this.object instanceof THREE.Mesh) {
-        this.object.geometry.dispose();
-        // if (this.object.material) {
-        //   (this.object.material as THREE.Material).dispose();
-        // }
-      }
-    }
-    if (this.physics) {
-      this.physics.removeAllListeners(); // clean up old event listener
-      this.physics.remove(); 
-    }
     this.isShotWaiting = false;
-    // const geometry = new THREE.SphereGeometry( this.radius, 32, 16 );
-    const geometry = new THREE.IcosahedronGeometry(this.radius, 5);
-    // const material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
-    this.object = new THREE.Mesh( geometry, this.ballMaterial );
-    this.object.castShadow = false;
-    this.object.frustumCulled = false;
-    if (startPoint) {
-      this.startPoint = startPoint;
-      this.object.position.copy(startPoint);
-      this.object.position.y += this.radius;
-    }
 
-    this.#scene.add(this.object);
+    this.object.visible = true;
+    this.startPoint.copy(startPoint);
+    this.object.position.copy(startPoint);
+    this.object.position.y += this.radius;
 
     if (this.clearTrail === 'end') {
       this.#resetBallTrail();
     }
     
-    if (aimPoint) {
-      this.aimAt(aimPoint)
-    }
-    
+    this.aimAt(aimPoint)
+  
     this.#frameNum = 0;
-
-    this.physics = new BallPhysics(this.object, this.#world, this.#rapier, this.radius);
-    this.physics.on('shotEnded', surface => this._onShotEnded(surface));
-    this.physics.on('holedOut', () => this.emit('holedOut'));
-    this.physics.on('landed', (v) => this.emit('landed', v));
-    this.physics.setElevation(this.#setupData?.elevation);
-    if (holePoint) {
-      this.physics.setPin(holePoint);
-    }
+    
+    this.physics.reset(this.object.position, holePoint);
   }
 
   #resetBallTrail() {
@@ -146,29 +134,20 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     if (this.trail) {
       this.trail.reset(this.object);  // reuse existing instance
     } else {
-      this.trail = new BallTrail(this.#scene, this.object, { lineWidth: 0.2 });
+      this.trail = new BallTrail(this.#scene, this.object);
     }
   }
 
   getPosition() {
-    if (this.physics?.rigidBody) {
-      return this.physics.rigidBody.translation();
-    }
+    return this.physics.mesh.position;
   }
   
   isOnGreen(preShot = false) {
     return (preShot || this.physics?.isGrounded) && this.physics?.currentSurface?.type === 'green';
   }
 
-  // aimAt(aimPoint) {
-  // const dir = new THREE.Vector3().subVectors(aimPoint, ball.position);
-  // dir.y = 0;
-  // dir.normalize();
-  // ball.rotation.set(0, Math.atan2(dir.x, dir.z), 0);    
-  // }
 
   _onShotEnded(surface: CourseSurfaceProperties | undefined) {
-    console.log('RAW SHOT END');
     if (!this.stats.endPosition) {
       this.stats.endPosition = this.object?.position.clone();
     }
@@ -179,10 +158,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     clearTimeout(this.#timeout);
     this.#timeout = setTimeout(() => {
       this.isShotActive = false;
-      // this.isShotEnded = true;
-      console.log('FIRE SHOT END');
       this.emit('shotEnded', { surface, isHoled: this.physics?.isHoled === true });
-      // this.dispatchEvent(new CustomEvent('shotEnd', { detail: { surface } }));
     }, this.#waitTime);
   }
 
@@ -195,9 +171,9 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     const direction = new THREE.Vector3().subVectors(aimPoint, this.object.position);
     direction.y = 0; // flatten to horizontal — we only want the yaw
     direction.normalize();
-    // 2. Extract yaw angle from that direction
+    // Extract yaw angle from direction
     const yaw = Math.atan2(direction.x, direction.z);
-    // 3. Set a clean rotation — only yaw, no pitch/roll
+    // Set a clean rotation (only yaw, no pitch/roll)
     this.object.rotation.set(0, yaw, 0);  
   }
 
@@ -218,6 +194,8 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     this.stats = createDefaultStats();
 
     this.#accumulator = 0;
+    console.log('Shot launched, accumulator reset');
+
     if (this.trail) {
       // add first point
       this.trail.addPoint();
@@ -231,15 +209,26 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
 
 
   update(delta: number) {
-    const frameDelta = Math.min(delta, 0.1);
+    // const frameDelta = Math.min(delta, 0.1);
+    let frameDelta = Math.min(delta, 0.1);
+    // When display rate closely matches physics rate, snap to prevent
+    // accumulator drift that causes 0-step/2-step alternation
+    if (Math.abs(frameDelta - FIXED_DT) < 0.002) {
+      frameDelta = FIXED_DT;
+    }
+
     this.#accumulator += frameDelta;
 
     if (this.physics) {
       // Fixed-timestep physics
+      let steps = 0;
       while (this.#accumulator >= FIXED_DT) {
         this.physics.update(FIXED_DT);
         this.#accumulator -= FIXED_DT;
+        steps++;
       }
+      // useful for debugging physics on slower devices
+      // if (steps !== 1) console.log(`Steps: ${steps}, accum: ${this.#accumulator.toFixed(5)}`);
     }
     if (this.trail) {
       this.trail.update(this.isShotActive);
