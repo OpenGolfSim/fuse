@@ -467,13 +467,12 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         } else if (this.qualityLevel === QualityMode.High) {
           lodDistances = [200, 400];
         }
-        console.log(`Planting trees with LODs: ${lodDistances.join(',')}`)
 
         const config: TreeGroup = {
           collider: {
             radius: 0.3,
             height: 2.0,
-          }, // base collider, can be customized
+          },
           scaleRange: { min: 1, max: 1 },
           density: 1,
           minDistance: 3,

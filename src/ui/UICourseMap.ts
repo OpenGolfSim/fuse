@@ -284,10 +284,7 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
   }
 
   _handleCanvasClick(event: PointerEvent) {
-    console.log('CLICK', event);
     const pos = this._minimapToWorld(event);
-    console.log('POS', pos);
-
     if (event.shiftKey) {
       this.emit('updateStart', pos);
     } else {

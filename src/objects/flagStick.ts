@@ -177,21 +177,10 @@ export class FlagStick {
     this.object.name = `FlagStick${this.holeNumber}`
 
     if (golfCup) {
-      console.log('----- ADD GOLF CUP!');
       const cupCopy = golfCup.clone();
-      // const mat = new THREE.MeshStandardMaterial({
-      //   // color: new THREE.Color('#ffffff'),
-      //   color: new THREE.Color('#dddddd'),
-      //   metalness: 0,
-      //   roughness: 0
-      // });
-      const s = 0.1088;                    // cup model scale (keep in sync with scale.set below)
-      // const topY = float(0);              // TODO: your known local top Y of the cup model
-
-      // const dirtDepth = float(0.005 / s); // 3.5 cm soil strip, in local units
-      // const edge = float(0.002 / s);      // AA transition width
-      // this.surfacePoint = tslUniform(position.clone());
-      // this.surfaceNormal = tslUniform(new THREE.Vector3(0, 1, 0));
+      // cup model scale (keep in sync with scale.set below)
+      const s = 0.1088;
+      
       this.surfacePoint = tslUniform(position.clone());
       this.surfaceNormal = tslUniform(
         (surfaceNormal ?? new THREE.Vector3(0, 1, 0)).clone().normalize()
@@ -205,12 +194,6 @@ export class FlagStick {
       const dirtColor = vec3(0.478, 0.369, 0.255);   // match rimColorRGB in the target shader
       const plasticColor = vec3(0.85, 0.85, 0.85);
 
-      // 1 near the lip (dirt), 0 below the dirt band (plastic liner)
-      // const dirtT = smoothstep(
-      //   topY.sub(dirtDepth).sub(edge),
-      //   topY.sub(dirtDepth).add(edge),
-      //   positionLocal.y
-      // );
       // Dirt where h is in (-dirtDepth, 0); plastic below
       const dirtT = smoothstep(
         dirtDepth.negate().sub(edge),
@@ -223,14 +206,12 @@ export class FlagStick {
       const dirtFade = smoothstep(float(18.0), float(8.0), camDist);
       const dirtVis = dirtT.mul(dirtFade);
 
-      // Cheap AO: darken the liner toward the bottom of the cup
-      // const depthT = smoothstep(topY, topY.sub(0.11 / s), positionLocal.y);
+      // Darken the liner toward the bottom of the cup
       const depthT = smoothstep(float(0), float(-0.11), h);
 
       const shaded = mix(plasticColor, plasticColor.mul(0.55), depthT);
 
       const mat = new MeshStandardNodeMaterial({ metalness: 0 });
-      // mat.colorNode = mix(shaded, dirtColor, dirtT);
       mat.colorNode = Fn(() => {
         // Clip everything above the green surface — rim conforms to slope
         Discard(h.greaterThan(0.0));
@@ -242,11 +223,8 @@ export class FlagStick {
       mat.roughnessNode = mix(float(0.35), float(1.0), dirtVis);
 
       cupCopy.material = mat;
-      // cupCopy.scale.set(0.108, 0.108, 0.108);
       cupCopy.scale.set(s, s, s);
       cupCopy.position.set(0, -(stickHeight / 2) + 0.064, 0);
-      // cupCopy.position.copy(position);
-      // cupCopy.position.y += 1;
       cupCopy.position.y += 1.02;   // raise so the rim clears the terrain everywhere; clip trims it
 
       this.object.add(cupCopy);
