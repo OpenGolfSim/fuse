@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { type World } from '@dimforge/rapier3d-compat';
 import EventEmitter from 'eventemitter3';
-import { app } from '../index';
 import { BallPhysics } from '@/physics/ballPhysics';
 import { BallTrail } from '@/objects/ballTrail';
 import { CourseColliderType, CourseSurfaceProperties, CourseSurfaceType } from '@/courses/surfaces';
@@ -109,34 +108,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
   }
 
   reset(aimPoint: THREE.Vector3, startPoint: THREE.Vector3, holePoint?: THREE.Vector3) {
-    // if (this.object) {
-    //   // remove existing ball object and physics
-    //   this.#scene.remove(this.object);
-    //   if (this.object instanceof THREE.Mesh) {
-    //     this.object.geometry.dispose();
-    //     // if (this.object.material) {
-    //     //   (this.object.material as THREE.Material).dispose();
-    //     // }
-    //   }
-    // }
-    // if (this.physics) {
-    //   this.physics.removeAllListeners(); // clean up old event listener
-    //   this.physics.remove(); 
-    // }
     this.isShotWaiting = false;
-    // const geometry = new THREE.SphereGeometry( this.radius, 32, 16 );
-    // const geometry = new THREE.IcosahedronGeometry(this.radius, 5);
-    // // const material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
-    // this.object = new THREE.Mesh( geometry, this.ballMaterial );
-    // this.object.castShadow = false;
-    // this.object.frustumCulled = false;
-    // if (startPoint) {
-    //   this.startPoint = startPoint;
-    //   this.object.position.copy(startPoint);
-    //   this.object.position.y += this.radius;
-    // }
-
-    // this.#scene.add(this.object);
 
     this.object.visible = true;
     this.startPoint.copy(startPoint);
@@ -152,14 +124,6 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     this.#frameNum = 0;
     
     this.physics.reset(this.object.position, holePoint);
-    // this.physics = new BallPhysics(this.object, this.#world, this.#rapier, this.radius, this.groundMeshes);
-    // this.physics.on('shotEnded', surface => this._onShotEnded(surface));
-    // this.physics.on('holedOut', () => this.emit('holedOut'));
-    // this.physics.on('landed', (v) => this.emit('landed', v));
-    // this.physics.setElevation(this.#setupData?.elevation);
-    // if (holePoint) {
-    //   this.physics.setPin(holePoint);
-    // }
   }
 
   #resetBallTrail() {
@@ -176,21 +140,12 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
 
   getPosition() {
     return this.physics.mesh.position;
-    // if (this.physics?.rigidBody) {
-    //   return this.physics.rigidBody.translation();
-    // }
   }
   
   isOnGreen(preShot = false) {
     return (preShot || this.physics?.isGrounded) && this.physics?.currentSurface?.type === 'green';
   }
 
-  // aimAt(aimPoint) {
-  // const dir = new THREE.Vector3().subVectors(aimPoint, ball.position);
-  // dir.y = 0;
-  // dir.normalize();
-  // ball.rotation.set(0, Math.atan2(dir.x, dir.z), 0);    
-  // }
 
   _onShotEnded(surface: CourseSurfaceProperties | undefined) {
     if (!this.stats.endPosition) {
@@ -203,9 +158,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     clearTimeout(this.#timeout);
     this.#timeout = setTimeout(() => {
       this.isShotActive = false;
-      // this.isShotEnded = true;
       this.emit('shotEnded', { surface, isHoled: this.physics?.isHoled === true });
-      // this.dispatchEvent(new CustomEvent('shotEnd', { detail: { surface } }));
     }, this.#waitTime);
   }
 
@@ -218,9 +171,9 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     const direction = new THREE.Vector3().subVectors(aimPoint, this.object.position);
     direction.y = 0; // flatten to horizontal — we only want the yaw
     direction.normalize();
-    // 2. Extract yaw angle from that direction
+    // Extract yaw angle from direction
     const yaw = Math.atan2(direction.x, direction.z);
-    // 3. Set a clean rotation — only yaw, no pitch/roll
+    // Set a clean rotation (only yaw, no pitch/roll)
     this.object.rotation.set(0, yaw, 0);  
   }
 
@@ -263,10 +216,6 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     if (Math.abs(frameDelta - FIXED_DT) < 0.002) {
       frameDelta = FIXED_DT;
     }
-
-    // if (this.isShotActive && this.#frameNum < 5) {
-    //   console.log(`Frame ${this.#frameNum}: delta=${(delta * 1000).toFixed(1)}ms, frameDelta=${(frameDelta * 1000).toFixed(1)}ms`);
-    // }
 
     this.#accumulator += frameDelta;
 

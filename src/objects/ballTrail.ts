@@ -86,8 +86,8 @@ export class BallTrail {
 
     // Uniforms for dynamic fade control
     this.fadeFracUniform = tslUniform(0.01);
-    this.camFadeNear = tslUniform(options.cameraFadeNear ?? 20);
-    this.camFadeFar = tslUniform(options.cameraFadeFar ?? 25);
+    this.camFadeNear = tslUniform(options.cameraFadeNear ?? 15);
+    this.camFadeFar = tslUniform(options.cameraFadeFar ?? 20);
     this.activeRatioUniform = tslUniform(1.0);
 
     // TSL hook: fade opacity at both ends of the trail.

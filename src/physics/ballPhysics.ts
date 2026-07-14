@@ -4,14 +4,11 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import {
   type World,
   type EventQueue,
-  type RigidBody,
-  type Vector
 } from '@dimforge/rapier3d-compat';
 import EventEmitter from 'eventemitter3';
 import { UnitConversions } from '@/utils/units';
-import { CourseSurfaceProperties, CourseObjectType, CourseSurfaces, isCourseSurfaceType, CourseSurfaceType } from '@/courses/surfaces';
-import { PhysicsLookupTable, GRAVITY, isColliderWithUserData, ColliderWithUserData } from './constants';
-import { app } from '../index';
+import { CourseSurfaceProperties, CourseSurfaces, isCourseSurfaceType, CourseSurfaceType } from '@/courses/surfaces';
+import { PhysicsLookupTable, GRAVITY } from './constants';
 
 interface BallPhysicsEvents {
   shotEnded: (surface: CourseSurfaceProperties | undefined) => void;
@@ -68,9 +65,6 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   groundedFramesRequired = 10; // consecutive grounded steps before "rolling"
 
   eventQueue: EventQueue;
-  // rigidBody: RigidBody;
-  // collider: ColliderWithUserData;
-  // ballColliderHandle: number;
 
   // golf hole physics
   holeCenter = new THREE.Vector2();   // (x, z), set when the pin is placed
@@ -81,44 +75,29 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   holeState: 'none' | 'falling' | 'exiting' = 'none';
   isHoled = false;
 
-  #preStepLinvel?: { x: number; y: number; z: number };
-
   #lastTerrainInfo: TerrainInfo = {
     height: 0,
     restitution: 0.35,
     friction: 0.6,
     normal: new THREE.Vector3(0, 1, 0),
   }
-  // #terrainBVHs: { bvh: MeshBVH, mesh: THREE.Mesh }[] = [];
   #mergedBVH!: MeshBVH;
   #mergedMesh!: THREE.Mesh;
-  // #surfaceMap: CourseSurfaceProperties[] = [];
   #surfaceKeys: string[] = [];
 
   #terrainRay = new THREE.Ray();
-  #invMatrix = new THREE.Matrix4();
-  #rayOrigin = new THREE.Vector3();
-  #rayDirection = new THREE.Vector3(0, -1, 0);
-  #vel = new THREE.Vector3();
-  #spin = new THREE.Vector3();
   #surfaceSpin = new THREE.Vector3();
-  #rollFrame = 0;
 
   #gravity = new THREE.Vector3();
   #slopeForce = new THREE.Vector3();
   #normalClone = new THREE.Vector3();
   #groundNormal = new THREE.Vector3();
-  #magnusVec = new THREE.Vector3();
   #normalComponent = new THREE.Vector3();
   #tangentComponent = new THREE.Vector3();
   #position = new THREE.Vector3();
   #velocity = new THREE.Vector3();
   #angularVel = new THREE.Vector3();
   #hitNormal = new THREE.Vector3(0, 1, 0);
-  #p0 = new THREE.Vector2();
-  #p1 = new THREE.Vector2();
-  #seg = new THREE.Vector2();
-  #holeTemp = new THREE.Vector2();
 
   constructor(
     mesh: THREE.Object3D,
@@ -132,15 +111,13 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     this.mesh = mesh;
     this.world = world;
     this.world.integrationParameters.numSolverIterations = 8;
-    // this.world.integrationParameters.numAdditionalFrictionIterations = 4;
 
     if (stimpLevel) {
       this.stimpLevel = stimpLevel;
     }
 
     this.rapier = rapier;
-    // this.onShotEnded = onShotEnded;
-
+    
     // Ball constants
     this.ballRadius = radius ?? 0.021335;
     // this.ballMass = 0.04593;
@@ -148,33 +125,6 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
 
     // Event queue for collision callbacks
     this.eventQueue = new this.rapier.EventQueue(true);
-
-    // // ── Create Rapier rigid body ──
-    // const pos = mesh.position;
-    // const bodyDesc = this.rapier.RigidBodyDesc.dynamic()
-    //   .setTranslation(pos.x, pos.y, pos.z)
-    //   .setLinearDamping(0)
-    //   .setAngularDamping(0)
-    //   .setCcdEnabled(true);              // continuous collision detection
-    // this.rigidBody = world.createRigidBody(bodyDesc);
-
-    // // ── Collider (sphere) ──
-    // const colliderDesc = this.rapier.ColliderDesc.ball(this.ballRadius)
-    //   .setMass(this.ballMass)
-    //   .setRestitution(0.0)
-    //   .setRestitutionCombineRule(this.rapier.CoefficientCombineRule.Min)
-    //   .setFriction(0.6)
-    //   .setActiveEvents(this.rapier.ActiveEvents.COLLISION_EVENTS);
-    // this.collider = world.createCollider(colliderDesc, this.rigidBody);
-    // // this.collider.setCollisionGroups(
-    // //   (GROUP_BALL << 16) | (GROUP_TERRAIN | GROUP_OBJECT)
-    // // );
-    // this.collider.setCollisionGroups(
-    //   (GROUP_BALL << 16) | GROUP_OBJECT  // trees/objects only, never terrain
-    // );
-
-    // // Store the collider handle so we can identify it in events
-    // this.ballColliderHandle = this.collider.handle;
     
     this.buildTerrainMap(terrainMeshes);
     // Start frozen
@@ -210,20 +160,11 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
         tm.updateMatrixWorld(true);
         const geo = tm.geometry.clone();
         geo.applyMatrix4(tm.matrixWorld);
-
-        // Tag every triangle with a surface index
-        const triCount = geo.index
-          ? geo.index.count / 3
-          : geo.attributes.position.count / 3;
-        // const surfaceIndex = this.#surfaceMap.length;
-        // this.#surfaceMap.push(tm.userData as CourseSurfaceProperties);
         
         const surfaceIndex = this.#surfaceKeys.length;
         this.#surfaceKeys.push(tm.userData.surface ?? 'base');        
 
-
-
-       // Store surface index per face via groups
+        // Store surface index per face via groups
         geo.clearGroups();
         geo.addGroup(0, geo.index ? geo.index.count : geo.attributes.position.count, surfaceIndex);
 
@@ -297,11 +238,6 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     this.isEnded = false;
     this.groundedFrames = 0;
   }
-  
-  remove() {
-    // this.world.removeRigidBody(this.rigidBody);
-    // this.world.removeCollider(this.groundCollider, wakeUp);
-  }
 
   launchShot(shot: OpenGolfSim.Shot, isPutt = false) {
     const ballSpeed = UnitConversions.milesPerHourToMetersPerSecond(shot.ballSpeed);
@@ -332,7 +268,6 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     // Unfreeze
     // this.unfreeze();
     this.isShotActive = true;
-    this.#rollFrame = 0;
     
     if (isPutt) {
       console.log('Launching putt', JSON.stringify({ ballSpeed, hla, spinSpeed }));
@@ -515,31 +450,6 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     this.emit('shotEnded', this.currentSurface);
   }
 
-  // _checkTreeCollision(pos: Vector, vel: THREE.Vector3, spin: THREE.Vector3, dt: number) {
-  //   const horizontalSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
-  //   if (horizontalSpeed < 0.01) return false;
-
-  //   const dir = new THREE.Vector3(vel.x, 0, vel.z).normalize();
-  //   const dist = horizontalSpeed * dt + this.ballRadius;
-
-  //   const ray = new this.rapier.Ray(
-  //     { x: pos.x, y: pos.y, z: pos.z },
-  //     { x: dir.x, y: 0, z: dir.z }
-  //   );
-
-  //   const hit = this.world.castRayAndGetNormal(ray, dist, true, undefined, undefined, undefined, this.rigidBody);
-  //   if (!hit || !isColliderWithUserData(hit?.collider)) return false
-  //   if (hit.collider.userData?.type !== CourseObjectType.Tree) return false;
-
-  //   const n = new THREE.Vector3(hit.normal.x, 0, hit.normal.z).normalize();
-  //   vel.reflect(n);
-  //   vel.multiplyScalar(0.25);
-  //   vel.y = 0;
-  //   spin.multiplyScalar(0.3);
-
-  //   return true;
-  // }
-
   _checkWaterCollision() {
     if (
       this.currentSurface?.type === 'plane_lake' ||
@@ -672,16 +582,14 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
         vel.copy(tangentComponent.multiplyScalar(tangentRetention)).add(normalComponent.multiplyScalar(restitution));
 
         this._handleLanding();
-        console.log('[impact] vN=', impactVelAlongNormal.toFixed(1), 'spin rad/s=', spin.length().toFixed(0));
+        // console.log('[impact] vN=', impactVelAlongNormal.toFixed(1), 'spin rad/s=', spin.length().toFixed(0));
 
         // Spin-friction impulse (check-up / spin-back)
-       const spinMag = spin.length();
-       if (spinMag > 1.0) {
+        const spinMag = spin.length();
+        if (spinMag > 1.0) {
           // Ball-surface velocity at contact: ω × (-R·n̂)
           const contact = this.#normalClone.copy(normal).multiplyScalar(-this.ballRadius);
           const spinSurfaceVel = new THREE.Vector3().crossVectors(spin, contact);
-          // Turf bite: soft surfaces grip spin harder than rigid contact allows
-          // spinSurfaceVel.multiplyScalar(this.currentSurface?.spinGrip ?? 1.0);
           // Turf bite ramps with spin: ~rigid physics below 1500 RPM,
           // full surface spinGrip by ~6500 RPM, smooth in between
           const rpm = spinMag * 9.549; // rad/s → RPM
@@ -697,40 +605,30 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
           if (slip.dot(tangentComponent) < 0) {
             slip.set(0, 0, 0);
           }
-         
-         const slipSpeed = slip.length();
-         if (slipSpeed > 0.05) {
-           const mu = this.currentSurface?.friction ?? 0.4;
-           // Friction impulse ∝ normal impulse; capped so it can't overshoot the slip
-           const maxImpulse = mu * (1 + restitution) * impactVelAlongNormal;
-          //  const impulse = Math.min(maxImpulse, slipSpeed);
-          //  const impulse = Math.min(maxImpulse, slipSpeed / 3.5); // rolling-condition
-           const gripImpulse = slipSpeed / 3.5; // impulse that reaches pure rolling
-           const impulse = Math.min(maxImpulse, gripImpulse);
+          
+          const slipSpeed = slip.length();
+          if (slipSpeed > 0.05) {
+            const mu = this.currentSurface?.friction ?? 0.4;
+            // Friction impulse vs normal impulse; capped so it can't overshoot the slip
+            const maxImpulse = mu * (1 + restitution) * impactVelAlongNormal;
+            // impulse that reaches pure rolling
+            const gripImpulse = slipSpeed / 3.5;
+            const impulse = Math.min(maxImpulse, gripImpulse);
 
-           slip.divideScalar(slipSpeed); // normalize
-           vel.addScaledVector(slip, -impulse);
-          // TEMP: per-bounce friction audit
-          console.log('[bounce-audit]',
-            'vN=' + impactVelAlongNormal.toFixed(2),
-            'impulse=' + impulse.toFixed(2),
-            'capBound=' + (maxImpulse < gripImpulse ? 'mu' : 'roll'),
-            'fwdPush=' + (slip.dot(tangentComponent) > 0 ? 'no' : 'YES'));
+            slip.divideScalar(slipSpeed); // normalize
+            vel.addScaledVector(slip, -impulse);
 
-           // Spin pays for the work: Δω = (5/2)·Δv / R for a solid sphere
-          //  const spinLoss = (2.5 * impulse) / (this.ballRadius * spinMag);
-          //  spin.multiplyScalar(THREE.MathUtils.clamp(1 - spinLoss, 0.2, 1));
-          // Spin converges toward rolling by the fraction of grip achieved
-            const f = impulse / gripImpulse; // 0..1
+            // Spin converges toward rolling by the fraction of grip achieved
+            const f = impulse / gripImpulse;
             const vtAfter = new THREE.Vector3().copy(vel).addScaledVector(normal, -vel.dot(normal));
             const rollSpin = new THREE.Vector3().crossVectors(normal, vtAfter).divideScalar(this.ballRadius);
             spin.lerp(rollSpin, f);
-         }
-       }
-
-
+          }
+        }
+        
+        // Update final ball position
         pos.set(newX, terrainY + this.ballRadius, newZ);
-        // this.mesh.position.copy(pos);        
+
       } else {
         // Handle rolling
         this.isGrounded = true;
