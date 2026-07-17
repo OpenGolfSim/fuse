@@ -371,13 +371,9 @@ export class TreePlanter {
         list.length === 0 ? null : list.length === 1 ? list[0] : mergeGeometries(list)
       );
 
-      // Material that only exists at the last level (billboard): alpha-to-coverage
-      // const onlyMaxLevel = lodGeos.every((g, l) => (l === maxLevel) === (g !== null));
-      // if (onlyMaxLevel) {
       // Any material used at the billboard level gets cutout settings
       const hasBillboard = lodGeos[maxLevel] !== null;
       if (hasBillboard) {
-
         material.alphaTest = 0.0;
         (material as any).alphaToCoverage = true;
         material.transparent = false;
@@ -394,13 +390,8 @@ export class TreePlanter {
 
       // const batched = new THREE.BatchedMesh(count, maxVerts, maxIndices, material);
       const batched = new THREE.BatchedMesh(count, maxVerts, maxIndices, material.clone());
-
-      // batched.perObjectFrustumCulled = false; // TEMP
-      // batched.frustumCulled = false;
-      // batched.sortObjects = false;
-      // material.transparent = true; // TEMP
-      batched.castShadow = true;
       // three.js WebGPU bug: culling+shadows drops opaque batches; revisit on upgrade
+      batched.castShadow = true;
       batched.perObjectFrustumCulled = false;
       batched.receiveShadow = false;
 
@@ -416,22 +407,8 @@ export class TreePlanter {
         instanceIds.push(id);
       }
 
-      // const s = new THREE.Sphere();
-      // batched.getBoundingSphereAt(instanceIds[0], s);
-      // console.log('[bounds]', material.name, 'center:', s.center.toArray(), 'radius:', s.radius);
-
       this.treeGroup.add(batched);
       batches.push({ mesh: batched, lodGeometryIds, instanceIds });
-      // console.warn('[tree batch]', JSON.stringify({
-      //   material: material.name || material.uuid,
-      //   material_type: material.type,
-      //   batchTag: (material as any).userData?.batch,
-      //   lodGeometryIds,
-      //   firstLevel: lodGeometryIds.findIndex(id => id !== -1),
-      //   vertsPerLevel: lodGeos.map(g => g ? g.attributes.position.count : 0),
-      //   instances: instanceIds.length,
-      // }));
-
     }
 
     const positions = new Float32Array(count * 2);
@@ -460,55 +437,6 @@ export class TreePlanter {
     });
 
     return batches.map(b => b.mesh);
-
-    // const lodMeshes: THREE.InstancedMesh[][] = [];
-
-    // for (const [level, sourceGroup] of [...levels.entries()].sort((a, b) => a[0] - b[0])) {
-    //   const meshes: THREE.InstancedMesh[] = [];
-
-    //   sourceGroup.children.forEach((child) => {
-    //     if (!isMeshObject(child)) return;
-
-    //     const geo = child.geometry.clone();
-    //     child.updateWorldMatrix(true, false);
-    //     const localMatrix = new THREE.Matrix4();
-    //     localMatrix.copy(sourceGroup.matrixWorld).invert().multiply(child.matrixWorld);
-    //     geo.applyMatrix4(localMatrix);
-
-    //     geo.computeBoundingBox();
-
-    //     // @ts-expect-error
-    //     const instanced = new THREE.InstancedMesh(geo, child.material.clone(), count);
-
-    //     if (level === maxLevel) {
-    //       const mat = instanced.material as THREE.Material;
-    //       mat.alphaTest = 0.0;
-    //       mat.alphaToCoverage = true;
-    //       mat.transparent = false;
-    //       mat.depthWrite = true;
-    //       // mat.side = THREE.DoubleSide;
-    //     }
-
-    //     instanced.instanceMatrix.needsUpdate = true;
-    //     instanced.castShadow = true; // level !== maxLevel;
-    //     instanced.receiveShadow = false;
-    //     instanced.frustumCulled = false;
-
-    //     this.treeGroup.add(instanced);
-    //     meshes.push(instanced);
-    //   });
-
-    //   lodMeshes.push(meshes);
-    // }
-
-    // this.lodEntries.push({
-    //   allMatrices: matrices,
-    //   allColors: pickedColors,
-    //   lodMeshes,
-    //   lodDistances,
-    // });
-
-    // return lodMeshes.flat();
   }
 
   static loadTree(tree: THREE.Object3D) {
@@ -633,16 +561,12 @@ export class TreePlanter {
 
   }
   update(camera: THREE.Camera, isShotActive: boolean) {
-    // if (camera && (!this.#init || isShotActive)) {
-    //   this.#init = true;
-    //   this.#updateLODs(camera);
-    // }
+    
     this.#frameNum++;
-    // if (this.#frameNum % 4 === 0) {
-    if (this.#frameNum % 4 === 0) {
+
+    if (this.#frameNum % 5 === 0) {
       const dx = camera.position.x - this.#lastCamX;
       const dz = camera.position.z - this.#lastCamZ;
-      // if (dx * dx + dz * dz < 1.0) return; // less than 1m moved, skip
       const dir = camera.getWorldDirection(new THREE.Vector3());
       const turned = dir.dot(this.#lastCamDir) < 0.999; // ~2.5° rotation
       if (dx * dx + dz * dz < 1.0 && !turned) return; // neither moved nor turned — skip
