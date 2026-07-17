@@ -79,11 +79,10 @@ export const PhysicsLookupTable: PhysicsLookUpTableRecord[] = [
     sideSpinDecayRate: 0.97
   },
   {
-    // ballSpeed: 20, // ~45 MPH
-    ballSpeed: UnitConversions.milesPerHourToMetersPerSecond(45),
-    magnusCoeff: 0.00001,
+    ballSpeed: UnitConversions.milesPerHourToMetersPerSecond(50),
+    magnusCoeff: 0.000045,
     dragCoeff: 0.34,
-    spinDecayRate: 0.9,
+    spinDecayRate: 0.97,
     sideSpinDecayRate: 0.97
   },
 ];

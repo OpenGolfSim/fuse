@@ -117,11 +117,13 @@ export class SandMaterial {
       if (!(neighborMat instanceof THREE.MeshStandardMaterial)) {
         console.warn(`baseMesh: ${baseMesh.name}`, baseMat);
         console.warn(`neighborMesh: ${neighborMesh.name}`, neighborMat);
-        throw new Error('Neighbor material requires a MeshStandardMaterial');
+        // throw new Error('Neighbor material requires a MeshStandardMaterial');
+        return;
       }
       const neighborTexture = neighborMat.map;
       if (!neighborTexture) {
-        throw new Error('Neighbor material requires neighbors to have a base texture');
+        // throw new Error('Neighbor material requires neighbors to have a base texture');
+        return;
       }
       const neighborTint = neighborMat.color || new THREE.Color(1, 1, 1);
       const neighborTileSize = neighborMesh.userData.tileSize || 2.0;

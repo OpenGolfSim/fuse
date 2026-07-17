@@ -24,14 +24,32 @@ export enum CourseObjectType {
 export type CourseColliderType = CourseSurfaceType | CourseObjectType;
 
 export type CourseSurfaceProperties = {
+  /** How grabby the ground is when the ball hits it. Higher = bounces kill more forward speed and spin bites harder. Does not affect rolling. */
   friction: number,
+
+  /** How bouncy the ground is. Higher = taller hops. Lower = ball stays down. */
   restitution: number,
+
+  /** How fast a rolling ball slows down. Higher = shorter rollout. Ignored on the Green (stimpLevel controls green roll instead). */
   rollResistance: number,
+
+  /** The ball is considered stopped below this speed (m/s) and the shot ends. Raise it if balls creep forever on slight slopes. */
   stopSpeed?: number,
-  stopAngular?: number
+
+  /** Unused leftover from Rapier. Safe to delete. */
+  stopAngular?: number,
+
+  /** What kind of surface this is. Green gets stimp rolling, water gets splash handling, etc. */
   type?: CourseColliderType,
+
+  /** Whether the ball can land on this. false = ball passes through (e.g. decorative water planes). */
   hasCollider?: boolean,
+
+  /** Extra grip for spinny shots only. Higher = high-spin chips check up harder. Low-spin shots don't notice it. 1.0 or absent = no extra grip. */
   spinGrip?: number,
+
+  /** How much the ground "gives" on hard, steep landings (like a wedge making a pitch mark). Higher = those shots land dead. Putts and low skips don't notice it. */
+  divot?: number,
 }
 
 export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> = {
@@ -39,7 +57,8 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
     hasCollider: true,
     friction: 0.5,
     spinGrip: 1.2,
-    restitution: 0.40,
+    restitution: 0.35,
+    divot: 0.0,
     rollResistance: 0.09,
     stopSpeed: 0.18,
     stopAngular: 4.8,
@@ -47,15 +66,17 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
   [CourseSurfaceType.Fringe]: {
     hasCollider: true,
     friction: 0.5,
-    spinGrip: 1.4,
-    restitution: 0.35,
+    spinGrip: 1.2,
+    divot: 0.03,
+    restitution: 0.3,
     rollResistance: 0.10
   },
   [CourseSurfaceType.Fairway]: {
     hasCollider: true,
     friction: 0.3,
-    restitution: 0.4,
+    restitution: 0.3,
     spinGrip: 0.5,
+    divot: 0.02,
     rollResistance: 0.15
   },
   [CourseSurfaceType.FirstCut]: {
@@ -74,15 +95,15 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
   [CourseSurfaceType.Rough]: {
     hasCollider: true,
     friction: 0.2,
-    restitution: 0.3,
-    rollResistance: 0.4,
+    restitution: 0.2,
+    rollResistance: 0.35,
     stopSpeed: 0.20,
   },
   [CourseSurfaceType.Base]: {
     hasCollider: true,
-    friction: 0.8,
+    friction: 0.2,
     restitution: 0.2,
-    rollResistance: 0.40,
+    rollResistance: 0.35,
     stopSpeed: 0.30,
   },
   [CourseSurfaceType.Sand]: {

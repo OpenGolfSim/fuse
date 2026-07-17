@@ -571,8 +571,13 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
         const restitutionRaw = this.currentSurface?.restitution ?? 0.25;
         // Steep descent means more energy is absorbed by the turf
         const descentRestitution = THREE.MathUtils.lerp(1.0, 0.8, descentAngle);
-        const restitution = restitutionRaw * descentRestitution;
-        const tangentRetention = THREE.MathUtils.lerp(0.92, 0.75, descentAngle);
+
+        // Divot/crater absorption: fast AND steep impacts deform the turf,
+        // eating energy beyond what angle alone predicts
+        const divot = this.currentSurface?.divot ?? 0;
+        const craterLoss = 1 / (1 + divot * impactVelAlongNormal * descentAngle);
+        const restitution = restitutionRaw * descentRestitution * craterLoss;
+        const tangentRetention = THREE.MathUtils.lerp(0.92, 0.75, descentAngle) * THREE.MathUtils.lerp(1.0, craterLoss, 0.6);
 
         vel.reflect(normal);
 
@@ -582,7 +587,6 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
         vel.copy(tangentComponent.multiplyScalar(tangentRetention)).add(normalComponent.multiplyScalar(restitution));
 
         this._handleLanding();
-        // console.log('[impact] vN=', impactVelAlongNormal.toFixed(1), 'spin rad/s=', spin.length().toFixed(0));
 
         // Spin-friction impulse (check-up / spin-back)
         const spinMag = spin.length();

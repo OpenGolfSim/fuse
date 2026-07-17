@@ -84,7 +84,67 @@ export class MeshLoader extends EventEmitter<CourseLoaderEvents> {
       return;
     }
     return mesh;
-  }  
+  }
+  async fetchWithResume(
+    url: string,
+    chunkSize = 8 * 1024 * 1024,
+    maxRetries = 5
+  ): Promise<ArrayBuffer> {
+    // const head = await fetch(url, { method: 'HEAD' });
+    // const total = parseInt(head.headers.get('content-length') ?? '0', 10);
+    // if (!total) throw new Error(`No content-length for ${url}`);
+    let total = 0;
+    let supportsRanges = false;
+
+    try {
+      const head = await fetch(url, { method: 'HEAD' });
+      total = parseInt(head.headers.get('content-length') ?? '0', 10);
+      supportsRanges = head.headers.get('accept-ranges') === 'bytes';
+    } catch {
+      // HEAD unsupported (e.g. electron custom protocol) — use plain fetch
+    }
+
+    // Fallback: single plain request (local files, no range support)
+    if (!total || !supportsRanges) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.arrayBuffer();
+    }
+
+    const buffer = new Uint8Array(total);
+    let offset = 0;
+
+    while (offset < total) {
+      const end = Math.min(offset + chunkSize, total) - 1;
+      let attempt = 0;
+      for (;;) {
+        try {
+          const res = await fetch(url, { headers: { Range: `bytes=${offset}-${end}` } });
+          if (res.status === 200) return res.arrayBuffer(); // server ignored Range
+          if (res.status !== 206 && !res.ok) throw new Error(`HTTP ${res.status}`);
+          buffer.set(new Uint8Array(await res.arrayBuffer()), offset);
+          break;
+        } catch (e) {
+          if (++attempt > maxRetries) throw e;
+          await new Promise(r => setTimeout(r, 500 * 2 ** attempt));
+        }
+      }
+      offset = end + 1;
+      this.emit('progress', {
+        percent: offset / total,
+        itemsLoaded: offset,
+        itemsTotal: total,
+      });
+    }
+    return buffer.buffer;
+  }
+
+  async loadChunked(meshUri: string): Promise<GLTF> {
+    const buffer = await this.fetchWithResume(meshUri);
+    const resourcePath = THREE.LoaderUtils.extractUrlBase(meshUri);
+    return this.gltfLoader.parseAsync(buffer, resourcePath);
+  }
+
 }
 
 interface LoadedCourseSurface extends CourseSurfaceProperties {
@@ -171,7 +231,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   }
 
   async load(coursePath: string) {
-    this.gltf = await this.meshLoader.gltfLoader.loadAsync(coursePath);
+    this.gltf = await this.meshLoader.loadChunked(coursePath);
     this.scene = this.gltf.scene;
     if (this.gltf.userData?.courseSize) {
       this.courseSize = this.gltf.userData.courseSize;
