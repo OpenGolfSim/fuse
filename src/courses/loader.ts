@@ -387,10 +387,10 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
           const grassOptions = {
             density: 11,
             renderDistance: 25,
-            cellSize: 5,
+            cellSize: 10,
             lean: 0.01,
             heightVariation: 0.5,
-            maxNewCellsPerFrame: 10,
+            maxNewCellsPerFrame: 20,
             scaleXZ: 0.6,
             scaleY: 0.65,
             layer: 2,
@@ -505,6 +505,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       (img: any) => img.extras?.type === 'tree_mask'
     ) as TreeImage[];
 
+    console.log(`[plant] Planting trees... (qual:${this.qualityLevel})`);
     this.planter = new TreePlanter({
       scene: this.scene,
       worldSize: this.courseSize,
@@ -521,13 +522,16 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
 
         const group = TreePlanter.loadTree(child);
 
-        let lodDistances = [50, 100];
+        let lodDistances = [40, 80];
+        let maxDistance = 500;
         if (this.qualityLevel === QualityMode.Medium) {
           lodDistances = [100, 200];
+          maxDistance = 800;
         } else if (this.qualityLevel === QualityMode.High) {
           lodDistances = [200, 400];
+          maxDistance = Infinity;
         }
-
+        console.log(`[plant] Planting tree layer... (lods:${lodDistances.join(',')})`, group);
         const config: TreeGroup = {
           collider: {
             radius: 0.3,
@@ -536,6 +540,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
           scaleRange: { min: 1, max: 1 },
           density: 1,
           minDistance: 3,
+          maxDistance,
           lodDistances,
           colors: [],
           meshGroup: group,
@@ -560,7 +565,9 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       if (configs?.length && treeMask.bufferView) {
         const buffer = await this.gltf.parser.getDependency('bufferView', treeMask.bufferView);
         const maskData = await getTextureImageData(buffer);
+        console.log(`[plant] Planting from mask... (w:${maskData.width},h:${maskData.height},len:${maskData.data.byteLength})`);
         this.planter.plantFromMask(configs, maskData);
+        // this.planter.treeGroup.visible = false;
       }
     }
 

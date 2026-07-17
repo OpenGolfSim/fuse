@@ -199,6 +199,30 @@ export class TreePlanter {
 
   }
 
+  #makeBatchMaterial(source: THREE.Material, isBillboardOnly: boolean): THREE.Material {
+    const src = source as THREE.MeshStandardMaterial;
+    const lowTier = this.qualityLevel === QualityMode.Low;
+
+    if (!lowTier) return source.clone();
+
+    // Standard = same PBR family as Physical, minus clearcoat/sheen/transmission cost
+    const cheap = new THREE.MeshStandardMaterial();
+    THREE.MeshStandardMaterial.prototype.copy.call(cheap, src);
+    return cheap;
+
+    // // Low tier: unlit billboards, cheap-lit foliage/trunks
+    // const cheap = isBillboardOnly
+    //   ? new THREE.MeshBasicMaterial()
+    //   : new THREE.MeshLambertMaterial();
+    // cheap.map = src.map;
+    // cheap.color.copy(src.color);
+    // cheap.side = src.side;
+    // cheap.transparent = src.transparent;
+    // cheap.alphaTest = src.alphaTest;
+    // cheap.depthWrite = src.depthWrite;
+    // (cheap as any).alphaToCoverage = (src as any).alphaToCoverage;
+    // return cheap;
+  }  
   plantFromMask(trees: TreeGroup[], maskData: { data: ImageDataArray, width: number, height: number }, seed = 12345) {
     const { data, width, height } = maskData;
     const cellW = this.worldSize / width;
@@ -380,6 +404,10 @@ export class TreePlanter {
         material.depthWrite = true;
       }
 
+      // Billboard-only = this material has geometry at no other level
+      const isBillboardOnly = hasBillboard && lodGeos.filter(Boolean).length === 1;
+      const batchMaterial = this.#makeBatchMaterial(material, isBillboardOnly);
+
       let maxVerts = 0;
       let maxIndices = 0;
       for (const g of lodGeos) {
@@ -389,7 +417,9 @@ export class TreePlanter {
       }
 
       // const batched = new THREE.BatchedMesh(count, maxVerts, maxIndices, material);
-      const batched = new THREE.BatchedMesh(count, maxVerts, maxIndices, material.clone());
+      // const batched = new THREE.BatchedMesh(count, maxVerts, maxIndices, material.clone());
+      const batched = new THREE.BatchedMesh(count, maxVerts, maxIndices, batchMaterial);
+
       // three.js WebGPU bug: culling+shadows drops opaque batches; revisit on upgrade
       batched.castShadow = true;
       batched.perObjectFrustumCulled = false;

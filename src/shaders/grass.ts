@@ -204,8 +204,8 @@ function createBladeMaterial(
 
   const material = new MeshLambertNodeMaterial({
     side: THREE.DoubleSide,
-    transparent: true,
-    alphaTest: 0.01,
+    transparent: false,
+    // alphaTest: 0.01,
   });
 
   // --- Color: gradient from base (bottom) to tip (top) ---

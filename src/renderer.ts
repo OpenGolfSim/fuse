@@ -21,6 +21,7 @@ import {
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 
 import { WebGLNodesHandler } from 'three/examples/jsm/tsl/WebGLNodesHandler.js';
+import { app } from './';
 
 type FuseRendererOptions = {
   canvas: HTMLElement | null;
@@ -58,12 +59,21 @@ export class FuseRenderer {
       // (WebGPURenderer handles this natively)
       this.renderer.setNodesHandler(new WebGLNodesHandler());
     }
+    this.qualityLevel = options.qualityLevel ?? QualityMode.Medium;
     this.renderer.setSize(this.width, this.height);  
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
+    
+    // let pixelRatio = Math.min(window.devicePixelRatio, 1);
+    let pixelRatio = 1;
+    if (this.qualityLevel === QualityMode.Low) {
+      pixelRatio = 0.95;
+    } else if (this.qualityLevel === QualityMode.High) {
+      pixelRatio = 2;
+    }
+
+    this.renderer.setPixelRatio(pixelRatio);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFShadowMap;
     
-    this.qualityLevel = options.qualityLevel ?? QualityMode.Medium;
 
     this.renderer.toneMapping = ACESFilmicToneMapping; // or whatever you pick
     this.renderer.toneMappingExposure = 1.1;
@@ -88,7 +98,11 @@ export class FuseRenderer {
 
     // Debug renderer
     const b: any = (this.renderer as any).backend;
-    console.warn('[backend]', b?.constructor?.name);
+    app.log(`[backend] name: ${b?.constructor?.name}`);
+
+    const gl = (this.renderer as any).backend?.gl;
+    app.log(`[backend] multi_draw:${!!gl?.getExtension('WEBGL_MULTI_DRAW')}`);
+
     //  for (const fn of ['createRenderPipeline', 'createShaderModule']) {
     //    const t = b?.device; if (t?.[fn]) { const o = t[fn].bind(t); t[fn] = (d: any) => (console.warn('[compile]', d?.label ?? fn), o(d)); }
     //  }
