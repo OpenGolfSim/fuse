@@ -244,8 +244,7 @@ function createBladeMaterial(
     // (grass gets lit by the same lights, so don't bake lighting in twice).
     // const groundAlbedo = terrainTexNode.rgb.mul(uniforms.uTerrainTint);
     // Optionally flatten remaining contrast toward the sample's luminance.
-    
-    // @ts-expect-error - RGB does exist, but we should fix this type at some point
+
     const rgb = terrainTexNode.rgb;
     // const flat = vec3(luminance(rgb));
     // const groundAlbedo = mix(rgb, flat, 0.3)
@@ -253,7 +252,6 @@ function createBladeMaterial(
     // Flatten remaining contrast toward the texture's average COLOR
     // (max mip ≈ single averaged texel) — mixing toward luminance()
     // gray desaturates, which reads as dull.
-    // @ts-expect-error - same swizzle typing gap
     const meanColor = texture(opts.terrainTexture, terrainUVNode).level(float(12)).rgb;
     const groundAlbedo = mix(rgb, meanColor, 0.3)
       .mul(uniforms.uTerrainTint);

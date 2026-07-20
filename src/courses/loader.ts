@@ -32,7 +32,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export interface SceneSettings {
   sky?: {
-    type?: string;
+    type?: 'clouds' | 'hdri';
     clouds?: {
       skyColor?: string;
       fogColor?: string;

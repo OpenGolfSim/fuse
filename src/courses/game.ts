@@ -46,7 +46,7 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
 
     this.currentPlayerIndex = 0;
     this.currentHoleIndex = 0;
-    this.#orderedHoles = Array.from(this.course.holes.values()).sort((a, b) => (a.number < b.number ? -1 : 1));
+    this.#orderedHoles = Array.from(this.course.holes.values()).map(h => ({ ...h, _num: parseInt(h.number) })).sort((a, b) => (a._num < b._num ? -1 : 1));
     if (!this.#orderedHoles.length) {
       throw new Error('Course has no holes!');
     }

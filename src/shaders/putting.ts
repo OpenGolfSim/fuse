@@ -168,7 +168,6 @@ export class PuttingGridMaterial {
 
     const gridBlend = grid.mul(lineOpacityU).mul(this.intensityUniform);
 
-    // @ts-expect-error -- @types/three 0.184: materialColor is bare MaterialNode
     const baseColor = materialColor.rgb;
     // const color = mix(baseColor, lineColorRGB, gridBlend);
     const color = baseColor.add(lineColorRGB.mul(gridBlend));
@@ -190,7 +189,6 @@ export class PuttingGridMaterial {
     const finalColor = fadedColor;
     mat.colorNode = Fn(() => {
       Discard(holeMask.lessThan(0.5));
-      // @ts-expect-error - RGB type issue
       return vec4(finalColor.rgb, 1.0);
     })();
     mat.transparent = false;

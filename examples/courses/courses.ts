@@ -23,6 +23,8 @@ import {
   FuseRenderer,
   UIScorecard,
   AudioPlayer,
+  SkyBox,
+  CourseLightOptions,
  } from '@opengolfsim/fuse';
 
 const HoleOutSound = '../sounds/holeout.wav';
@@ -161,16 +163,7 @@ async function setupScene() {
   // Base scene
   // TODO: move to course loader?
   gameContext.scene = new THREE.Scene(); 
-  gameContext.scene.background = skyColor;
 
-  gameContext.fog = new THREE.Fog(fogColor, 300, 800);
-  gameContext.scene.fog = gameContext.fog;
-
-  gameContext.lightGroup = new CourseLight({
-    qualityLevel: gameContext.qualityLevel,
-    color: new THREE.Color('#fffac0')
-  });
-  gameContext.scene.add(gameContext.lightGroup);
 
   // Main Camera
   if (!gameContext.renderer) {
@@ -222,27 +215,51 @@ async function setupScene() {
   gameContext.controls.on('testShot', launchShot);
   gameContext.controls.on('toggleStats', () => gameContext.stats?.toggle());
 
-  // Sky/Clouds
+
+  let lightOptions: CourseLightOptions = {
+    qualityLevel: gameContext.qualityLevel,
+    color: new THREE.Color('#fffac0'),
+    directional: { enabled: true, intensity: 1.1 },
+    ambient: { enabled: true, intensity: 0.8 }
+  };
+  
+  
   // QUESTION: move to course loader?
-  gameContext.clouds = new VolumetricClouds(gameContext.camera, {
-    radius: 800,
-    opacity: 0.8,
-    scale: 3,
-    density: cloudSettings?.density,
-    // opacity: cloudSettings?.opacity ?? 0.8,
-    // scale: cloudSettings?.scale ?? 6,
-    cloudColor,
-    fogColor,
-    // cloudColor: new THREE.Color('#f4fafc'),
-    // fogColor: new THREE.Color('#f7f6f1'),
-    skyColor,
-    // skyColor: new THREE.Color('#498daa'),
-    position: new THREE.Vector3(0, -40, 0)
-  });
-  gameContext.scene.add(gameContext.clouds.object);
+  if (skyType === 'clouds') {
+    // Sky/Clouds
+    gameContext.scene.background = skyColor;
+    gameContext.clouds = new VolumetricClouds(gameContext.camera, {
+      radius: 800,
+      scale: cloudSettings?.scale ?? 3,
+      opacity: cloudSettings?.opacity ?? 0.8,
+      density: cloudSettings?.density ?? 0.5,
+      cloudColor,
+      fogColor,
+      skyColor,
+      position: new THREE.Vector3(0, -40, 0)
+    });
+    gameContext.scene.add(gameContext.clouds.object);
+    gameContext.renderer.generateEnvironment(gameContext.scene, gameContext.clouds.object);
+
+    gameContext.fog = new THREE.Fog(fogColor, 300, 800);
+    gameContext.scene.fog = gameContext.fog;
+
+  } else if (skyType === 'hdri') {
+    const parser = gameContext.course?.gltf?.parser;
+    if (parser) {
+      const skyboxDef = (parser.json?.images || []).find(
+        (img: any) => img.extras?.type === 'hdri'
+      );
+      const buffer: ArrayBuffer = await parser.getDependency('bufferView', skyboxDef.bufferView);
+      const box = new SkyBox();
+      box.load(gameContext.scene, buffer);
+    }
+  }
+  
+  gameContext.lightGroup = new CourseLight(lightOptions);
+  gameContext.scene.add(gameContext.lightGroup);
   
 
-  gameContext.renderer.generateEnvironment(gameContext.scene, gameContext.clouds.object);
   if (gameContext.renderer.environment) {
     gameContext.course.updateEnvironment(gameContext.renderer.environment);
   }

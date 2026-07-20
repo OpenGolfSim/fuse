@@ -26,11 +26,11 @@
     "three-mesh-bvh": "^0.9.10"
   },
   "peerDependencies": {
-    "three": "^0.184.0"
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@types/sortablejs": "^1.15.9",
-    "@types/three": "^0.184.0",
+    "@types/three": "^0.185.1",
     "cheerio": "^1.2.0",
     "concurrently": "^9.2.1",
     "express": "^5.2.1",

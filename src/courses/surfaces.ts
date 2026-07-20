@@ -36,9 +36,6 @@ export type CourseSurfaceProperties = {
   /** The ball is considered stopped below this speed (m/s) and the shot ends. Raise it if balls creep forever on slight slopes. */
   stopSpeed?: number,
 
-  /** Unused leftover from Rapier. Safe to delete. */
-  stopAngular?: number,
-
   /** What kind of surface this is. Green gets stimp rolling, water gets splash handling, etc. */
   type?: CourseColliderType,
 
@@ -58,16 +55,15 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
     friction: 0.5,
     spinGrip: 1.2,
     restitution: 0.35,
-    divot: 0.0,
+    divot: 0.01,
     rollResistance: 0.09,
     stopSpeed: 0.18,
-    stopAngular: 4.8,
   },
   [CourseSurfaceType.Fringe]: {
     hasCollider: true,
     friction: 0.5,
     spinGrip: 1.2,
-    divot: 0.03,
+    divot: 0.01,
     restitution: 0.3,
     rollResistance: 0.10
   },
@@ -76,7 +72,6 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
     friction: 0.3,
     restitution: 0.3,
     spinGrip: 0.5,
-    divot: 0.02,
     rollResistance: 0.15
   },
   [CourseSurfaceType.FirstCut]: {

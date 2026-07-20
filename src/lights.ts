@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { QualityMode } from '@/utils/quality';
 
-type CourseLightOptions = {
+export type CourseLightOptions = {
   color?: THREE.ColorRepresentation | undefined,
   qualityLevel?: QualityMode,
   ambient?: {

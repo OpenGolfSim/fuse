@@ -5,6 +5,7 @@ import {
   ACESFilmicToneMapping,
   PMREMGenerator,
   Scene,
+  Vector2,
   type Camera,
   type Fog,
   type Mesh,
@@ -82,6 +83,7 @@ export class FuseRenderer {
 
     const resizeObserver = new ResizeObserver((entries) => this._handleResize());
     resizeObserver.observe(this.container);
+  
   }
   
   _handleResize() {  
@@ -95,18 +97,12 @@ export class FuseRenderer {
       await this.renderer.init();
     }
 
+    // // Debug renderer
+    // const b: any = (this.renderer as any).backend;
+    // app.log(`[backend] name: ${b?.constructor?.name}`);
 
-    // Debug renderer
-    const b: any = (this.renderer as any).backend;
-    app.log(`[backend] name: ${b?.constructor?.name}`);
-
-    const gl = (this.renderer as any).backend?.gl;
-    app.log(`[backend] multi_draw:${!!gl?.getExtension('WEBGL_MULTI_DRAW')}`);
-
-    //  for (const fn of ['createRenderPipeline', 'createShaderModule']) {
-    //    const t = b?.device; if (t?.[fn]) { const o = t[fn].bind(t); t[fn] = (d: any) => (console.warn('[compile]', d?.label ?? fn), o(d)); }
-    //  }
-    //  if (b?.gl) { const o = b.gl.linkProgram.bind(b.gl); b.gl.linkProgram = (p: any) => (console.warn('[compile] gl'), o(p)); }
+    // const gl = (this.renderer as any).backend?.gl;
+    // app.log(`[backend] multi_draw:${!!gl?.getExtension('WEBGL_MULTI_DRAW')}`);
 
   }
 

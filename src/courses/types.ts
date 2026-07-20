@@ -6,6 +6,7 @@ export type Hole = {
   number: string;
   par: number;
   waypoints: HoleWaypoint;
+  _num?: number;
 }
 
 export type PlayerState = {
