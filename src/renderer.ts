@@ -54,6 +54,8 @@ export class FuseRenderer {
 
     if (options.renderMode === 'webgpu') {
       this.renderer = new WebGPURenderer({ canvas: options.canvas, antialias: options.antialias, depth: true, });
+      // @ts-expect-error - isWebGPUBackend exists not added to three types yet
+      app.log(`isWebGPUBackend: ${this.renderer.backend.isWebGPUBackend}`);
     } else {
       this.renderer = new WebGLRenderer({ canvas: options.canvas, antialias: options.antialias });
       // Enable TSL node material support for WebGLRenderer
@@ -96,14 +98,6 @@ export class FuseRenderer {
     if (this.renderer instanceof WebGPURenderer) {
       await this.renderer.init();
     }
-
-    // // Debug renderer
-    // const b: any = (this.renderer as any).backend;
-    // app.log(`[backend] name: ${b?.constructor?.name}`);
-
-    // const gl = (this.renderer as any).backend?.gl;
-    // app.log(`[backend] multi_draw:${!!gl?.getExtension('WEBGL_MULTI_DRAW')}`);
-
   }
 
   async compile(scene: Scene, camera: Camera) {
@@ -203,4 +197,36 @@ export class FuseRenderer {
     this.pipeline.outputNode = scenePassColor.add(bloomPass);
   }
 
+
+  /**
+   * DEBUG: compile the scene one mesh at a time, logging before/after each,
+   * so the material that hangs the driver's shader compiler identifies itself.
+   * The last "[probe] compiling ..." without a matching "[probe] ok" is the culprit.
+   */
+  async compileProbe(scene: Scene, camera: Camera) {
+    if (!(this.renderer instanceof WebGPURenderer)) return;
+
+    const meshes: any[] = [];
+    scene.traverse((o: any) => { if (o.isMesh) meshes.push(o); });
+
+    // Hide everything, remember prior visibility
+    const prevVisible = meshes.map(o => o.visible);
+    for (const o of meshes) o.visible = false;
+
+    for (let i = 0; i < meshes.length; i++) {
+      const o = meshes[i];
+      const matType = Array.isArray(o.material)
+        ? o.material.map((m: any) => m.type).join(',')
+        : o.material?.type;
+      o.visible = true;
+      console.log(`[probe] compiling ${i + 1}/${meshes.length}: name="${o.name || '(unnamed)'}" obj=${o.constructor.name} mat=${matType}`);
+      const t0 = performance.now();
+      await this.renderer.compileAsync(scene, camera);
+      console.log(`[probe] ok ${i + 1} (${(performance.now() - t0).toFixed(0)}ms)`);
+      // Leave visible: compileAsync skips already-compiled pipelines on later passes
+    }
+
+    // Restore original visibility
+    meshes.forEach((o, i) => (o.visible = prevVisible[i]));
+  }  
 }
