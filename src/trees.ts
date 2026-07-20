@@ -528,6 +528,11 @@ export class TreePlanter {
 
     return treeGroup;
   }
+
+  /** Run LOD/culling assignment immediately (call once before first render). */
+  primeLODs(camera: THREE.Camera) {
+    this.#updateLODs(camera);
+  }
   
   #updateLODs(camera: THREE.Camera) {
 
@@ -591,8 +596,13 @@ export class TreePlanter {
 
   }
   update(camera: THREE.Camera, isShotActive: boolean) {
-    
     this.#frameNum++;
+    // First call: assign LODs immediately so frame 1 never draws
+    // every tree at LOD0.
+    if (this.#frameNum === 1) {
+      this.#updateLODs(camera);
+      return;
+    }
 
     if (this.#frameNum % 5 === 0) {
       const dx = camera.position.x - this.#lastCamX;

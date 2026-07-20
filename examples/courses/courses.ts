@@ -453,6 +453,9 @@ async function setupCourse() {
   if (gameContext.camera) {
     console.log('Precompiling shaders...');
     await gameContext.renderer.compile(gameContext.scene, gameContext.camera);  
+    // DEBUG: per-mesh probe to find which material hangs pipeline creation
+    // await gameContext.renderer.compileProbe(gameContext.scene, gameContext.camera);
+    console.log('Done compiling shaders!');
   }
 }
 
@@ -481,20 +484,6 @@ function preLoad() {
       requestAnimationFrame(animate);
       gameContext.isReady = true;
     }
-
-    if (gameContext.scene) {
-
-      // Right after scene creation, before anything is added
-      const originalAdd = gameContext.scene.add.bind(gameContext.scene);
-
-      gameContext.scene.add = function(...args: any[]) {
-        for (const obj of args) {
-          console.log('Scene.add:', obj.type, obj.constructor.name);
-        }
-        return originalAdd(...args);
-      };
-    }
-
   });
   gameContext.loadingScreen.load(setupCourse);
   document.body.style.opacity = '1';

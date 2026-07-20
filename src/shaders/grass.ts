@@ -204,7 +204,7 @@ function createBladeMaterial(
 
   const material = new MeshLambertNodeMaterial({
     side: THREE.DoubleSide,
-    transparent: false,
+    transparent: true,
     // alphaTest: 0.01,
   });
 
