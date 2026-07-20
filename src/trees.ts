@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { type World } from '@dimforge/rapier3d-compat';
 import { seededRandom } from '@/utils/random';
 import { isMeshObject } from '@/utils/mesh';
@@ -30,13 +31,23 @@ export type TreeGroup = {
   },
   // collider?: boolean,
   lodDistances: number[],
+  maxDistance?: number,
+};
+
+type BatchEntry = {
+  mesh: THREE.BatchedMesh;
+  lodGeometryIds: number[];   // index = LOD level; -1 = no geometry at that level
+  instanceIds: number[];      // index = planted tree
 };
 
 type LODEntry = {
+  batches: BatchEntry[];
   allMatrices: THREE.Matrix4[];
-  allColors: number[];
-  lodMeshes: THREE.InstancedMesh[][]; // lodMeshes[0] = LOD0 meshes, [1] = LOD1, etc.
+  positions: Float32Array;    // XZ per planted tree
+  cullRadius: number;         // approx tree bounding radius for frustum test
   lodDistances: number[];
+  maxDistance: number;
+  currentLevel: Uint8Array;   // per planted tree
 };
 
 class SpatialHash2D {
@@ -90,6 +101,7 @@ export class TreePlanter {
   #init: boolean = false;
   #lastCamX = 0;
   #lastCamZ = 0;  
+  #lastCamDir = new THREE.Vector3();
   #frameNum = 0;
 
   constructor(options: TreePlanterOptions) {
@@ -187,6 +199,30 @@ export class TreePlanter {
 
   }
 
+  #makeBatchMaterial(source: THREE.Material, isBillboardOnly: boolean): THREE.Material {
+    const src = source as THREE.MeshStandardMaterial;
+    const lowTier = this.qualityLevel === QualityMode.Low;
+
+    if (!lowTier) return source.clone();
+
+    // Standard = same PBR family as Physical, minus clearcoat/sheen/transmission cost
+    const cheap = new THREE.MeshStandardMaterial();
+    THREE.MeshStandardMaterial.prototype.copy.call(cheap, src);
+    return cheap;
+
+    // // Low tier: unlit billboards, cheap-lit foliage/trunks
+    // const cheap = isBillboardOnly
+    //   ? new THREE.MeshBasicMaterial()
+    //   : new THREE.MeshLambertMaterial();
+    // cheap.map = src.map;
+    // cheap.color.copy(src.color);
+    // cheap.side = src.side;
+    // cheap.transparent = src.transparent;
+    // cheap.alphaTest = src.alphaTest;
+    // cheap.depthWrite = src.depthWrite;
+    // (cheap as any).alphaToCoverage = (src as any).alphaToCoverage;
+    // return cheap;
+  }  
   plantFromMask(trees: TreeGroup[], maskData: { data: ImageDataArray, width: number, height: number }, seed = 12345) {
     const { data, width, height } = maskData;
     const cellW = this.worldSize / width;
@@ -326,14 +362,13 @@ export class TreePlanter {
   ) {
     const { meshGroup, lodDistances } = treeConfig;
     const levels = this.#splitByLODLevel(meshGroup);
-    const color = new THREE.Color();
+    // const color = new THREE.Color();
     const maxLevel = Math.max(...levels.keys());
 
-    const lodMeshes: THREE.InstancedMesh[][] = [];
-
-    for (const [level, sourceGroup] of [...levels.entries()].sort((a, b) => a[0] - b[0])) {
-      const meshes: THREE.InstancedMesh[] = [];
-
+    // Group submeshes by material across ALL LOD levels.
+    // One BatchedMesh per unique material — any texture layout works.
+    const groups = new Map<string, { material: THREE.Material, perLevel: THREE.BufferGeometry[][] }>();
+    for (const [level, sourceGroup] of levels.entries()) {
       sourceGroup.children.forEach((child) => {
         if (!isMeshObject(child)) return;
 
@@ -343,40 +378,95 @@ export class TreePlanter {
         localMatrix.copy(sourceGroup.matrixWorld).invert().multiply(child.matrixWorld);
         geo.applyMatrix4(localMatrix);
 
-        geo.computeBoundingBox();
-
-        // @ts-expect-error
-        const instanced = new THREE.InstancedMesh(geo, child.material.clone(), count);
-
-        if (level === maxLevel) {
-          const mat = instanced.material as THREE.Material;
-          mat.alphaTest = 0.0;
-          mat.alphaToCoverage = true;
-          mat.transparent = false;
-          mat.depthWrite = true;
-          // mat.side = THREE.DoubleSide;
+        const mat = child.material as THREE.Material;
+        let g = groups.get(mat.uuid);
+        if (!g) {
+          g = { material: mat, perLevel: Array.from({ length: maxLevel + 1 }, () => []) };
+          groups.set(mat.uuid, g);
         }
-
-        instanced.instanceMatrix.needsUpdate = true;
-        instanced.castShadow = true; // level !== maxLevel;
-        instanced.receiveShadow = false;
-        instanced.frustumCulled = false;
-
-        this.treeGroup.add(instanced);
-        meshes.push(instanced);
+        g.perLevel[level].push(geo);
       });
-
-      lodMeshes.push(meshes);
     }
 
+    const batches: BatchEntry[] = [];
+    for (const { material, perLevel } of groups.values()) {
+      // Merge same-material submeshes within each LOD level into one geometry
+      const lodGeos = perLevel.map(list =>
+        list.length === 0 ? null : list.length === 1 ? list[0] : mergeGeometries(list)
+      );
+
+      // Any material used at the billboard level gets cutout settings
+      const hasBillboard = lodGeos[maxLevel] !== null;
+      if (hasBillboard) {
+        material.alphaTest = 0.0;
+        (material as any).alphaToCoverage = true;
+        material.transparent = false;
+        material.depthWrite = true;
+      }
+
+      // Billboard-only = this material has geometry at no other level
+      const isBillboardOnly = hasBillboard && lodGeos.filter(Boolean).length === 1;
+      const batchMaterial = this.#makeBatchMaterial(material, isBillboardOnly);
+
+      let maxVerts = 0;
+      let maxIndices = 0;
+      for (const g of lodGeos) {
+        if (!g) continue;
+        maxVerts += g.attributes.position.count;
+        maxIndices += g.index ? g.index.count : g.attributes.position.count;
+      }
+
+      // const batched = new THREE.BatchedMesh(count, maxVerts, maxIndices, material);
+      // const batched = new THREE.BatchedMesh(count, maxVerts, maxIndices, material.clone());
+      const batched = new THREE.BatchedMesh(count, maxVerts, maxIndices, batchMaterial);
+
+      // three.js WebGPU bug: culling+shadows drops opaque batches; revisit on upgrade
+      batched.castShadow = true;
+      batched.perObjectFrustumCulled = false;
+      batched.receiveShadow = false;
+
+      const lodGeometryIds = lodGeos.map(g => (g ? batched.addGeometry(g) : -1));
+      const firstLevel = lodGeometryIds.findIndex(id => id !== -1);
+
+      const instanceIds: number[] = [];
+      for (let i = 0; i < count; i++) {
+        const id = batched.addInstance(lodGeometryIds[firstLevel]);
+        batched.setMatrixAt(id, matrices[i]);
+        // Hide instances whose material has no geometry at the starting level (billboard batch)
+        if (firstLevel !== 0) batched.setVisibleAt(id, false);
+        instanceIds.push(id);
+      }
+
+      this.treeGroup.add(batched);
+      batches.push({ mesh: batched, lodGeometryIds, instanceIds });
+    }
+
+    const positions = new Float32Array(count * 2);
+    const pos = new THREE.Vector3();
+    for (let i = 0; i < count; i++) {
+      pos.setFromMatrixPosition(matrices[i]);
+      positions[i * 2] = pos.x;
+      positions[i * 2 + 1] = pos.z;
+    }
+
+    const sphere = new THREE.Sphere();
+    let cullRadius = 10;
+    if (batches.length && batches[0].instanceIds.length) {
+      batches[0].mesh.getBoundingSphereAt(batches[0].instanceIds[0], sphere);
+      cullRadius = sphere.radius * 1.5; // pad for scale variation across instances
+    }
+    
     this.lodEntries.push({
+      batches,
       allMatrices: matrices,
-      allColors: pickedColors,
-      lodMeshes,
+      positions,
+      cullRadius,
+      maxDistance: treeConfig.maxDistance ?? Infinity,
       lodDistances,
+      currentLevel: new Uint8Array(count),
     });
 
-    return lodMeshes.flat();
+    return batches.map(b => b.mesh);
   }
 
   static loadTree(tree: THREE.Object3D) {
@@ -440,59 +530,78 @@ export class TreePlanter {
   }
   
   #updateLODs(camera: THREE.Camera) {
-    const camPos = camera.position;
-    const pos = new THREE.Vector3();
+
+    const camX = camera.position.x;
+    const camZ = camera.position.z;
+    const HIDDEN = 255;
+    const SHADOW_KEEP_SQ = 100 * 100; // near trees never cull: their shadows can reach into view
+
+    const projScreen = new THREE.Matrix4()
+      .multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    const frustum = new THREE.Frustum().setFromProjectionMatrix(projScreen);
+    const sphere = new THREE.Sphere();
 
     for (const entry of this.lodEntries) {
-      const { allMatrices, lodMeshes, lodDistances } = entry;
+      // const { batches, positions, lodDistances, maxDistance, currentLevel } = entry;
+      const { batches, positions, lodDistances, maxDistance, currentLevel, cullRadius, allMatrices } = entry;
+
+      const count = currentLevel.length;
       const distsSq = lodDistances.map(d => d * d);
-      if (!lodMeshes.length) { return; }
-      const counts = new Array(lodMeshes.length).fill(0);
-      const prevCounts = lodMeshes.map(meshes => meshes[0]?.count ?? 0);
+      const maxDistSq = maxDistance * maxDistance;
+      const numLevels = batches.length
+        ? Math.max(...batches.map(b => b.lodGeometryIds.length))
+        : 0;
 
-      for (let i = 0; i < allMatrices.length; i++) {
-        pos.setFromMatrixPosition(allMatrices[i]);
-        const d = (pos.x - camPos.x) ** 2 + (pos.z - camPos.z) ** 2;
+      for (let i = 0; i < count; i++) {
+        const dx = positions[i * 2] - camX;
+        const dz = positions[i * 2 + 1] - camZ;
+        const dSq = dx * dx + dz * dz;
 
-        // Find which LOD level this instance belongs to
-        let level = 0;
-        for (let l = 0; l < distsSq.length; l++) {
-          if (d >= distsSq[l]) {
-            level = l + 1;
+        let level = HIDDEN;
+        if (dSq < maxDistSq) {
+          level = 0;
+          for (let l = 0; l < distsSq.length; l++) {
+            if (dSq >= distsSq[l]) level = l + 1;
           }
+          level = Math.min(level, numLevels - 1);
         }
-        // Clamp to max available level
-        level = Math.min(level, lodMeshes.length - 1);
-        const meshes = lodMeshes?.[level] || [];
-        for (const mesh of meshes) {
-          mesh.setMatrixAt(counts[level], allMatrices[i]);
+        // Frustum cull: out of view AND far enough that its shadow can't reach into view
+        if (level !== HIDDEN && dSq > SHADOW_KEEP_SQ) {
+          sphere.center.setFromMatrixPosition(allMatrices[i]);
+          sphere.radius = cullRadius;
+          if (!frustum.intersectsSphere(sphere)) level = HIDDEN;
         }
-        counts[level]++;
-      }
-      // console.log(`level: ${level}`);
 
-      for (let l = 0; l < lodMeshes.length; l++) {
-        const changed = counts[l] !== prevCounts[l];
-        for (const mesh of lodMeshes[l]) {
-          mesh.count = counts[l];
-          // mesh.instanceMatrix.needsUpdate = true;
-          if (changed) mesh.instanceMatrix.needsUpdate = true;
+        if (level === currentLevel[i]) continue;
+        currentLevel[i] = level;
+
+        for (const batch of batches) {
+          const id = batch.instanceIds[i];
+          const geoId = level === HIDDEN ? -1 : (batch.lodGeometryIds[level] ?? -1);
+          if (geoId === -1) {
+            batch.mesh.setVisibleAt(id, false);
+          } else {
+            batch.mesh.setGeometryIdAt(id, geoId);
+            batch.mesh.setVisibleAt(id, true);
+          }
         }
       }
     }
 
+
   }
   update(camera: THREE.Camera, isShotActive: boolean) {
-    // if (camera && (!this.#init || isShotActive)) {
-    //   this.#init = true;
-    //   this.#updateLODs(camera);
-    // }
+    
     this.#frameNum++;
-    // if (this.#frameNum % 4 === 0) {
-    if (this.#frameNum % 10 === 0) {
+
+    if (this.#frameNum % 5 === 0) {
       const dx = camera.position.x - this.#lastCamX;
       const dz = camera.position.z - this.#lastCamZ;
-      if (dx * dx + dz * dz < 1.0) return; // less than 1m moved, skip
+      const dir = camera.getWorldDirection(new THREE.Vector3());
+      const turned = dir.dot(this.#lastCamDir) < 0.999; // ~2.5° rotation
+      if (dx * dx + dz * dz < 1.0 && !turned) return; // neither moved nor turned — skip
+      this.#lastCamDir.copy(dir);
+
       this.#lastCamX = camera.position.x;
       this.#lastCamZ = camera.position.z;
 

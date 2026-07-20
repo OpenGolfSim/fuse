@@ -1,44 +1,29 @@
 import * as THREE from 'three/webgpu';
-import { MeshBasicNodeMaterial } from 'three/webgpu';
-import { PMREMGenerator } from 'three/webgpu';
+import { pmremTexture, normalWorld, vec3 } from 'three/tsl';
 import { EXRLoader } from 'three/examples/jsm/Addons.js';
 
-// ============================================================
-// SkyBox
-// ============================================================
-
 export class SkyBox {
-  pmremGenerator: PMREMGenerator;
   exrLoader: EXRLoader;
-  sky: THREE.Mesh | null;
 
-  constructor(renderer: THREE.WebGPURenderer) {
-    this.pmremGenerator = new PMREMGenerator(renderer);
+  constructor() {
     this.exrLoader = new EXRLoader();
-    this.sky = null;
+    this.exrLoader.setDataType(THREE.HalfFloatType);
   }
 
-  async load(scene: THREE.Scene, exrPath: string) {
-    const texture = await this.exrLoader.loadAsync(exrPath);
+  async load(scene: THREE.Scene, exrBuffer: ArrayBuffer) {
+
+    // const texture = this.exrLoader.parse(exrBuffer) as unknown as THREE.DataTexture;
+    const texture = this.exrLoader.createDataTexture(exrBuffer);
     texture.mapping = THREE.EquirectangularReflectionMapping;
+    texture.needsUpdate = true;
+    
+    const skyScale = 0.5; // <1 zooms in on the sky, >1 zooms out
+    scene.backgroundNode = pmremTexture(
+      texture,
+      normalWorld.mul(vec3(skyScale, -1, skyScale))
+    );
 
-    const envMap = this.pmremGenerator.fromEquirectangular(texture).texture;
-    scene.environment = envMap;
-    this.pmremGenerator.dispose();
-
-    const skyGeo = new THREE.SphereGeometry(400, 60, 40);
-    const skyMat = new MeshBasicNodeMaterial({
-      map: texture,
-      depthWrite: false,
-      fog: false,
-    });
-
-    this.sky = new THREE.Mesh(skyGeo, skyMat);
-    this.sky.geometry.scale(-1, 1, 1);
-    this.sky.scale.set(2, 1, 2);
-    this.sky.position.set(0, 50, 0);
-    this.sky.rotation.y = -0.5;
-
-    return this.sky;
+    scene.environment = texture;
+    scene.environmentIntensity = 0.1;
   }
 }

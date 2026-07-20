@@ -32,7 +32,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 export interface SceneSettings {
   sky?: {
-    type?: string;
+    type?: 'clouds' | 'hdri';
     clouds?: {
       skyColor?: string;
       fogColor?: string;
@@ -84,7 +84,67 @@ export class MeshLoader extends EventEmitter<CourseLoaderEvents> {
       return;
     }
     return mesh;
-  }  
+  }
+  async fetchWithResume(
+    url: string,
+    chunkSize = 8 * 1024 * 1024,
+    maxRetries = 5
+  ): Promise<ArrayBuffer> {
+    // const head = await fetch(url, { method: 'HEAD' });
+    // const total = parseInt(head.headers.get('content-length') ?? '0', 10);
+    // if (!total) throw new Error(`No content-length for ${url}`);
+    let total = 0;
+    let supportsRanges = false;
+
+    try {
+      const head = await fetch(url, { method: 'HEAD' });
+      total = parseInt(head.headers.get('content-length') ?? '0', 10);
+      supportsRanges = head.headers.get('accept-ranges') === 'bytes';
+    } catch {
+      // HEAD unsupported (e.g. electron custom protocol) — use plain fetch
+    }
+
+    // Fallback: single plain request (local files, no range support)
+    if (!total || !supportsRanges) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.arrayBuffer();
+    }
+
+    const buffer = new Uint8Array(total);
+    let offset = 0;
+
+    while (offset < total) {
+      const end = Math.min(offset + chunkSize, total) - 1;
+      let attempt = 0;
+      for (;;) {
+        try {
+          const res = await fetch(url, { headers: { Range: `bytes=${offset}-${end}` } });
+          if (res.status === 200) return res.arrayBuffer(); // server ignored Range
+          if (res.status !== 206 && !res.ok) throw new Error(`HTTP ${res.status}`);
+          buffer.set(new Uint8Array(await res.arrayBuffer()), offset);
+          break;
+        } catch (e) {
+          if (++attempt > maxRetries) throw e;
+          await new Promise(r => setTimeout(r, 500 * 2 ** attempt));
+        }
+      }
+      offset = end + 1;
+      this.emit('progress', {
+        percent: offset / total,
+        itemsLoaded: offset,
+        itemsTotal: total,
+      });
+    }
+    return buffer.buffer;
+  }
+
+  async loadChunked(meshUri: string): Promise<GLTF> {
+    const buffer = await this.fetchWithResume(meshUri);
+    const resourcePath = THREE.LoaderUtils.extractUrlBase(meshUri);
+    return this.gltfLoader.parseAsync(buffer, resourcePath);
+  }
+
 }
 
 interface LoadedCourseSurface extends CourseSurfaceProperties {
@@ -171,7 +231,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   }
 
   async load(coursePath: string) {
-    this.gltf = await this.meshLoader.gltfLoader.loadAsync(coursePath);
+    this.gltf = await this.meshLoader.loadChunked(coursePath);
     this.scene = this.gltf.scene;
     if (this.gltf.userData?.courseSize) {
       this.courseSize = this.gltf.userData.courseSize;
@@ -327,10 +387,10 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
           const grassOptions = {
             density: 11,
             renderDistance: 25,
-            cellSize: 5,
+            cellSize: 10,
             lean: 0.01,
             heightVariation: 0.5,
-            maxNewCellsPerFrame: 10,
+            maxNewCellsPerFrame: 20,
             scaleXZ: 0.6,
             scaleY: 0.65,
             layer: 2,
@@ -445,6 +505,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       (img: any) => img.extras?.type === 'tree_mask'
     ) as TreeImage[];
 
+    console.log(`[plant] Planting trees... (qual:${this.qualityLevel})`);
     this.planter = new TreePlanter({
       scene: this.scene,
       worldSize: this.courseSize,
@@ -461,13 +522,16 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
 
         const group = TreePlanter.loadTree(child);
 
-        let lodDistances = [50, 100];
+        let lodDistances = [40, 80];
+        let maxDistance = 500;
         if (this.qualityLevel === QualityMode.Medium) {
           lodDistances = [100, 200];
+          maxDistance = 800;
         } else if (this.qualityLevel === QualityMode.High) {
           lodDistances = [200, 400];
+          maxDistance = Infinity;
         }
-
+        console.log(`[plant] Planting tree layer... (lods:${lodDistances.join(',')})`, group);
         const config: TreeGroup = {
           collider: {
             radius: 0.3,
@@ -476,6 +540,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
           scaleRange: { min: 1, max: 1 },
           density: 1,
           minDistance: 3,
+          maxDistance,
           lodDistances,
           colors: [],
           meshGroup: group,
@@ -500,7 +565,9 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       if (configs?.length && treeMask.bufferView) {
         const buffer = await this.gltf.parser.getDependency('bufferView', treeMask.bufferView);
         const maskData = await getTextureImageData(buffer);
+        console.log(`[plant] Planting from mask... (w:${maskData.width},h:${maskData.height},len:${maskData.data.byteLength})`);
         this.planter.plantFromMask(configs, maskData);
+        // this.planter.treeGroup.visible = false;
       }
     }
 
