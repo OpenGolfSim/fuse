@@ -1,6 +1,5 @@
 import { UIHazardDialog } from '@/ui/UIHazardDialog';
 import { QualityMode } from '@/utils/quality';
-import { type World } from '@dimforge/rapier3d-compat';
 import {
   THREE,
   app,
@@ -23,8 +22,6 @@ import {
   FuseRenderer,
   UIScorecard,
   AudioPlayer,
-  SkyBox,
-  CourseLightOptions,
  } from '@opengolfsim/fuse';
 
 const HoleOutSound = '../sounds/holeout.wav';
@@ -38,7 +35,6 @@ const gameContext: {
   qualityLevel: QualityMode,
   // Environment
   timer: THREE.Timer,
-  world?: World;
   scene?: THREE.Scene;
   renderer?: FuseRenderer,
   golfBall?: GolfBall,
@@ -150,6 +146,13 @@ async function setupRenderer() {
   if (gameContext.qualityLevel >= QualityMode.High) {
     maxPixelRatio = Math.min(window.devicePixelRatio, 2);
   }
+
+  gameContext.camera = new ShotPerspectiveCamera(
+    {
+      autoPosition: true,
+      cameraOffsetX: (gameContext.setupData?.cameraOffset ? -(gameContext.setupData.cameraOffset / 100) : 0),
+    }
+  );
 }
 
 async function setupScene() {
@@ -172,17 +175,30 @@ async function setupScene() {
   if (!gameContext.course) {
     throw new Error('Course object does not exist!');
   }
-  const ground = gameContext.course.getGroundMeshes();
-  gameContext.camera = new ShotPerspectiveCamera(
-    {
-      scene: ground,
-      autoPosition: true,
-      cameraOffsetX: (gameContext.setupData?.cameraOffset ? -(gameContext.setupData.cameraOffset / 100) : 0),
-    }
-  );
+  if (!gameContext.camera) {
+    throw new Error('Camera does not exist!');
+  }
   
-  if (gameContext.setupData?.qualityLevel && gameContext.setupData?.qualityLevel > QualityMode.Medium) {
-    gameContext.renderer.setupPostProcessing(gameContext.scene, gameContext.camera);
+  
+  // if (gameContext.setupData?.qualityLevel && gameContext.setupData?.qualityLevel > QualityMode.Medium) {
+  //   gameContext.renderer.setupPostProcessing(gameContext.scene, gameContext.camera);
+  // }
+  gameContext.renderer.setupPostProcessing(gameContext.scene, gameContext.camera);
+}
+
+async function setupControls() {
+  // Main Camera
+  if (!gameContext.renderer) {
+    throw new Error('Renderer does not exist!');
+  }
+  if (!gameContext.course) {
+    throw new Error('Course object does not exist!');
+  }
+  if (!gameContext.camera) {
+    throw new Error('Camera does not exist!');
+  }
+  if (!gameContext.scene) {
+    throw new Error('Scene does not exist!');
   }
 
   // Aim point
@@ -214,55 +230,6 @@ async function setupScene() {
   });
   gameContext.controls.on('testShot', launchShot);
   gameContext.controls.on('toggleStats', () => gameContext.stats?.toggle());
-
-
-  let lightOptions: CourseLightOptions = {
-    qualityLevel: gameContext.qualityLevel,
-    color: new THREE.Color('#fffac0'),
-    directional: { enabled: true, intensity: 1.1 },
-    ambient: { enabled: true, intensity: 0.8 }
-  };
-  
-  
-  // QUESTION: move to course loader?
-  if (skyType === 'clouds') {
-    // Sky/Clouds
-    gameContext.scene.background = skyColor;
-    gameContext.clouds = new VolumetricClouds(gameContext.camera, {
-      radius: 800,
-      scale: cloudSettings?.scale ?? 3,
-      opacity: cloudSettings?.opacity ?? 0.8,
-      density: cloudSettings?.density ?? 0.5,
-      cloudColor,
-      fogColor,
-      skyColor,
-      position: new THREE.Vector3(0, -40, 0)
-    });
-    gameContext.scene.add(gameContext.clouds.object);
-    gameContext.renderer.generateEnvironment(gameContext.scene, gameContext.clouds.object);
-
-    gameContext.fog = new THREE.Fog(fogColor, 300, 800);
-    gameContext.scene.fog = gameContext.fog;
-
-  } else if (skyType === 'hdri') {
-    const parser = gameContext.course?.gltf?.parser;
-    if (parser) {
-      const skyboxDef = (parser.json?.images || []).find(
-        (img: any) => img.extras?.type === 'hdri'
-      );
-      const buffer: ArrayBuffer = await parser.getDependency('bufferView', skyboxDef.bufferView);
-      const box = new SkyBox();
-      box.load(gameContext.scene, buffer);
-    }
-  }
-  
-  gameContext.lightGroup = new CourseLight(lightOptions);
-  gameContext.scene.add(gameContext.lightGroup);
-  
-
-  if (gameContext.renderer.environment) {
-    gameContext.course.updateEnvironment(gameContext.renderer.environment);
-  }
 
 }
 
@@ -319,9 +286,6 @@ async function handleSetup(payload: any) {
 }
 
 async function setupCourse() {
-  if (!app.world) {
-    throw new Error('Physics world does not exist');
-  }
   if (!gameContext?.setupData) {
     throw new Error('Missing setupData!');
   }
@@ -335,13 +299,17 @@ async function setupCourse() {
   await setupRenderer();
   
   if (!gameContext.renderer) {
-    throw new Error('Missing renderer!');
+    throw new Error('Missing FuseRenderer!');
   }
+  if (!gameContext.camera) {
+    throw new Error('Missing ShotCamera');
+  }
+
+
   // load course details and meshes
   gameContext.course = new CourseLoader(
-    app.world,
-    app.rapier,
     gameContext.renderer,
+    gameContext.camera,
     {
       setupData: gameContext.setupData,
       qualityLevel: gameContext.qualityLevel,
@@ -350,11 +318,20 @@ async function setupCourse() {
     }
   );
 
-  await gameContext.course.load(gameContext.gameData.courseUrl);
+  console.log('Creating base scene...');
+  // create the initial scene
+  await setupScene();
+  if (!gameContext.scene) {
+    throw new Error('Unable to create main scene (does not exist)');
+  }
+
+  await gameContext.course.load(gameContext.gameData.courseUrl, gameContext.scene);
   
   console.log('Course loaded', gameContext.course);
   console.log('Course settings', gameContext.course.sceneSettings);
   if (!gameContext.course.scene) throw new Error('Unable to load course scene');
+
+  gameContext.camera.setScene(gameContext.course.getGroundMeshes());  
 
   console.log('Loading audio files...');
   // load audio
@@ -362,12 +339,6 @@ async function setupCourse() {
   await gameContext.audioPlayer.load(HoleOutSound);  
   await gameContext.audioPlayer.load(GroundThudSound);
 
-  console.log('Creating base scene...');
-  // create the initial scene
-  await setupScene();
-  if (!gameContext.scene) {
-    throw new Error('Unable to create main scene (does not exist)');
-  }
   
   console.log('Adding course scene...');
   // add loaded course to the scene
@@ -376,17 +347,21 @@ async function setupCourse() {
 
   console.log('Create golf ball...');
   // create the golf ball
-  gameContext.golfBall = new GolfBall(gameContext.scene, app.world, app.rapier, {
+  gameContext.golfBall = new GolfBall(gameContext.scene, {
     setupData: gameContext.setupData,
     groundMeshes: gameContext.course.getGroundMeshes()
   });
-  gameContext.golfBall.on('landed', (velocity: number) => {
-    gameContext.audioPlayer?.play(GroundThudSound, velocity);
-  });
+  // gameContext.golfBall.on('landed', (velocity: number) => {
+  //   gameContext.audioPlayer?.play(GroundThudSound, velocity);
+  // });
   gameContext.golfBall.on('holedOut', () => {
     gameContext.audioPlayer?.play(HoleOutSound);
   });
   gameContext.golfBall.on('shotEnded', (result) => {
+    console.log('result', result);
+    if (result.isInWater) {
+      gameContext.dialogs.hazard?.open();
+    }
     app.sendShotResult(
       {
         shot: gameContext.golfBall?.lastShot,
@@ -396,7 +371,13 @@ async function setupCourse() {
       }
     );
   });
+
+  await setupControls();
   
+  if (gameContext.renderer.environment) {
+    gameContext.course.updateEnvironment(gameContext.renderer.environment);
+  }
+
   console.log('Setup game logic...');
   // setup course game controller
   gameContext.game = new CourseGame(gameContext.course, gameContext.golfBall, { setupData: gameContext.setupData });
@@ -417,7 +398,19 @@ async function setupCourse() {
     players: gameContext.game?.players || [],
     holes: gameContext.course.holes
   });
-  gameContext.dialogs.hazard = new UIHazardDialog('#hazard', {});
+  gameContext.dialogs.hazard = new UIHazardDialog('#hazard', { preventClose: true });
+  gameContext.dialogs.hazard.on('drop', () => {
+    gameContext.game?.drop();
+    gameContext.dialogs.hazard?.close();
+  });
+  gameContext.dialogs.hazard.on('mulligan', () => {
+    gameContext.game?.mulligan();
+    gameContext.dialogs.hazard?.close();
+  });
+  gameContext.dialogs.hazard.on('rehit', () => {
+    gameContext.game?.rehit();
+    gameContext.dialogs.hazard?.close();
+  });
 
   gameContext.mainMenu.on('exit', () => app.exit())
 
@@ -444,7 +437,7 @@ async function setupCourse() {
   });
 
   console.log('Setting up first shot...');
-  // gameContext.camera?.setScene(gameContext.course.getGroundMeshes());
+
   setupNextShot();
 
   gameContext.courseMap?.on('updateAim', adjustAimPoint);
@@ -453,10 +446,9 @@ async function setupCourse() {
   if (gameContext.camera) {
     console.log('Precompiling shaders...');
     await gameContext.renderer.compile(gameContext.scene, gameContext.camera);  
-    // DEBUG: per-mesh probe to find which material hangs pipeline creation
-    // await gameContext.renderer.compileProbe(gameContext.scene, gameContext.camera);
     console.log('Done compiling shaders!');
   }
+
 }
 
 /**

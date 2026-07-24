@@ -1,7 +1,7 @@
 import { CourseHole, CourseHoleMap } from '@/courses/loader';
 import { CoursePlayer } from '@/courses/player';
 import styles from '@/css/ui.module.css';
-import { UIDialog, UIDialogOptions } from '@/ui/UIDialog';
+import { UIDialog, UIDialogEvents, UIDialogOptions } from '@/ui/UIDialog';
 import dropIcon from '@/images/drop.svg?url';
 import rehitIcon from '@/images/rehit.svg?url';
 import mulliganIcon from '@/images/mulligan.svg?url';
@@ -9,8 +9,14 @@ import mulliganIcon from '@/images/mulligan.svg?url';
 
 type UIHazardDialogOptions = {} & UIDialogOptions;
 
-export class UIHazardDialog extends UIDialog {
 
+interface UIHazardDialogEvents extends UIDialogEvents {
+  drop: () => void
+  mulligan: () => void
+  rehit: () => void
+}
+
+export class UIHazardDialog extends UIDialog<UIHazardDialogEvents> {
   constructor(parent: string | Element, options: UIHazardDialogOptions) {
     super(parent, { title: 'Hazard', ...options });
 
@@ -26,6 +32,9 @@ export class UIHazardDialog extends UIDialog {
     const rehitOption = this.#addButton(rehitIcon, 'Re-Hit');
     buttons.append(rehitOption);
 
+    dropOption.addEventListener('click', (e) => this.emit('drop'));
+    mulliganOption.addEventListener('click', (e) => this.emit('mulligan'));
+    rehitOption.addEventListener('click', (e) => this.emit('rehit'));
     this.content.append(buttons);
     // this.open();
   }

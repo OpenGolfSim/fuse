@@ -115,7 +115,7 @@ async function setupWorld() {
 
 
 async function createGroundPlane() {
-  if (!app.world) throw new Error('Missing physics world. Did you call app.initialize() first?');
+  // if (!app.world) throw new Error('Missing physics world. Did you call app.initialize() first?');
   if (!gameContext.scene) throw new Error('Missing base scene');
   const rangeWidth = 500;
   const rangeHeight = 700;
@@ -298,9 +298,9 @@ async function setupRange() {
   gameContext.scene.add(gameContext.clouds.object);
   
   
-  if (!app.world) throw new Error('Missing physics world. Did you call app.initialize() first?');
+  // if (!app.world) throw new Error('Missing physics world. Did you call app.initialize() first?');
   if (!gameContext.setupData) throw new Error('Missing setupData');
-  gameContext.golfBall = new GolfBall(gameContext.scene, app.world, app.rapier, {
+  gameContext.golfBall = new GolfBall(gameContext.scene, {
     setupData: gameContext.setupData,
     clearTrail: 'start',
     groundMeshes: [gameContext.ground]
@@ -475,7 +475,12 @@ function animate(animDelta: number) {
 
 }
 // use this on load of page, with test data
-app.initialize(initializeDebug);
+app.initialize(() => {
+  if (app.appType === 'web') {
+    initializeDebug();
+  }
+});
+
 // sent by OpenGolfSim Desktop/Mobile apps
 app.on('setup', initializeSetup);
 // sent by OpenGolfSim Desktop/Mobile apps

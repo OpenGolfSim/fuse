@@ -45,7 +45,8 @@ export class TargetShaderMaterial {
   lerpSpeed = 4.0;
   holePosUniform: any;
   ringActiveUniform: any;
-  
+  glowIntensityUniform: any;
+
   material?: MeshStandardNodeMaterial;
 
   constructor(object: THREE.Object3D, holeWorldPos: THREE.Vector3, options: TargetShaderMaterialOptions) {
@@ -59,19 +60,18 @@ export class TargetShaderMaterial {
     // Dynamic uniforms (updated at runtime)
     this.holePosUniform = tslUniform(new THREE.Vector3(holeWorldPos.x, 0, holeWorldPos.z));
     this.ringActiveUniform = tslUniform(new THREE.Vector3(0, 0, 0));
+    // this.glowIntensityUniform = tslUniform(1.5); // > 1.0 so bloom picks it up
+    const glowIntensity = float(4.0); // baked into the shader
 
     // Static values
     const holeRadius = float(0.054);
-    // const rimWidth = float(0.005);           // ~1.2 cm strip of dirt
-    // const rimColorRGB = vec3(0.18, 0.12, 0.08); // dark soil brown
     const ringRadii = vec3(inner, middle, outer);
     const ringW = float(ringWidth);
-    // const activeColor = vec4(1.0, 0.95, 0.0, 0.15);
-    // const inactiveColor = vec4(1.0, 1.0, 1.0, 0.6);
-    const activeColorRGB = vec3(1.0, 0.95, 0.0);
-    const activeColorA = float(0.15);
+    const activeColor = new THREE.Color('#ffd900');
+    const activeColorRGB = vec3(...activeColor.toArray());
+    const activeColorA = float(0.01);
     const inactiveColorRGB = vec3(1.0, 1.0, 1.0);
-    const inactiveColorA = float(0.4);
+    const inactiveColorA = float(0.2);
 
     if (object instanceof THREE.Mesh) {
       const origMat = object.material as THREE.MeshStandardMaterial;
@@ -88,9 +88,9 @@ export class TargetShaderMaterial {
       mat.metalness = origMat.metalness ?? 0.0;
       if (origMat.roughnessMap) mat.roughnessMap = origMat.roughnessMap;
       if (origMat.metalnessMap) mat.metalnessMap = origMat.metalnessMap;
-      if (origMat.emissive) mat.emissive = origMat.emissive.clone();
-      if (origMat.emissiveMap) mat.emissiveMap = origMat.emissiveMap;
-      mat.emissiveIntensity = origMat.emissiveIntensity ?? 1.0;
+      // if (origMat.emissive) mat.emissive = origMat.emissive.clone();
+      // if (origMat.emissiveMap) mat.emissiveMap = origMat.emissiveMap;
+      // mat.emissiveIntensity = origMat.emissiveIntensity ?? 1.0;
       if (origMat.aoMap) mat.aoMap = origMat.aoMap;
       mat.aoMapIntensity = origMat.aoMapIntensity ?? 1.0;
       mat.envMapIntensity = origMat.envMapIntensity ?? 1.0;
@@ -123,23 +123,15 @@ export class TargetShaderMaterial {
       // --- Composite rings onto the base color ---
       // Start with the material's base color (includes .color * .map)
       let color: any = materialColor;
-      // --- Dirt rim around the cup ---
-      // const rim = zoneFill(dist, holeRadius, holeRadius.add(rimWidth));
-      // color = mix(color, rimColorRGB, rim.mul(0.9));
 
       // White outlines — always visible
-      // color = mix(color, inactiveColor.rgb, outline1.mul(inactiveColor.a));
-      // color = mix(color, inactiveColor.rgb, outline2.mul(inactiveColor.a));
-      // color = mix(color, inactiveColor.rgb, outline3.mul(inactiveColor.a));
       color = mix(color, inactiveColorRGB, outline1.mul(inactiveColorA));
       color = mix(color, inactiveColorRGB, outline2.mul(inactiveColorA));
       color = mix(color, inactiveColorRGB, outline3.mul(inactiveColorA));
 
       // Yellow fill — fades in/out with ringActive
       const active = this.ringActiveUniform;
-      // color = mix(color, activeColor.rgb, fill1.mul(activeColor.a).mul(active.x));
-      // color = mix(color, activeColor.rgb, fill2.mul(activeColor.a).mul(active.y));
-      // color = mix(color, activeColor.rgb, fill3.mul(activeColor.a).mul(active.z));
+
       const mask1: any = float(fill1).mul(activeColorA).mul(active.x);
       const mask2: any = float(fill2).mul(activeColorA).mul(active.y);
       const mask3: any = float(fill3).mul(activeColorA).mul(active.z);
@@ -147,10 +139,22 @@ export class TargetShaderMaterial {
       color = mix(color, activeColorRGB, mask2);
       color = mix(color, activeColorRGB, mask3);
 
+      // --- Emissive glow for the active ring (HDR, drives bloom) ---
+      const glow1 = float(fill1).mul(active.x);
+      const glow2 = float(fill2).mul(active.y);
+      const glow3 = float(fill3).mul(active.z);
 
-      // mat.colorNode = color;
-      // mat.opacityNode = holeMask;
-      // mat.transparent = false;
+      const outlineGlow = float(outline1).mul(active.x)
+        .add(float(outline2).mul(active.y))
+        .add(float(outline3).mul(active.z));
+
+      const glowMask = glow1.add(glow2).add(glow3)
+        .mul(0.04)                    // soft fill glow
+        .add(outlineGlow)            // bright ring edge
+        .clamp(0.0, 1.0);
+
+      mat.emissiveNode = activeColorRGB.mul(glowMask).mul(glowIntensity);
+      
       // Discard must live inside an Fn() that is wired into the
       // material, otherwise the statement never enters the node graph.
       const finalColor = color;

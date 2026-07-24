@@ -24,6 +24,6 @@ export class SkyBox {
     );
 
     scene.environment = texture;
-    scene.environmentIntensity = 0.1;
+    // scene.environmentIntensity = 0.1;
   }
 }

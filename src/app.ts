@@ -1,6 +1,4 @@
-import * as RAPIER from '@dimforge/rapier3d-compat';
 import EventEmitter from 'eventemitter3';
-import { GRAVITY_VECTOR } from '@/physics/constants';
 import { ShotStats } from '@/objects/golfBall';
 import { type CoursePlayer } from '@/courses/player';
 
@@ -58,8 +56,6 @@ interface EventMap {
 export class AppBridge extends EventEmitter<EventMap> {
   appType: 'mobile' | 'desktop' | 'web' | 'webapp';
   isReady: boolean;
-  rapier: RapierInstance;
-  world?: RAPIER.World;
 
   constructor() {
     super();
@@ -77,12 +73,7 @@ export class AppBridge extends EventEmitter<EventMap> {
     } else {
       window.addEventListener("message", this.#handleWindowMessage.bind(this));
     }
-
-    this.rapier = RAPIER;
-    this.rapier.init().then(() => {
-      this.world = new RAPIER.World(GRAVITY_VECTOR);
-      this.setReady();
-    });
+    this.setReady();
   }
 
   #handleWindowMessage(event: MessageEvent<any>) {
@@ -125,7 +116,7 @@ export class AppBridge extends EventEmitter<EventMap> {
   }
 
   setReady() {
-    console.log('[runtime] Rapier initialized');
+    console.log('[runtime] FUSE initialized');
     this.isReady = true;
     this.sendMessage({ type: 'ready' });
   }

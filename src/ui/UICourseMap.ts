@@ -5,10 +5,10 @@ import { Hole } from '@/courses/types';
 import { UnitConversions } from '@/utils/units';
 import { colors } from '@/utils/colors';
 import { UIDropDownMenu } from '@/ui/UIDropDownMenu';
-import { CourseHole, CourseHoleMap } from '@/courses/loader';
+import { CourseHole, CourseHoleMap, CourseMapSource } from '@/courses/loader';
 
 type UICourseMapOptions = {
-  map: ImageBitmap;
+  map: CourseMapSource;
   worldSize: number;
   mapWidthPercent?: number;
   units?: OpenGolfSim.MeasurementUnits;
@@ -41,8 +41,12 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
   aspect: number;
   width: number;
   height: number;
-  mapImage: ImageBitmap;
+  mapSource: CourseMapSource;
   worldSize: number;
+
+  #crop?: ImageBitmap;
+  #cropRect?: { x0: number; z0: number; x1: number; z1: number };
+  #cropPending = false;
 
   #frameCount = 0;
   #renderInterval = 6; // render every 6th frame
@@ -54,7 +58,7 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
     // this.height = height;
     // this.course = course;
     this.worldSize = options.worldSize;
-    this.mapImage = options.map;
+    this.mapSource = options.map;
     this.units = options.units ?? 'metric';
     this.mapWidthPercent = options.mapWidthPercent ?? 0.25;
     this.holes = options.holes || new Map();
@@ -176,18 +180,23 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
     const pX  = this._worldToMinimap(new THREE.Vector3(this.worldSize, 0, 0));
     const pZ  = this._worldToMinimap(new THREE.Vector3(0, 0, this.worldSize));
 
-    const imgW = this.mapImage.width;
-    const imgH = this.mapImage.height;
+    // const imgW = this.mapImage.width;
+    // const imgH = this.mapImage.height;
 
-    ctx.save();
-    ctx.setTransform(
-      (pX.x - p00.x) / imgW, (pX.y - p00.y) / imgW,
-      (pZ.x - p00.x) / imgH, (pZ.y - p00.y) / imgH,
-      p00.x, p00.y
-    );
-    ctx.drawImage(this.mapImage, 0, 0);
-    ctx.restore();
-
+    // ctx.save();
+    // ctx.setTransform(
+    //   (pX.x - p00.x) / imgW, (pX.y - p00.y) / imgW,
+    //   (pZ.x - p00.x) / imgH, (pZ.y - p00.y) / imgH,
+    //   p00.x, p00.y
+    // );
+    // ctx.drawImage(this.mapImage, 0, 0);
+    // ctx.restore();
+    if (this.#crop && this.#cropRect && this.#viewInsideCrop()) {
+      this.#drawRegion(ctx, this.#crop, this.#cropRect);
+    } else {
+      this.#drawRegion(ctx, this.mapSource.overview,
+        { x0: 0, z0: 0, x1: this.worldSize, z1: this.worldSize });
+    }
 
     // Overlays
     const ballPosition = currentPositions.ball ?? currentHole?.waypoints?.get('tee');
@@ -311,6 +320,56 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
     const halfW = halfH * aspect;
 
     this.view = { cx, cz, halfW, halfH, angle };
+    void this.#ensureCrop();
   }
 
+/** Draw a bitmap that represents the world rect [x0,z0]→[x1,z1] */
+  #drawRegion(ctx: CanvasRenderingContext2D, img: ImageBitmap,
+              r: { x0: number; z0: number; x1: number; z1: number }) {
+    const p00 = this._worldToMinimap(new THREE.Vector3(r.x0, 0, r.z0));
+    const pX  = this._worldToMinimap(new THREE.Vector3(r.x1, 0, r.z0));
+    const pZ  = this._worldToMinimap(new THREE.Vector3(r.x0, 0, r.z1));
+    ctx.save();
+    ctx.setTransform(
+      (pX.x - p00.x) / img.width,  (pX.y - p00.y) / img.width,
+      (pZ.x - p00.x) / img.height, (pZ.y - p00.y) / img.height,
+      p00.x, p00.y
+    );
+    ctx.drawImage(img, 0, 0);
+    ctx.restore();
+  }
+
+  #viewInsideCrop() {
+    const r = this.#cropRect!;
+    const { cx, cz, halfW, halfH } = this.view;
+    const rad = Math.hypot(halfW, halfH); // circumradius covers any rotation
+    return cx - rad >= r.x0 && cx + rad <= r.x1 && cz - rad >= r.z0 && cz + rad <= r.z1;
+  }
+
+  async #ensureCrop() {
+    const { cx, cz, halfW, halfH } = this.view;
+    const rad = Math.hypot(halfW, halfH) * 1.4; // pad so per-shot view shifts stay covered
+    // Zoomed out far enough that the overview's density suffices — skip cropping
+    if (rad * 2 > this.worldSize * 0.6) return;
+    if (this.#cropPending || (this.#crop && this.#cropRect && this.#viewInsideCrop())) return;
+
+    const x0 = Math.max(0, cx - rad), x1 = Math.min(this.worldSize, cx + rad);
+    const z0 = Math.max(0, cz - rad), z1 = Math.min(this.worldSize, cz + rad);
+    const { blob, fullW, fullH } = this.mapSource;
+    const sx = (x0 / this.worldSize) * fullW;
+    const sy = (z0 / this.worldSize) * fullH;
+    const sw = ((x1 - x0) / this.worldSize) * fullW;
+    const sh = ((z1 - z0) / this.worldSize) * fullH;
+
+    this.#cropPending = true;
+    try {
+      const crop = await window.createImageBitmap(blob, sx, sy, sw, sh,
+        { premultiplyAlpha: 'none', resizeQuality: 'high' });
+      this.#crop?.close();
+      this.#crop = crop;
+      this.#cropRect = { x0, z0, x1, z1 };
+    } finally {
+      this.#cropPending = false;
+    }
+  }  
 }

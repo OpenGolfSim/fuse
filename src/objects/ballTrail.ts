@@ -6,6 +6,7 @@ import {
   cameraPosition, positionWorld, distance,
 } from 'three/tsl';
 import type { UniformNode } from 'three/webgpu';
+import { QualityMode } from '@/utils/quality';
 
 const MAX_POINTS = 4000;
 
@@ -45,6 +46,7 @@ type BallTrailOptions = {
   cameraFadeNear?: number;
   cameraFadeFar?: number;
   color?: THREE.Color | number;
+  qualityLevel?: QualityMode;
 };
 
 export class BallTrail {
@@ -55,6 +57,7 @@ export class BallTrail {
   fadeLength: number;
   resampleSpacing: number;
   color: THREE.Color;
+  qualityLevel: QualityMode;
 
   points: THREE.Vector3[];
   frameNum: number;
@@ -77,6 +80,7 @@ export class BallTrail {
     this.lineWidth = options.lineWidth ?? 0.03;
     this.fadeLength = options.fadeLength ?? 2.0;
     this.resampleSpacing = options.resampleSpacing ?? 0.15;
+    this.qualityLevel = options.qualityLevel ?? QualityMode.Medium;
     this.color = options.color instanceof THREE.Color
       ? options.color
       : new THREE.Color(options.color ?? '#fc4723');
@@ -159,8 +163,9 @@ export class BallTrail {
   update(collectPoints = false) {
     // let dirty = false;
 
+    const frameMod = this.qualityLevel === QualityMode.Low ? 10 : 4;
     // if (collectPoints && this.frameNum % 4 === 0 && this.points.length < this.maxPoints) {
-    if (collectPoints && this.frameNum % 2 === 0 && this.points.length < this.maxPoints) {
+    if (collectPoints && this.frameNum % frameMod === 0 && this.points.length < this.maxPoints) {
       this.addPoint();
       // dirty = true;
     }

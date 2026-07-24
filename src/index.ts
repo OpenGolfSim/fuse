@@ -28,6 +28,7 @@ export * from '@/courses/player';
 // Physics
 export * from '@/physics/ballPhysics';
 export * from '@/physics/groundPhysics';
+export * from '@/physics/constants';
 
 // UI
 export * from '@/ui';
