@@ -231,56 +231,6 @@ async function setupControls() {
   gameContext.controls.on('testShot', launchShot);
   gameContext.controls.on('toggleStats', () => gameContext.stats?.toggle());
 
-
-  // let lightOptions: CourseLightOptions = {
-  //   qualityLevel: gameContext.qualityLevel,
-  //   color: new THREE.Color('#fffac0'),
-  //   directional: { enabled: true },
-  //   ambient: { enabled: true }
-  // };
-  // // QUESTION: move to course loader?
-  // if (skyType === 'clouds') {
-  //   // Sky/Clouds
-  //   gameContext.scene.background = skyColor;
-  //   gameContext.clouds = new VolumetricClouds(gameContext.camera, {
-  //     radius: 800,
-  //     scale: cloudSettings?.scale ?? 3,
-  //     opacity: cloudSettings?.opacity ?? 0.8,
-  //     density: cloudSettings?.density ?? 0.5,
-  //     cloudColor,
-  //     fogColor,
-  //     skyColor,
-  //     position: new THREE.Vector3(0, -40, 0)
-  //   });
-  //   gameContext.scene.add(gameContext.clouds.object);
-  //   gameContext.renderer.generateEnvironment(gameContext.scene, gameContext.clouds.object);
-
-  //   gameContext.fog = new THREE.Fog(fogColor, 300, 800);
-  //   gameContext.scene.fog = gameContext.fog;
-
-  // } else if (skyType === 'hdri') {
-  //   // lightOptions.ambient = { enabled: true, intensity: 0.5 };
-  //   // lightOptions.directional = { enabled: true, intensity: 0.6 };
-
-  //   const parser = gameContext.course?.gltf?.parser;
-  //   if (parser) {
-  //     const skyboxDef = (parser.json?.images || []).find(
-  //       (img: any) => img.extras?.type === 'hdri'
-  //     );
-  //     const buffer: ArrayBuffer = await parser.getDependency('bufferView', skyboxDef.bufferView);
-  //     const box = new SkyBox();
-  //     box.load(gameContext.scene, buffer);
-  //     gameContext.scene.environmentIntensity = 0.25;
-  //   }
-  // }
-  
-  // gameContext.lightGroup = new CourseLight(lightOptions);
-  // gameContext.scene.add(gameContext.lightGroup);
-  
-
-  if (gameContext.renderer.environment) {
-    gameContext.course.updateEnvironment(gameContext.renderer.environment);
-  }  
 }
 
 /**
@@ -424,6 +374,10 @@ async function setupCourse() {
 
   await setupControls();
   
+  if (gameContext.renderer.environment) {
+    gameContext.course.updateEnvironment(gameContext.renderer.environment);
+  }
+
   console.log('Setup game logic...');
   // setup course game controller
   gameContext.game = new CourseGame(gameContext.course, gameContext.golfBall, { setupData: gameContext.setupData });
@@ -483,7 +437,7 @@ async function setupCourse() {
   });
 
   console.log('Setting up first shot...');
-  // gameContext.camera?.setScene(gameContext.course.getGroundMeshes());
+
   setupNextShot();
 
   gameContext.courseMap?.on('updateAim', adjustAimPoint);
@@ -492,15 +446,9 @@ async function setupCourse() {
   if (gameContext.camera) {
     console.log('Precompiling shaders...');
     await gameContext.renderer.compile(gameContext.scene, gameContext.camera);  
-    // DEBUG: per-mesh probe to find which material hangs pipeline creation
-    // await gameContext.renderer.compileProbe(gameContext.scene, gameContext.camera);
     console.log('Done compiling shaders!');
   }
 
-    // const info = (gameContext.renderer.renderer as any).info;
-    // console.log('[mem] textures:', info.memory.textures, 'geometries:', info.memory.geometries);
-    // const pm = (performance as any).memory;
-    // if (pm) console.log('[mem] JS heap MB:', (pm.usedJSHeapSize / 1048576).toFixed(0));  
 }
 
 /**
