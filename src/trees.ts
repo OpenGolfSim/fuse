@@ -11,9 +11,10 @@ export type TreePlanterOptions = {
   groundMeshes?: THREE.Object3D | THREE.Object3D[];
   scene: THREE.Group;
   worldSize: number;
-  world?: World;
-  rapier?: RapierInstance;
+  // world?: World;
+  // rapier?: RapierInstance;
   qualityLevel?: QualityMode;
+  refreshShadows?: () => void;
 };
 
 export type TreeGroup = {
@@ -90,11 +91,9 @@ class SpatialHash2D {
 export class TreePlanter {
   scene: THREE.Group;
   worldSize: number;
-  world?: World;
-  rapier?: RapierInstance;
-  physicsEnabled: boolean;
   groundMeshes: THREE.Object3D | THREE.Object3D[];
   qualityLevel?: QualityMode;
+  refreshShadows?: () => void;
   treeGroup: THREE.Group;
   #raycaster: THREE.Raycaster;
   lodEntries: LODEntry[] = [];
@@ -105,14 +104,12 @@ export class TreePlanter {
   #frameNum = 0;
 
   constructor(options: TreePlanterOptions) {
-    const { scene, worldSize, groundMeshes, world, rapier } = options;
+    const { scene, worldSize, groundMeshes } = options;
     this.scene = scene;
     this.worldSize = worldSize;
-    this.world = world ?? undefined;
-    this.rapier = rapier ?? undefined;
-    this.physicsEnabled = !!(this.world && this.rapier);
     this.qualityLevel = options.qualityLevel;
-    
+    this.refreshShadows = options.refreshShadows;
+
     // Normalise groundMeshes to an array
     this.groundMeshes = groundMeshes
       ? (Array.isArray(groundMeshes) ? groundMeshes : [groundMeshes])
@@ -124,10 +121,6 @@ export class TreePlanter {
 
     this.treeGroup = new THREE.Group();
     this.scene.add(this.treeGroup);
-  }
-
-  get hasPhysics() {
-    return this.physicsEnabled;
   }
 
   clear() {
@@ -179,24 +172,21 @@ export class TreePlanter {
    * No-ops when physics aren't available.
    */
   _addCollider(pos: THREE.Vector3, scale: number, baseHeight: number, baseRadius: number, userData: any) {
-    if (!this.physicsEnabled) return;
-
-    // const RAPIER = this.RAPIER;
-    const s = scale;
-    const bodyDesc = this.rapier!.RigidBodyDesc.fixed()
-      .setTranslation(pos.x, pos.y + (baseHeight * s) / 2, pos.z);
-    const body = this.world!.createRigidBody(bodyDesc);
-    const colliderDesc = this.rapier!.ColliderDesc.cylinder(
-      (baseHeight * s) / 2,
-      baseRadius * s
-    );
-    const collider = this.world!.createCollider(colliderDesc, body);
-    // @ts-expect-error
-    collider.userData = userData;
-    collider.setCollisionGroups(
-      (GROUP_OBJECT << 16) | GROUP_BALL
-    );
-
+    // // const RAPIER = this.RAPIER;
+    // const s = scale;
+    // const bodyDesc = this.rapier!.RigidBodyDesc.fixed()
+    //   .setTranslation(pos.x, pos.y + (baseHeight * s) / 2, pos.z);
+    // const body = this.world!.createRigidBody(bodyDesc);
+    // const colliderDesc = this.rapier!.ColliderDesc.cylinder(
+    //   (baseHeight * s) / 2,
+    //   baseRadius * s
+    // );
+    // const collider = this.world!.createCollider(colliderDesc, body);
+    // // @ts-expect-error
+    // collider.userData = userData;
+    // collider.setCollisionGroups(
+    //   (GROUP_OBJECT << 16) | GROUP_BALL
+    // );
   }
 
   #makeBatchMaterial(source: THREE.Material, isBillboardOnly: boolean): THREE.Material {
@@ -398,8 +388,16 @@ export class TreePlanter {
       // Any material used at the billboard level gets cutout settings
       const hasBillboard = lodGeos[maxLevel] !== null;
       if (hasBillboard) {
-        material.alphaTest = 0.0;
-        (material as any).alphaToCoverage = true;
+        // material.alphaTest = 0;
+        // (material as any).alphaToCoverage = true;
+        if (this.qualityLevel === QualityMode.Low) {
+          material.alphaTest = 0.6;               // no MSAA on Low → A2C unavailable
+          (material as any).alphaToCoverage = false;
+        } else {
+          material.alphaTest = 0.0;
+          (material as any).alphaToCoverage = true;
+        }
+
         material.transparent = false;
         material.depthWrite = true;
       }
@@ -424,6 +422,7 @@ export class TreePlanter {
       batched.castShadow = true;
       batched.perObjectFrustumCulled = false;
       batched.receiveShadow = false;
+      batched.sortObjects = false; // draw-order sort races geometry-ID swaps on WebGPU → one-frame glitches
 
       const lodGeometryIds = lodGeos.map(g => (g ? batched.addGeometry(g) : -1));
       const firstLevel = lodGeometryIds.findIndex(id => id !== -1);
@@ -439,6 +438,9 @@ export class TreePlanter {
 
       this.treeGroup.add(batched);
       batches.push({ mesh: batched, lodGeometryIds, instanceIds });
+      // BatchedMesh copied the data into its own buffers — free the temporary clones
+      for (const g of lodGeos) g?.dispose();
+
     }
 
     const positions = new Float32Array(count * 2);
@@ -535,7 +537,7 @@ export class TreePlanter {
   }
   
   #updateLODs(camera: THREE.Camera) {
-
+    let changed = 0;
     const camX = camera.position.x;
     const camZ = camera.position.z;
     const HIDDEN = 255;
@@ -579,6 +581,7 @@ export class TreePlanter {
 
         if (level === currentLevel[i]) continue;
         currentLevel[i] = level;
+        changed++;
 
         for (const batch of batches) {
           const id = batch.instanceIds[i];
@@ -592,7 +595,7 @@ export class TreePlanter {
         }
       }
     }
-
+    return changed;
 
   }
   update(camera: THREE.Camera, isShotActive: boolean) {
@@ -604,7 +607,8 @@ export class TreePlanter {
       return;
     }
 
-    if (this.#frameNum % 5 === 0) {
+    const frameMod = this.qualityLevel && this.qualityLevel > QualityMode.Low ? 10 : 30;
+    if (this.#frameNum % frameMod === 0) {
       const dx = camera.position.x - this.#lastCamX;
       const dz = camera.position.z - this.#lastCamZ;
       const dir = camera.getWorldDirection(new THREE.Vector3());
@@ -615,9 +619,35 @@ export class TreePlanter {
       this.#lastCamX = camera.position.x;
       this.#lastCamZ = camera.position.z;
 
-      this.#updateLODs(camera);
+      // this.#updateLODs(camera);
+      // if (this.#updateLODs(camera) > 0 && this.refreshShadows) this.refreshShadows();
+      const changed = this.#updateLODs(camera);
+      if (changed > 0) console.log('[lod]', changed, 'swaps @', performance.now().toFixed(0));
+      if (changed > 0 && this.refreshShadows) this.refreshShadows();
     }
   }
 
+  /**
+   * Free the hidden template subtrees once planting is complete.
+   * Geometries and materials are disposed; textures are NOT (the batch
+   * materials still reference them).
+   */
+  disposeTemplates() {
+    const templates: THREE.Object3D[] = [];
+    this.scene.traverse((child) => {
+      if (child.userData?.type === 'tree_template') templates.push(child);
+    });
+    for (const t of templates) {
+      t.traverse((o: any) => {
+        if (o.isMesh) {
+          o.geometry?.dispose();
+          const mats = Array.isArray(o.material) ? o.material : [o.material];
+          for (const m of mats) m?.dispose();  // material only — not m.map
+        }
+      });
+      t.parent?.remove(t);
+    }
+    console.log(`[mem] disposed ${templates.length} tree templates`);
+  }
   
 }

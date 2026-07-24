@@ -3,6 +3,10 @@ import {
   WebGLRenderer,
   PCFShadowMap,
   ACESFilmicToneMapping,
+  ReinhardToneMapping,
+  LinearToneMapping,
+  CineonToneMapping,
+  NeutralToneMapping,
   PMREMGenerator,
   Scene,
   Vector2,
@@ -20,7 +24,7 @@ import {
   PMREMGenerator as WebGPUPMREMGenerator,
 } from 'three/webgpu';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
-
+import { fxaa } from 'three/addons/tsl/display/FXAANode.js';
 import { WebGLNodesHandler } from 'three/examples/jsm/tsl/WebGLNodesHandler.js';
 import { app } from './';
 
@@ -51,24 +55,35 @@ export class FuseRenderer {
     this.container = options.container ?? options.canvas.parentElement ?? document.body;
     this.width = this.container.offsetWidth;
     this.height = this.container.offsetHeight;
+    this.qualityLevel = options.qualityLevel ?? QualityMode.Medium;
 
     if (options.renderMode === 'webgpu') {
-      this.renderer = new WebGPURenderer({ canvas: options.canvas, antialias: options.antialias, depth: true, });
+      // this.renderer = new WebGPURenderer({ canvas: options.canvas, antialias: options.antialias, depth: true, });
+      // this.renderer = new WebGPURenderer({ canvas: options.canvas, antialias: false, depth: true, });
+      // Med/High: MSAA lives on the pipeline pass → canvas AA off.
+      // Low: no pipeline, so canvas MSAA provides AA — safe because Low water
+      // never samples scene depth (useDepthFade: false), the other half of the bug.
+      const canvasAA = this.qualityLevel === QualityMode.Low;
+      this.renderer = new WebGPURenderer({ canvas: options.canvas, antialias: false, depth: true, });
       // @ts-expect-error - isWebGPUBackend exists not added to three types yet
       app.log(`isWebGPUBackend: ${this.renderer.backend.isWebGPUBackend}`);
+      
     } else {
       this.renderer = new WebGLRenderer({ canvas: options.canvas, antialias: options.antialias });
       // Enable TSL node material support for WebGLRenderer
       // (WebGPURenderer handles this natively)
       this.renderer.setNodesHandler(new WebGLNodesHandler());
     }
-    this.qualityLevel = options.qualityLevel ?? QualityMode.Medium;
     this.renderer.setSize(this.width, this.height);  
     
     // let pixelRatio = Math.min(window.devicePixelRatio, 1);
-    let pixelRatio = 1;
-    if (this.qualityLevel === QualityMode.Low) {
-      pixelRatio = 0.95;
+    let pixelRatio = 1.3;
+    // if (this.qualityLevel === QualityMode.Low) {
+      // pixelRatio = 0.95;
+    // } else if (this.qualityLevel === QualityMode.Medium) {
+    //   pixelRatio = 1;
+    if (this.qualityLevel === QualityMode.Medium) {
+      pixelRatio = 1;
     } else if (this.qualityLevel === QualityMode.High) {
       pixelRatio = 2;
     }
@@ -76,10 +91,12 @@ export class FuseRenderer {
     this.renderer.setPixelRatio(pixelRatio);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFShadowMap;
-    
 
-    this.renderer.toneMapping = ACESFilmicToneMapping; // or whatever you pick
-    this.renderer.toneMappingExposure = 1.1;
+    // this.renderer.toneMapping = ACESFilmicToneMapping;
+    // this.renderer.toneMappingExposure = 1.1;
+    // this.renderer.toneMapping = LinearToneMapping;
+    this.renderer.toneMapping = NeutralToneMapping;
+    this.renderer.toneMappingExposure = 1.2;
 
     window.addEventListener('resize', this._handleResize.bind(this));
 
@@ -97,6 +114,16 @@ export class FuseRenderer {
   async init() {
     if (this.renderer instanceof WebGPURenderer) {
       await this.renderer.init();
+      // // TEMP: log every pipeline/shader compile with its material label —
+      // // whatever prints at the mid-shot hang is the unwarmed material
+      // const b: any = (this.renderer as any).backend;
+      // for (const fn of ['createRenderPipeline', 'createShaderModule']) {
+      //   const t = b?.device;
+      //   if (t?.[fn]) {
+      //     const orig = t[fn].bind(t);
+      //     t[fn] = (d: any) => (console.warn('[compile]', d?.label ?? fn), orig(d));
+      //   }
+      // }
     }
   }
 
@@ -123,7 +150,7 @@ export class FuseRenderer {
   }
 
   clear() {
-    this.renderer.clear();
+    // this.renderer.clear();
   }
   
   render(scene: Scene, camera: Camera, fog?: Fog) {
@@ -177,24 +204,36 @@ export class FuseRenderer {
       console.warn('Post-processing pipeline requires WebGPURenderer');
       return;
     }
+    // Low tier: no pipeline — direct render, sample count 1 everywhere
+    // (water depth bug can't trigger without MSAA; pass cost too high on weak GPUs)
+    if (this.qualityLevel === QualityMode.Low) return;
 
     this.pipeline = new RenderPipeline(this.renderer);
 
     // Create the scene render pass
-    const scenePass = pass(scene, camera);
+    // const scenePass = pass(scene, camera);
+    // Low: no MSAA (mobile bandwidth win), FXAA instead. Med/High: 4x MSAA as before.
+    // const samples = this.qualityLevel === QualityMode.Low ? 4 : 4;
+    const scenePass = pass(scene, camera, { samples: 4 });
 
     // Get the color output texture node
     const scenePassColor = scenePass.getTextureNode('output');
 
-    // Create the bloom effect
-    // const strength = 0.08;
-    const strength = 0.075;
+    if (this.qualityLevel <= QualityMode.Medium) {
+      // this.pipeline.outputNode = samples === 1 ? fxaa(scenePassColor) : scenePassColor;
+      this.pipeline.outputNode = scenePassColor;
+      return;
+    }
+
+    // Create the bloom effect on high quality
+    const strength = 0.12;
     const radius = 0.1;
-    const threshold = 0.65;
+    const threshold = 0.25;
     const bloomPass = bloom(scenePassColor, strength, radius, threshold);
 
     // Combine: original scene + bloom glow
     this.pipeline.outputNode = scenePassColor.add(bloomPass);
+
   }
 
 

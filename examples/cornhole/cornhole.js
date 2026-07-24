@@ -17,8 +17,12 @@ import {
   UILoadingScreen,
   FuseRenderer,
   WaterSurface,
-  UIDialog
+  UIDialog,
+  GRAVITY_VECTOR
 } from '@opengolfsim/fuse';
+
+import * as RAPIER from '@dimforge/rapier3d-compat';
+
 // import { Water } from 'three/examples/jsm/Addons.js';
 import groundBeachModel from './models/GroundBeach.glb?url';
 import cornHoleBoardModel from './models/CornHoleBoard.glb?url';
@@ -46,7 +50,7 @@ const gameContext = {
   startPoint: new THREE.Vector3(0, 0.25, 0),
   round: {
     number: 1,
-    maxPoints: 2,
+    maxPoints: 11,
     bagsPerPlayer: 4,
     throwOrder: [], // queue of player indices for this round
     currentThrowIdx: 0,
@@ -102,7 +106,7 @@ function clearRoundBags() {
     gameContext.scene.remove(bag.mesh);
     bag.mesh.geometry.dispose();
     bag.mesh.material.dispose();
-    app.world.removeRigidBody(bag.body);
+    gameContext.world.removeRigidBody(bag.body);
   }
   // Remove from main bag list too
   gameContext.bags = gameContext.bags.filter(
@@ -115,9 +119,9 @@ function setupBoard(team, boardMeshOriginal) {
   const tiltRad = 10 * (Math.PI / 180);
 
   // Tear down existing physics if rebuilding
-  if (boardData.collider) app.world.removeCollider(boardData.collider, false);
-  if (boardData.colliderHole) app.world.removeCollider(boardData.colliderHole, false);
-  if (boardData.body) app.world.removeRigidBody(boardData.body);
+  if (boardData.collider) gameContext.world.removeCollider(boardData.collider, false);
+  if (boardData.colliderHole) gameContext.world.removeCollider(boardData.colliderHole, false);
+  if (boardData.body) gameContext.world.removeRigidBody(boardData.body);
 
   // Create the visual mesh on first setup, reuse on rebuilds
   let boardMesh = boardData.object;
@@ -167,10 +171,10 @@ function setupBoard(team, boardMeshOriginal) {
     ? new Uint32Array(geom.index.array)
     : new Uint32Array(Array.from({ length: vertices.length / 3 }, (_, i) => i));
 
-  boardData.body = app.world.createRigidBody(app.rapier.RigidBodyDesc.fixed());
+  boardData.body = gameContext.world.createRigidBody(gameContext.rapier.RigidBodyDesc.fixed());
 
-  boardData.collider = app.world.createCollider(
-    app.rapier.ColliderDesc.trimesh(vertices, indices)
+  boardData.collider = gameContext.world.createCollider(
+    gameContext.rapier.ColliderDesc.trimesh(vertices, indices)
       .setFriction(0.03)
       .setRestitution(0.05),
     boardData.body
@@ -178,8 +182,8 @@ function setupBoard(team, boardMeshOriginal) {
 
   // Hole sensor
   const holeZOffset = team === 'red' ? 0.75 : -0.75;
-  boardData.colliderHole = app.world.createCollider(
-    app.rapier.ColliderDesc.cylinder(0.3, 0.2)
+  boardData.colliderHole = gameContext.world.createCollider(
+    gameContext.rapier.ColliderDesc.cylinder(0.3, 0.2)
       .setSensor(true)
       .setTranslation(0, 0, boardMesh.position.z + holeZOffset)
       .setRotation({
@@ -382,12 +386,12 @@ async function createGround(tex, width = 100, depth = 100) {
   gameContext.scene.add(mesh);
   gameContext.ground.mesh = mesh;
 
-  const desc = app.rapier.ColliderDesc.cuboid(width / 2, 0.1, depth / 2)
+  const desc = gameContext.rapier.ColliderDesc.cuboid(width / 2, 0.1, depth / 2)
     .setTranslation(0, -0.1, 0)   // top surface sits at y=0
     .setRestitution(0.35)
     .setFriction(0.8);
 
-  gameContext.ground.collider = app.world.createCollider(desc);
+  gameContext.ground.collider = gameContext.world.createCollider(desc);
 }
 
 function updateScoreboard() {
@@ -502,7 +506,7 @@ async function setupGame() {
     gameContext.boards.red.boardOffset = boardZOffset;
   }
 
-  gameContext.eventQueue = new app.rapier.EventQueue(true);
+  gameContext.eventQueue = new gameContext.rapier.EventQueue(true);
 
   const stats = document.createElement('div');
   document.body.append(stats);
@@ -619,17 +623,23 @@ async function setupGame() {
 }
 
 function loadGame() {
-  gameContext.timer.connect(document);  
 
-  gameContext.loadingScreen = new UILoadingScreen(document.body, { loadingPrefix: 'Filling the bags' });
-  gameContext.loadingScreen.on('load', async () => {
-    gameContext.clock.start();
-    requestAnimationFrame(animate);
+  gameContext.rapier = RAPIER;
+  gameContext.rapier.init().then(() => {
+  
+    gameContext.world = new RAPIER.World(GRAVITY_VECTOR);
+  
+    gameContext.timer.connect(document);  
+
+    gameContext.loadingScreen = new UILoadingScreen(document.body, { loadingPrefix: 'Filling the bags' });
+    gameContext.loadingScreen.on('load', async () => {
+      gameContext.clock.start();
+      requestAnimationFrame(animate);
+    });
+    gameContext.loadingScreen.load(setupGame);
+
+    document.body.style.opacity = '1';
   });
-  gameContext.loadingScreen.load(setupGame);
-
-  document.body.style.opacity = '1';
-
   // requestAnimationFrame(animate);
 }
 
@@ -717,25 +727,25 @@ function createBag(team) {
 
   // boardData.collider = RAPIER.ColliderDesc.roundCuboid(halfW, halfH, cornerRadius);
 
-  const bodyDesc = app.rapier.RigidBodyDesc.dynamic()
+  const bodyDesc = gameContext.rapier.RigidBodyDesc.dynamic()
     .setTranslation(position.x, position.y, position.z)
     .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })   // the key line
     .setLinearDamping(0.15)    // mild air drag
     .setAngularDamping(0.4)    // bags don't spin freely like a ball
     .setCcdEnabled(true);      // prevents tunneling at high launch speeds
 
-  const body = app.world.createRigidBody(bodyDesc);
+  const body = gameContext.world.createRigidBody(bodyDesc);
 
-  const colDesc = app.rapier.ColliderDesc
+  const colDesc = gameContext.rapier.ColliderDesc
     .roundCuboid(halfW, halfH, halfD, borderRadius)
     .setMass(0.43)
     .setRestitution(0.05)      // key: almost no bounce
     .setFriction(0.3)          // key: grabs the board, doesn't slide forever
-    .setRestitutionCombineRule(app.rapier.CoefficientCombineRule.Min)
-    .setFrictionCombineRule(app.rapier.CoefficientCombineRule.Max)
-    .setActiveEvents(app.rapier.ActiveEvents.COLLISION_EVENTS);
+    .setRestitutionCombineRule(gameContext.rapier.CoefficientCombineRule.Min)
+    .setFrictionCombineRule(gameContext.rapier.CoefficientCombineRule.Max)
+    .setActiveEvents(gameContext.rapier.ActiveEvents.COLLISION_EVENTS);
 
-  const collider = app.world.createCollider(colDesc, body);
+  const collider = gameContext.world.createCollider(colDesc, body);
 
   // Visual — this is what was missing
   const geo = new THREE.BoxGeometry(halfW * 2, halfH * 2, halfD * 2);
@@ -867,8 +877,8 @@ function animate(animDelta) {
   }
 
   while (gameContext.accumulator >= FIXED_DT) {
-    app.world.timestep = FIXED_DT;
-    app.world.step(gameContext.eventQueue);
+    gameContext.world.timestep = FIXED_DT;
+    gameContext.world.step(gameContext.eventQueue);
     gameContext.accumulator -= FIXED_DT;
 
     // Drain collision events *inside* the loop so you don't
@@ -925,7 +935,7 @@ function animate(animDelta) {
   // }
 
   if (gameContext.debug.enabled) {
-    const { vertices, colors } = app.world.debugRender();
+    const { vertices, colors } = gameContext.world.debugRender();
     gameContext.debug.geometry.setAttribute(
       'position', new THREE.BufferAttribute(vertices, 3)
     );

@@ -6,10 +6,11 @@ import {
   fract, abs, mix, clamp, pow, sub, dot, normalize,
   positionWorld, normalWorld, cameraPosition,
   normalMap, pmremTexture,
-  viewportDepthTexture, linearDepth, smoothstep as tslSmoothstep, step,
+  viewportDepthTexture, linearDepth, smoothstep as tslSmoothstep, screenUV,
   cameraNear, cameraFar
 } from 'three/tsl';
 import normals from '@/images/waternormals.jpg';
+import { QualityMode } from '@/utils/quality';
 
 export type WaterSurfaceOptions = {
   speed?: number;
@@ -24,6 +25,7 @@ export type WaterSurfaceOptions = {
   opacity?: number;
   roughness?: number;
   yOffset?: number;
+  qualityLevel?: QualityMode;
   depthRange?: number;
   foamWidth?: number;
   foamColor?: THREE.Color;
@@ -205,12 +207,22 @@ export class WaterSurface {
     const fresnel = pow(sub(float(1.0), NdotV), float(3.0));
 
 
-    const sceneDepth = linearDepth(viewportDepthTexture());
-    // const waterDepth = linearDepth(positionView.z.negate());
-    // const depthDiff = sceneDepth.sub(waterDepth).max(0);
+    // const sceneDepth = linearDepth(viewportDepthTexture());
+    // // const waterDepth = linearDepth(positionView.z.negate());
+    // // const depthDiff = sceneDepth.sub(waterDepth).max(0);
 
-    const waterDepth = linearDepth();
-    const depthDiff = sceneDepth.sub(waterDepth).max(0).mul(cameraFar);
+    // const waterDepth = linearDepth();
+    // const depthDiff = sceneDepth.sub(waterDepth).max(0).mul(cameraFar);
+    let depthDiff;
+    if (opts.qualityLevel === QualityMode.Low) {
+      // No scene-depth read: treat all water as "deep" — flat opacity/color,
+      // no shoreline gradient, and crucially no MSAA depth-binding hazard
+      depthDiff = float(opts.depthRange);
+    } else {
+      const sceneDepth = linearDepth(viewportDepthTexture());
+      const waterDepth = linearDepth();
+      depthDiff = sceneDepth.sub(waterDepth).max(0).mul(cameraFar);
+    }    
 
     // const depthDiff = sceneDepth.sub(waterDepth).max(0).mul(cameraFar);
 

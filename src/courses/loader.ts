@@ -20,15 +20,27 @@ import golfCupModel from '@/models/golfCup.glb?url';
 import { QualityMode } from '@/utils/quality';
 import { DefaultGimmeDistances } from '@/utils/data';
 import { Hole } from './types';
-import { LakeSurface, RiverSurface } from '@/shaders';
+import { LakeSurface, RiverSurface, VolumetricClouds } from '@/shaders';
 import { FuseRenderer } from '@/renderer';
 import { type GolfBall } from '@/objects/golfBall';
 import { PuttingGridMaterial } from '@/shaders/putting';
+import { SkyBox } from '@/sky';
+import { CourseLight } from '@/lights';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
+const defaultSkyColor = 'rgb(177, 205, 236)';
+const defaultFogColor = 'rgb(255, 247, 224)';
+const defaultCloudColor = 'rgb(255, 255, 255)';
+
+export type CourseMapSource = {
+  blob: Blob;          // original compressed JPEG (~1MB) — kept for region decodes
+  fullW: number;       // native dimensions (4096)
+  fullH: number;
+  overview: ImageBitmap; // small whole-course bitmap for zoomed-out view
+};
 
 export interface SceneSettings {
   sky?: {
@@ -174,15 +186,15 @@ export type CourseHole = {
 export type CourseHoleMap = Map<number, CourseHole>;
 
 export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
-  world: World;
-  rapier: RapierInstance;
+  // world: World;
+  // rapier: RapierInstance;
   meshLoader: MeshLoader;
   holes: CourseHoleMap;
   waterSurfaces: Map<string, any>;
   surfaces: Map<string, LoadedCourseSurface>;
   grasses: Map<string, any>;
   greenGrids: Map<string, any>;
-  courseMap?: ImageBitmap;
+  courseMap?: CourseMapSource;
   courseSize: number;
   qualityLevel: QualityMode;
   
@@ -193,8 +205,10 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   sceneSettings?: SceneSettings;
   grassAssets?: GrassAssets;
   planter?: TreePlanter;
-
+  clouds?: VolumetricClouds;
+  light?: CourseLight;
   #renderer: FuseRenderer;
+  #camera: ShotPerspectiveCamera;
   #raycaster: THREE.Raycaster;
   #origin: THREE.Vector3;
   #direction: THREE.Vector3;
@@ -202,16 +216,18 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   #blendMaps: Map<string, BlendMapData>;
 
   constructor(
-    world: World,
-    rapier: RapierInstance,
+    // world: World,
+    // rapier: RapierInstance,
     renderer: FuseRenderer,
+    camera: ShotPerspectiveCamera,
     options: CourseLoaderOptions
   ) {
     super();
-    this.world = world;
-    this.rapier = rapier;
-    this.qualityLevel = options.qualityLevel;
+    // this.world = world;
+    // this.rapier = rapier;
     this.#renderer = renderer;
+    this.#camera = camera;
+    this.qualityLevel = options.qualityLevel;
     this.meshLoader = new MeshLoader(renderer, options.manager, options.meshLoaderOptions);
     this.setupData = options.setupData || {};
     this.courseSize = 1000;
@@ -230,7 +246,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
 
   }
 
-  async load(coursePath: string) {
+  async load(coursePath: string, scene: THREE.Scene) {
     this.gltf = await this.meshLoader.loadChunked(coursePath);
     this.scene = this.gltf.scene;
     if (this.gltf.userData?.courseSize) {
@@ -260,11 +276,14 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     this._setupCourseSurfaces();
     this._parseCourseHoles();
     this._addWater();
-
-    
+    await this._addSkyAndEnvironment(scene);
     await this._addTrees();
     await this._parseMap();
 
+    // Everything is built — release the parser and its retained GLB buffers.
+    // (this.scene and userData were extracted above; live textures/geometry
+    // are referenced by the scene, not the parser.)
+    this.gltf = undefined;
 
     return this.scene;
   }
@@ -370,23 +389,23 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         const blendMap = this.#blendMaps.get(child.userData.id);
         if (blendMap) {
 
-          const neighborMesh = this.findNeighborMesh(child, allSurfaceMeshes);
-          if (neighborMesh && this.grassAssets?.noiseTexture) {
-             const sand = new SandMaterial(
-               child,
-               this.grassAssets.noiseTexture,
-               blendMap,
-               neighborMesh,
-               child.userData.blendSettings || {},
-             );
-          } else {
-            console.warn(`Unable to find neighbor mesh for ${child.name}`);
-          }
+          // const neighborMesh = this.findNeighborMesh(child, allSurfaceMeshes);
+          // if (neighborMesh && this.grassAssets?.noiseTexture) {
+          //    const sand = new SandMaterial(
+          //      child,
+          //      this.grassAssets.noiseTexture,
+          //      blendMap,
+          //      neighborMesh,
+          //      child.userData.blendSettings || {},
+          //    );
+          // } else {
+          //   console.warn(`Unable to find neighbor mesh for ${child.name}`);
+          // }
 
-        } else if (this.qualityLevel > QualityMode.Low && surfaceType === 'rough') {
+        } else if (this.qualityLevel > QualityMode.Medium && surfaceType === 'rough') {
           const grassOptions = {
-            density: 11,
-            renderDistance: 25,
+            density: 15,
+            renderDistance: 50,
             cellSize: 10,
             lean: 0.01,
             heightVariation: 0.5,
@@ -399,16 +418,16 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
             tipColor2: new THREE.Color('#ffffff'),
           };
           
-          if (this.qualityLevel > QualityMode.Medium) {
-            grassOptions.renderDistance = 50;
-            grassOptions.density = 15;
-          }
+          // if (this.qualityLevel > QualityMode.Medium) {
+          //   grassOptions.renderDistance = 50;
+          //   grassOptions.density = 15;
+          // }
           
           const grass = new GrassShader(child, this.grassAssets!, grassOptions);
           this.scene.add(grass.mesh);
           this.grasses.set(child.uuid, grass);
 
-        } else if (this.qualityLevel !== QualityMode.Low && ['deep_rough', 'base'].includes(surfaceType)) {
+        } else if (this.qualityLevel > QualityMode.Medium && ['deep_rough', 'base'].includes(surfaceType)) {
           
           const grass = new GrassShader(child, this.grassAssets!, {
             density: 8,
@@ -488,7 +507,20 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     const buffer = await parser.getDependency('bufferView', courseMap.bufferView);
     const blob = new Blob([buffer], { type: 'image/jpeg' });
     const bitmap = await window.createImageBitmap(blob, { premultiplyAlpha: 'none' });
-    this.courseMap = bitmap;
+    // this.courseMap = bitmap;
+    // Probe native dimensions, then release the full-res decode immediately
+    const probe = await window.createImageBitmap(blob, { premultiplyAlpha: 'none' });
+    const fullW = probe.width;
+    const fullH = probe.height;
+    probe.close(); // frees the ~64MB decode
+
+    const overview = await window.createImageBitmap(blob, {
+      premultiplyAlpha: 'none',
+      resizeWidth: 512,
+      resizeHeight: 512,
+      resizeQuality: 'high',
+    });
+    this.courseMap = { blob, fullW, fullH, overview };    
   }
 
   async _addTrees() {
@@ -510,9 +542,10 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       scene: this.scene,
       worldSize: this.courseSize,
       qualityLevel: this.qualityLevel,
-      world: this.world,
-      rapier: this.rapier,
+      // world: this.world,
+      // rapier: this.rapier,
       groundMeshes: this.getGroundMeshes(),
+      refreshShadows: () => this.light?.refreshShadows(),
     });
 
     const treeConfigs: Record<string, TreeGroup[]> = {};
@@ -522,10 +555,10 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
 
         const group = TreePlanter.loadTree(child);
 
-        let lodDistances = [40, 80];
+        let lodDistances = [0, 40];
         let maxDistance = 500;
         if (this.qualityLevel === QualityMode.Medium) {
-          lodDistances = [100, 200];
+          lodDistances = [60, 100];
           maxDistance = 800;
         } else if (this.qualityLevel === QualityMode.High) {
           lodDistances = [200, 400];
@@ -571,6 +604,9 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       }
     }
 
+    // Templates are fully consumed by the BatchedMeshes — free them
+    this.planter.disposeTemplates();
+
   }
   
   _addWater() {
@@ -602,11 +638,11 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
           const buffer = await parser.getDependency('bufferView', flowMapImage.bufferView);
           flowImageData = await getTextureImageData(buffer);
         }
-        surface = new RiverSurface(child, flowImageData);
+        surface = new RiverSurface(child, flowImageData, { qualityLevel: this.qualityLevel });
 
       } else if (child.userData?.surface === 'plane_lake') {
         offsetY = 0;
-        surface = new LakeSurface(child);
+        surface = new LakeSurface(child, { qualityLevel: this.qualityLevel });
         // surface = new LakeSurface(child, {
           // speed: 0.25,
           // textureScale: 4,
@@ -627,6 +663,62 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         this.scene?.remove(child);
       }
     });
+  }
+
+  async _addSkyAndEnvironment(scene: THREE.Scene) {
+    if (!this.scene) {
+      console.warn('No scene to add sky');
+      return;
+    }
+    const skyType = this.sceneSettings?.sky?.type;
+    const cloudSettings = this.sceneSettings?.sky?.clouds;
+    const skyColor = new THREE.Color(cloudSettings?.skyColor ?? defaultSkyColor);
+    const fogColor = new THREE.Color(cloudSettings?.fogColor ?? defaultFogColor);
+    const cloudColor = new THREE.Color(cloudSettings?.cloudColor ?? defaultCloudColor);
+
+    let lightOptions = {
+      qualityLevel: this.qualityLevel,
+      color: new THREE.Color('#fffac0'),
+      directional: { enabled: true },
+      ambient: { enabled: true }
+    };
+    if (skyType === 'clouds') {
+      // Sky/Clouds
+      scene.background = skyColor;
+      this.clouds = new VolumetricClouds(this.#camera, {
+        radius: 800,
+        scale: cloudSettings?.scale ?? 3,
+        opacity: cloudSettings?.opacity ?? 0.8,
+        density: cloudSettings?.density ?? 0.5,
+        cloudColor,
+        fogColor,
+        skyColor,
+        position: new THREE.Vector3(0, -40, 0)
+      });
+      scene.add(this.clouds.object);
+      this.#renderer.generateEnvironment(scene, this.clouds.object);
+
+      // gameContext.fog = new THREE.Fog(fogColor, 300, 800);
+      // gameContext.scene.fog = gameContext.fog;
+
+    } else if (skyType === 'hdri') {
+      // lightOptions.ambient = { enabled: true, intensity: 0.5 };
+      // lightOptions.directional = { enabled: true, intensity: 0.6 };
+      const parser = this?.gltf?.parser;
+      if (parser) {
+        const skyboxDef = (parser.json?.images || []).find(
+          (img: any) => img.extras?.type === 'hdri'
+        );
+        const buffer: ArrayBuffer = await parser.getDependency('bufferView', skyboxDef.bufferView);
+        const box = new SkyBox();
+        box.load(scene, buffer);
+        scene.environmentIntensity = 0.25;
+      }
+    }
+    
+    this.light = new CourseLight(lightOptions);
+    
+    scene.add(this.light);
   }
 
   updateEnvironment(environment: THREE.Texture) {

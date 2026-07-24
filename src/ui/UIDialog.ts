@@ -3,7 +3,7 @@ import { UIElementBase } from './UIElementBase';
 import iconImage from '@/images/opengolfsim.svg';
 import { UIDropDownMenu } from './UIDropDownMenu';
 
-interface UIDialogEvents {
+export interface UIDialogEvents {
   close: () => void;
 }
 
@@ -12,7 +12,8 @@ export type UIDialogOptions = {
   preventClose?: boolean;
 };
 
-export class UIDialog extends UIElementBase<UIDialogEvents> {
+// export class UIDialog extends UIElementBase<UIDialogEvents> {
+export class UIDialog<Events extends UIDialogEvents = UIDialogEvents> extends UIElementBase<Events> {
   
   header: Element;
   title?: Element;

@@ -1,14 +1,14 @@
 import * as THREE from 'three';
 import { type World } from '@dimforge/rapier3d-compat';
 import EventEmitter from 'eventemitter3';
-import { BallPhysics } from '@/physics/ballPhysics';
+import { BallPhysics, ShotEndEvent } from '@/physics/ballPhysics';
 import { BallTrail } from '@/objects/ballTrail';
 import { CourseColliderType, CourseSurfaceProperties, CourseSurfaceType } from '@/courses/surfaces';
 
 const FIXED_DT = 1 / 60;
 
 export interface GolfBallEvents {
-  shotEnded: (details: { surface?: CourseSurfaceProperties, isHoled: boolean }) => void,
+  shotEnded: (event: ShotEndEvent) => void,
   holedOut: () => void,
   landed: (velocity: number) => void
 }
@@ -61,15 +61,15 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
   #waitTime: number;
   #timeout?: number;
   #scene: THREE.Scene;
-  #world: World;
-  #rapier: RapierInstance;  
+  // #world: World;
+  // #rapier: RapierInstance;  
   #accumulator: 0;
   #frameNum: 0;
   lastShot?: OpenGolfSim.Shot;
   ballMaterial: THREE.MeshBasicMaterial;
   groundMeshes: THREE.Mesh[];
 
-  constructor(scene: THREE.Scene, world: World, R: RapierInstance, options: GolfBallOptions) {
+  constructor(scene: THREE.Scene, options: GolfBallOptions) {
     super();
     this.radius = 0.0213;
     this.stats = createDefaultStats();
@@ -80,8 +80,8 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     this.#setupData = options.setupData;
     this.#waitTime = options.waitTime ?? 3000;
     this.#scene = scene;
-    this.#world = world;
-    this.#rapier = R;
+    // this.#world = world;
+    // this.#rapier = R;
     this.#accumulator = 0;
     this.#frameNum = 0;
     this.startPoint = new THREE.Vector3(0, 0, 0);
@@ -99,8 +99,8 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     this.#scene.add(this.object);
 
     // Create physics once — reused across all shots
-    this.physics = new BallPhysics(this.object, this.#world, this.#rapier, this.radius, this.groundMeshes);
-    this.physics.on('shotEnded', surface => this._onShotEnded(surface));
+    this.physics = new BallPhysics(this.object, this.radius, this.groundMeshes);
+    this.physics.on('shotEnded', event => this._onShotEnded(event));
     this.physics.on('holedOut', () => this.emit('holedOut'));
     this.physics.on('landed', (v) => this.emit('landed', v));
     this.physics.setElevation(this.#setupData?.elevation);
@@ -147,19 +147,24 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
   }
 
 
-  _onShotEnded(surface: CourseSurfaceProperties | undefined) {
+  _onShotEnded(event: ShotEndEvent) {
     if (!this.stats.endPosition) {
       this.stats.endPosition = this.object?.position.clone();
     }
-    if (surface?.type) {
-      this.stats.surface = surface.type;
+    if (event.surface) {
+      this.stats.surface = event.surface;
     }
-
+    // if (event.isInWater) {
+    //   this.isShotActive = false;
+    //   this.emit('shotEnded', event);
+    //   return;
+    // }
+    let waitTime = event.isInWater ? 500 : this.#waitTime;
     clearTimeout(this.#timeout);
     this.#timeout = setTimeout(() => {
-      this.isShotActive = false;
-      this.emit('shotEnded', { surface, isHoled: this.physics?.isHoled === true });
-    }, this.#waitTime);
+      this.isShotActive = !!event.isInWater;
+      this.emit('shotEnded', event);
+    }, waitTime);
   }
 
   aimAt(aimPoint: THREE.Vector3) {
@@ -253,11 +258,11 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
         this.stats.landPosition = this.object.position.clone();
       }
 
-      if (this.#frameNum % 4 === 0) {
-        this.stats.heightSamples.push(this.object.position.y);
-        this.stats.lateralSamples.push(this.stats.lateral);
-        this.stats.distanceSamples.push(this.stats.total);
-      }
+      // if (this.#frameNum % 4 === 0) {
+      //   this.stats.heightSamples.push(this.object.position.y);
+      //   this.stats.lateralSamples.push(this.stats.lateral);
+      //   this.stats.distanceSamples.push(this.stats.total);
+      // }
       this.#frameNum++;
     }
   }

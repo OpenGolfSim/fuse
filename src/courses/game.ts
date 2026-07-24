@@ -5,9 +5,15 @@ import { type GolfBallEvents, type GolfBall } from '@/objects/golfBall';
 import EventEmitter from 'eventemitter3';
 import { CoursePlayer } from './player';
 import { DefaultGimmeDistances } from '@/utils/data';
+import { ShotEndEvent } from '@/physics/ballPhysics';
 
 // how far away from the tee box position to auto-aim at the pin instead of aim point
 const AIMPOINT_THRESHOLD = 25;
+// drop search tuning
+const DROP_RING_STEP = 1;        // meters between sampling rings
+const DROP_RING_SAMPLES = 12;    // angular samples per ring
+const DROP_RAY_HEIGHT = 10;      // cast downward from this height above candidate
+const INVALID_DROP_SURFACES = ['plane_river', 'plane_lake', 'water', 'bunker', 'green'];
 
 interface CourseGameEvents {
   nextShot: (player: CoursePlayer) => void;
@@ -136,8 +142,8 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     }
   }
 
-  _onShotEnded(...[details]: Parameters<GolfBallEvents['shotEnded']>) {
-    const { surface } = details;
+  _onShotEnded(details: ShotEndEvent) {
+    const { surface, isInWater } = details;
     if (!this.activePlayer) {
       throw new Error('No player found!');
     }
@@ -149,7 +155,15 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     }
     this.activePlayer.previousStart.copy(this.activePlayer.start);
   
+
     if (!this.practiceMode) {
+      // if (isInWater) {
+      //   console.log('ball in water hazard!!');
+      //   this.golfBall.object.visible = false;
+      //   this.updateAimPoint(this.activePlayer.start);
+      //   this.emit('nextShot', this.activePlayer);
+      //   return;
+      // }    
       if (!this.golfBall.object) {
         throw new Error('GolfBall object not found');
       }
@@ -160,7 +174,7 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
         this._nextPlayer();
         console.log(`Ball in hole! End hole`);
         this._addStrokes(0, true);
-      } else if (surface?.type === 'green' && !this.puttingEnabled) {
+      } else if (surface === 'green' && !this.puttingEnabled) {
         // total score
         // TODO: change to add auto-putt number
         const holePos = this.activeHole.waypoints.get('pin');
@@ -181,8 +195,12 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     }
 
 
-    this.updateAimPoint(this.activePlayer.start);    
+    if (isInWater) {
+      return;
+    }
+    this.updateAimPoint(this.activePlayer.start);
     this.emit('nextShot', this.activePlayer);
+  
   }
 
   switchHole(hole: Hole) {
@@ -297,4 +315,91 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     // }
   }
 
+  rehit() {
+    if (!this.activePlayer.previousStart) {
+      console.warn('No previous position');
+      return;
+    }
+    
+    this.activePlayer.start.copy(this.activePlayer.previousStart);
+    this.golfBall.isShotActive = false;
+    this.updateAimPoint(this.activePlayer.start);
+    this.emit('nextShot', this.activePlayer);
+  }
+
+  mulligan() {
+    this._addStrokes(-1);
+    this.rehit();
+  }
+
+  drop() {
+    const ballPos = this.golfBall.object?.position;
+    const prev = this.activePlayer.previousStart;
+    const pin = this.activePlayer.pin;
+    if (!ballPos || !prev || !pin) {
+      console.warn('Missing positions for drop');
+      return;
+    }
+
+    const dropPoint = this._findDropPoint(ballPos, pin, prev);
+    if (dropPoint) {
+      this.activePlayer.start.copy(dropPoint);
+    } else {
+      // no valid surface found: stroke and distance
+      console.warn('No valid drop point found, returning to previous position');
+      this.activePlayer.start.copy(prev);
+    }
+
+    this._addStrokes(1); // penalty stroke
+    this.golfBall.isShotActive = false;
+    this.updateAimPoint(this.activePlayer.start);
+    this.emit('nextShot', this.activePlayer);
+  }
+
+  _findDropPoint(ballPos: THREE.Vector3, pin: THREE.Vector3, prev: THREE.Vector3): THREE.Vector3 | null {
+    const meshes = this.course.getGroundMeshes();
+    const raycaster = new THREE.Raycaster();
+    raycaster.firstHitOnly = true; // requires three-mesh-bvh acceleration (already in use)
+
+    const ballToPin = ballPos.distanceTo(pin);
+    const ballToPrev = ballPos.distanceTo(prev);
+    const maxRadius = ballToPrev; // beyond this, previousStart is strictly better
+
+    const origin = new THREE.Vector3();
+    const down = new THREE.Vector3(0, -1, 0);
+
+    for (let radius = DROP_RING_STEP; radius <= maxRadius; radius += DROP_RING_STEP) {
+      let best: THREE.Vector3 | null = null;
+      let bestPinDist = Infinity;
+
+      for (let i = 0; i < DROP_RING_SAMPLES; i++) {
+        const angle = (i / DROP_RING_SAMPLES) * Math.PI * 2;
+        origin.set(
+          ballPos.x + Math.cos(angle) * radius,
+          ballPos.y + DROP_RAY_HEIGHT,
+          ballPos.z + Math.sin(angle) * radius
+        );
+
+        raycaster.set(origin, down);
+        const hit = raycaster.intersectObjects(meshes, false)[0];
+        if (!hit) continue;
+
+        const surface = hit.object.userData?.surface;
+        if (!surface || INVALID_DROP_SURFACES.includes(surface)) continue;
+
+        const pinDist = hit.point.distanceTo(pin);
+        if (pinDist < ballToPin) continue;              // never closer to the hole
+        if (hit.point.distanceTo(prev) > ballToPrev) continue; // stay on the near side
+
+        if (pinDist < bestPinDist) {
+          bestPinDist = pinDist;
+          best = hit.point.clone();
+        }
+      }
+
+      // first ring with any valid hit wins (nearest to ball), tie-broken toward pin
+      if (best) return best;
+    }
+    return null;
+  }  
 }
