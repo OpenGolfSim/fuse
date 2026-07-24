@@ -1,10 +1,6 @@
 import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import {
-  // type World,
-  // type EventQueue,
-} from '@dimforge/rapier3d-compat';
 import EventEmitter from 'eventemitter3';
 import { UnitConversions } from '@/utils/units';
 import { CourseSurfaceProperties, CourseSurfaces, isCourseSurfaceType, CourseSurfaceType, CourseColliderType } from '@/courses/surfaces';
@@ -37,9 +33,6 @@ export const GROUP_OBJECT  = 0x0004; // trees, walls, etc.
 
 export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   mesh: THREE.Object3D;
-  // world: World;
-  // rapier: RapierInstance;
-
   ballRadius: number;
   ballArea: number;
   ballMass = 0.04593;
@@ -108,31 +101,22 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
 
   constructor(
     mesh: THREE.Object3D,
-    // world: World,
-    // rapier: RapierInstance,
     radius = 0.021335,
     terrainMeshes: THREE.Mesh[] = [],
     stimpLevel?: number
   ) {
     super();
     this.mesh = mesh;
-    // this.world = world;
-    // this.world.integrationParameters.numSolverIterations = 8;
 
     if (stimpLevel) {
       this.stimpLevel = stimpLevel;
     }
-
-    // this.rapier = rapier;
     
     // Ball constants
     this.ballRadius = radius ?? 0.021335;
     // this.ballMass = 0.04593;
     this.ballArea = Math.PI * this.ballRadius * this.ballRadius;
 
-    // Event queue for collision callbacks
-    // this.eventQueue = new this.rapier.EventQueue(true);
-    
     this.buildTerrainMap(terrainMeshes);
     // Start frozen
     this.freeze();
@@ -224,15 +208,11 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     return table[table.length - 1];
   }
 
-  /** Freeze the ball in place, basically stops the physics */
   freeze() {
-    // this.rigidBody.setBodyType(this.rapier.RigidBodyType.Fixed, true);
     this.isShotActive = false;
   }
 
-  unfreeze() {
-    // this.rigidBody.setBodyType(this.rapier.RigidBodyType.Dynamic, true);
-  }
+  unfreeze() {}
 
   resetTo(position: THREE.Vector3) {
     this.isShotActive = false;
@@ -273,8 +253,6 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
 
     this.holeState = 'none';
 
-    // Unfreeze
-    // this.unfreeze();
     this.isShotActive = true;
     
     if (isPutt) {

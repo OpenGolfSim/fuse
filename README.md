@@ -23,7 +23,7 @@ Download and install [OpenGolfSim](https://opengolfsim.com) Desktop or Mobile, t
 - Custom courses built via CourseStudio
 - SDK for fully custom games
 
-Powered by [Three.js](https://threejs.org/) + [Rapier](https://rapier.rs/).
+Powered by [Three.js](https://threejs.org/) and [WebGPU](https://threejs.org/docs/pages/WebGPU.html)
 
 ---
 

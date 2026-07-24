@@ -22,7 +22,7 @@ export class CourseLight extends THREE.Group {
     const color = options.color ?? new THREE.Color('#ffffee');
     console.log('light-options', options);
     const ambientEnabled = options.ambient?.enabled !== false;
-    const ambientIntensity = options.ambient?.intensity ?? 0.8;
+    const ambientIntensity = options.ambient?.intensity ?? 0.7;
     if (ambientEnabled) {
       // Bright warm ambient
       this.ambient = new THREE.AmbientLight(color, ambientIntensity);
@@ -30,7 +30,7 @@ export class CourseLight extends THREE.Group {
     }
 
     const directionalEnabled = options.directional?.enabled !== false;
-    const directionalIntensity = options.directional?.intensity ?? 1.2;
+    const directionalIntensity = options.directional?.intensity ?? 0.8;
     if (directionalEnabled) {
       // Main overhead light for shadows
       this.overhead = new THREE.DirectionalLight(color, directionalIntensity);

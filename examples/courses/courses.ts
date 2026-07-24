@@ -1,6 +1,5 @@
 import { UIHazardDialog } from '@/ui/UIHazardDialog';
 import { QualityMode } from '@/utils/quality';
-import { type World } from '@dimforge/rapier3d-compat';
 import {
   THREE,
   app,
@@ -23,8 +22,6 @@ import {
   FuseRenderer,
   UIScorecard,
   AudioPlayer,
-  SkyBox,
-  CourseLightOptions,
  } from '@opengolfsim/fuse';
 
 const HoleOutSound = '../sounds/holeout.wav';
@@ -38,7 +35,6 @@ const gameContext: {
   qualityLevel: QualityMode,
   // Environment
   timer: THREE.Timer,
-  world?: World;
   scene?: THREE.Scene;
   renderer?: FuseRenderer,
   golfBall?: GolfBall,
@@ -340,10 +336,6 @@ async function handleSetup(payload: any) {
 }
 
 async function setupCourse() {
-  // if (!app.world) {
-  //   throw new Error('Physics world does not exist');
-  // }
-  
   if (!gameContext?.setupData) {
     throw new Error('Missing setupData!');
   }
@@ -366,8 +358,6 @@ async function setupCourse() {
 
   // load course details and meshes
   gameContext.course = new CourseLoader(
-    // app.world,
-    // app.rapier,
     gameContext.renderer,
     gameContext.camera,
     {
