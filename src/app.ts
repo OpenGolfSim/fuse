@@ -169,9 +169,12 @@ export class AppBridge extends EventEmitter<EventMap> {
       startPosition: startPosition?.toArray(),
       endPosition: endPosition?.toArray(),
       landPosition: landPosition?.toArray(),
-      lateralSamples,
-      heightSamples,
-      distanceSamples,
+      lateralSamples: [],
+      heightSamples: [],
+      distanceSamples: [],
+      // lateralSamples,
+      // heightSamples,
+      // distanceSamples,
     }
     this.sendMessage(update);
   }

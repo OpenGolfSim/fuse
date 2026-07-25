@@ -1,7 +1,5 @@
 import * as THREE from 'three';
 import { type World } from '@dimforge/rapier3d-compat';
-import { ColliderWithUserData } from '@/physics/constants';
-import { GROUP_BALL, GROUP_TERRAIN } from '@/physics/ballPhysics';
 import { CourseColliderType, CourseSurfaceType } from '@/courses/surfaces';
 
 const _raycaster = new THREE.Raycaster();
@@ -17,22 +15,18 @@ export type GroundPhysicsOptions = {
 
 export class GroundPhysics {
   mesh: THREE.Mesh;
-  world: World;
-  rapier: RapierInstance;
   options: GroundPhysicsOptions = {
     friction: 0.4,
     type: CourseSurfaceType.Base,
     restitution: 0.4,
     rollResistance: 0.15
   }
-  collider: ColliderWithUserData;
 
-  constructor(mesh: THREE.Mesh, world: World, rapier: RapierInstance, options: GroundPhysicsOptions) {
+  constructor(mesh: THREE.Mesh, options: GroundPhysicsOptions) {
     this.options = { ...this.options, ...(options || {}) };
     
     this.mesh = mesh;
-    this.world = world;
-    this.rapier = rapier;
+    this.mesh.userData = { surface: this.options.type, ...this.options };
 
     const geo = mesh.geometry;
     // Extract vertices and indices
@@ -59,21 +53,9 @@ export class GroundPhysics {
       indices = new Uint32Array(posAttr.count);
       for (let i = 0; i < indices.length; i++) indices[i] = i;
     }
-    const desc = this.rapier.ColliderDesc.trimesh(vertices, indices)
-      .setRestitution(this.options.restitution)
-      .setFriction(this.options.friction);
-
-      
-    this.collider = this.world.createCollider(desc);
-    this.collider.setCollisionGroups(
-      (GROUP_TERRAIN << 16) | GROUP_BALL  // member of TERRAIN, interacts with BALL
-    );
-    this.collider.userData = this.options;
   }
   
-  dispose() {
-    this.world.removeCollider(this.collider, true);
-  }
+  dispose() {}
 
 }
 

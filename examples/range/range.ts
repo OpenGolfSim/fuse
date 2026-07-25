@@ -30,7 +30,7 @@ import fairwayTexture from './textures/gen_fairway_tex.png?url';
 import fairwayMap from './textures/gen_fairway_map.png?url';
 import { PlayerState } from '@/courses/types';
 
-const sunColor = new THREE.Color('#fdf0d8');
+const sunColor = new THREE.Color('#fcfae9');
 const skyColor = new THREE.Color('#abd0db');
 const fogColor = new THREE.Color('#9bb0b7');
 const cloudColor = new THREE.Color('#ffffff');
@@ -248,7 +248,11 @@ async function setupRange() {
 
   gameContext.scene = new THREE.Scene();
   gameContext.scene.background = skyColor;
-  gameContext.lightGroup = new CourseLight({ color: sunColor });
+  gameContext.lightGroup = new CourseLight({
+    color: sunColor,
+    ambient: { enabled: true, intensity: 1.3 },
+    directional: { enabled: true, intensity: 1.3 },
+  });
   gameContext.scene.add(gameContext.lightGroup);
 
   gameContext.fog = new THREE.Fog(fogColor, 200, 1000);

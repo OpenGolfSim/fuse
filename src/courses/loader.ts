@@ -698,6 +698,8 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       scene.add(this.clouds.object);
       this.#renderer.generateEnvironment(scene, this.clouds.object);
 
+      const fog = new THREE.Fog(fogColor, 500, 1200);
+      scene.fog = fog;
       // gameContext.fog = new THREE.Fog(fogColor, 300, 800);
       // gameContext.scene.fog = gameContext.fog;
 
@@ -715,7 +717,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         scene.environmentIntensity = 0.25;
       }
     }
-    
+
     this.light = new CourseLight(lightOptions);
     
     scene.add(this.light);
