@@ -974,8 +974,14 @@ function initializeSetup(payload) {
   loadGame();
 }
 
+
 // use this on load of page, with test data
-app.initialize(initializeDebug);
+app.initialize(() => {
+  if (app.appType === 'web') {
+    initializeDebug();
+  }
+});
+
 // sent by OpenGolfSim Desktop/Mobile apps
 app.on('setup', initializeSetup);
 // sent by OpenGolfSim Desktop/Mobile apps
