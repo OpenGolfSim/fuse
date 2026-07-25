@@ -134,7 +134,9 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     this.activePlayer.scorecard.set(holeKey, newHoleScore);
     
     if (endOfHole) {
-      this.activePlayer.toPar = this.#orderedHoles.slice(0, this.currentHoleIndex + 1).reduce((prev, hole) => {
+      this.activePlayer.toPar = this.#orderedHoles.reduce((prev, hole) => {
+        const finished = this.activePlayer.hasFinishedHole(hole.number);
+        if (!finished) { return prev; }
         const s = this.activePlayer.scorecard.get(`${hole.number}`);
         const diff = (s || 0) - hole.par;
         return prev + diff;

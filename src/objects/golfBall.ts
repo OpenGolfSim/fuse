@@ -258,11 +258,11 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
         this.stats.landPosition = this.object.position.clone();
       }
 
-      // if (this.#frameNum % 4 === 0) {
-      //   this.stats.heightSamples.push(this.object.position.y);
-      //   this.stats.lateralSamples.push(this.stats.lateral);
-      //   this.stats.distanceSamples.push(this.stats.total);
-      // }
+      if (this.#frameNum % 4 === 0) {
+        this.stats.heightSamples.push(this.object.position.y);
+        this.stats.lateralSamples.push(this.stats.lateral);
+        this.stats.distanceSamples.push(this.stats.total);
+      }
       this.#frameNum++;
     }
   }

@@ -22,7 +22,7 @@ export class CourseLight extends THREE.Group {
     const color = options.color ?? new THREE.Color('#ffffee');
     console.log('light-options', options);
     const ambientEnabled = options.ambient?.enabled !== false;
-    const ambientIntensity = options.ambient?.intensity ?? 0.7;
+    const ambientIntensity = options.ambient?.intensity ?? 0.9;
     if (ambientEnabled) {
       // Bright warm ambient
       this.ambient = new THREE.AmbientLight(color, ambientIntensity);

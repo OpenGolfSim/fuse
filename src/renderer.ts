@@ -3,6 +3,7 @@ import {
   WebGLRenderer,
   PCFShadowMap,
   ACESFilmicToneMapping,
+  AgXToneMapping,
   ReinhardToneMapping,
   LinearToneMapping,
   CineonToneMapping,
@@ -76,15 +77,8 @@ export class FuseRenderer {
     }
     this.renderer.setSize(this.width, this.height);  
     
-    // let pixelRatio = Math.min(window.devicePixelRatio, 1);
-    let pixelRatio = 1.3;
-    // if (this.qualityLevel === QualityMode.Low) {
-      // pixelRatio = 0.95;
-    // } else if (this.qualityLevel === QualityMode.Medium) {
-    //   pixelRatio = 1;
-    if (this.qualityLevel === QualityMode.Medium) {
-      pixelRatio = 1;
-    } else if (this.qualityLevel === QualityMode.High) {
+    let pixelRatio = 1.25;
+    if (this.qualityLevel === QualityMode.High) {
       pixelRatio = 2;
     }
 
@@ -93,10 +87,9 @@ export class FuseRenderer {
     this.renderer.shadowMap.type = PCFShadowMap;
 
     // this.renderer.toneMapping = ACESFilmicToneMapping;
-    // this.renderer.toneMappingExposure = 1.1;
-    // this.renderer.toneMapping = LinearToneMapping;
+    // this.renderer.toneMapping = AgXToneMapping;
     this.renderer.toneMapping = NeutralToneMapping;
-    this.renderer.toneMappingExposure = 1.2;
+    this.renderer.toneMappingExposure = 1.1;
 
     window.addEventListener('resize', this._handleResize.bind(this));
 
