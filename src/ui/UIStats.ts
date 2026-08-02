@@ -205,17 +205,8 @@ export class UIStats {
 
       this.fpsPanel.update( ( this.#frames * 1000 ) / ( time - this.#prevTime ), 100 );
 
-      // if (this.renderer) {
-      //   const totalCalls = this.renderer.info.render.calls || 0;
-      //   const callsPerFrame = (totalCalls - this.#prevCalls) / this.#frames;
-      //   this.drawCallsPanel.update(callsPerFrame, 200);
-      //   this.#prevCalls = totalCalls;
-      // }
-
       this.#prevTime = time;
       this.#frames = 0;
-
-
     }
     
 
@@ -224,8 +215,6 @@ export class UIStats {
       this.memoryPanel.update((this.renderer.info.memory.total || 0) / 1048576, this.gpuBudgetMB);
       // @ts-expect-error
       this.drawCallsPanel.update(this.renderer.info.render.drawCalls || 0, 200);
-
-      // this.drawCallsPanel.update(this.renderer.info.render.calls || 0, 100);
     }
 
     return time;
