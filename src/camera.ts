@@ -55,7 +55,7 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     const aspect = (window.innerWidth / window.innerHeight);
     const fov = options.fov ?? 20;
     const near = options.near ?? 2;
-    const far = options.far ?? 800;
+    const far = options.far ?? 500;
     super(fov, aspect, near, far);
     this.originalFov = fov;
     this.scene = options.scene;
