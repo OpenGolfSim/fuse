@@ -37,6 +37,7 @@ type FuseRendererOptions = {
   aspect?: number;
   container?: HTMLElement;
   renderMode?: 'webgl' | 'webgpu';
+  forceWebGL?: boolean,
   qualityLevel?: QualityMode;
 }
 
@@ -64,8 +65,13 @@ export class FuseRenderer {
       // Med/High: MSAA lives on the pipeline pass → canvas AA off.
       // Low: no pipeline, so canvas MSAA provides AA — safe because Low water
       // never samples scene depth (useDepthFade: false), the other half of the bug.
-      const canvasAA = this.qualityLevel === QualityMode.Low;
-      this.renderer = new WebGPURenderer({ canvas: options.canvas, antialias: false, depth: true, });
+      // const canvasAA = this.qualityLevel === QualityMode.Low;
+      this.renderer = new WebGPURenderer({
+        canvas: options.canvas,
+        antialias: this.qualityLevel === QualityMode.Low ? false : true,
+        depth: true,
+        forceWebGL: !!options.forceWebGL,
+      });
       // @ts-expect-error - isWebGPUBackend exists not added to three types yet
       app.log(`isWebGPUBackend: ${this.renderer.backend.isWebGPUBackend}`);
       
@@ -79,6 +85,8 @@ export class FuseRenderer {
     
     let pixelRatio = 1.25;
     if (this.qualityLevel === QualityMode.High) {
+      pixelRatio = 1;
+    } else if (this.qualityLevel === QualityMode.VeryHigh) {
       pixelRatio = 2;
     }
 

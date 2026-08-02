@@ -249,6 +249,21 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   async load(coursePath: string, scene: THREE.Scene) {
     this.gltf = await this.meshLoader.loadChunked(coursePath);
     this.scene = this.gltf.scene;
+
+    // GPU keeps the only copy of compressed texture data; drop the CPU-side
+    // duplicate after each texture's first upload (~1MB+ per KTX2 texture)
+    this.scene.traverse((o: any) => {
+      if (!o.isMesh) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) {
+        for (const key of Object.keys(m ?? {})) {
+          const t = (m as any)[key];
+          if (t?.isCompressedTexture) {
+            t.onUpdate = function () { this.mipmaps = []; this.onUpdate = null; };
+          }
+        }
+      }
+    });
     if (this.gltf.userData?.courseSize) {
       this.courseSize = this.gltf.userData.courseSize;
     } else {
@@ -312,6 +327,9 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     }    
     if (hole?.green?.flag) {
       hole.green.flag.update(dt);
+    }
+    if (this.clouds) {
+      this.clouds.update(dt);
     }
   }
 

@@ -136,8 +136,8 @@ async function setupRenderer() {
   gameContext.renderer = new FuseRenderer({
     canvas,
     renderMode: 'webgpu',
+    forceWebGL: gameContext.setupData?.backend === 'webgl',
     qualityLevel: gameContext.qualityLevel,
-    antialias: true // gameContext.qualityLevel >= QualityMode.Medium
   });
 
   await gameContext.renderer.init();
@@ -468,6 +468,13 @@ function preLoad() {
     if (gameContext.setupData) gameContext.setupData.practiceMode = practiceMode;
   }
 
+  const backendParam = params.get('backend');
+  if (backendParam === 'webgl') {
+    if (gameContext.setupData) gameContext.setupData.backend = 'webgl';
+  } else if (backendParam === 'webgpu') {
+    if (gameContext.setupData) gameContext.setupData.backend = 'webgpu';
+  }
+
   console.log('[debug] Setup Data', gameContext.setupData);
   gameContext.loadingScreen = new UILoadingScreen(document.body, { loadingPrefix: 'Loading Course' });
   gameContext.loadingScreen.on('load', (error) => {
@@ -496,7 +503,7 @@ function animate(animDelta: number) {
   gameContext.renderer?.clear();
 
   gameContext.controls?.update(delta);
-  gameContext.clouds?.update(delta);
+  // gameContext.clouds?.update(delta);
 
   if (gameContext.camera && gameContext.golfBall && gameContext.isReady) {
     gameContext.course?.update(delta, gameContext.camera, gameContext.golfBall, gameContext.game?.getActiveHoleNumber());
@@ -570,7 +577,7 @@ app.on('shot', launchShot);
 // initialize must be called before engaging physics/world
 app.initialize(() => {
   // if we passed a test course URL as a query param, we start in debug mode
-  if (window.location.search) {
+  if (app.appType === 'web') {
     initializeDebug();
   }
 });

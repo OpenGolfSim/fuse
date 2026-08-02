@@ -307,6 +307,12 @@
   z-index:10000;
   border-radius: var(--border-radius);
 }
+.statsTitle {
+  background-color: var(--bg-color);
+  font-size: 8px;
+  font-family: monospace;
+  padding: 2px 4px;
+}
 
 .dropDownContainer {
   position: absolute;

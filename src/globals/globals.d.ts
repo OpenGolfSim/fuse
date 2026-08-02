@@ -77,6 +77,7 @@ namespace OpenGolfSim {
     cameraOffset?: number;
     qualityLevel?: number;
     gimmeDistances?: number[];
+    backend: 'webgl' | 'webgpu';
   }
 
   type GameData = {
