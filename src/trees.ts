@@ -14,7 +14,6 @@ export type TreePlanterOptions = {
   // world?: World;
   // rapier?: RapierInstance;
   qualityLevel?: QualityMode;
-  refreshShadows?: () => void;
 };
 
 export type TreeGroup = {
@@ -93,7 +92,6 @@ export class TreePlanter {
   worldSize: number;
   groundMeshes: THREE.Object3D | THREE.Object3D[];
   qualityLevel?: QualityMode;
-  refreshShadows?: () => void;
   treeGroup: THREE.Group;
   #raycaster: THREE.Raycaster;
   lodEntries: LODEntry[] = [];
@@ -108,7 +106,6 @@ export class TreePlanter {
     this.scene = scene;
     this.worldSize = worldSize;
     this.qualityLevel = options.qualityLevel;
-    this.refreshShadows = options.refreshShadows;
 
     // Normalise groundMeshes to an array
     this.groundMeshes = groundMeshes
@@ -419,7 +416,7 @@ export class TreePlanter {
       const batched = new THREE.BatchedMesh(count, maxVerts, maxIndices, batchMaterial);
 
       // three.js WebGPU bug: culling+shadows drops opaque batches; revisit on upgrade
-      batched.castShadow = true;
+      batched.castShadow = false;
       batched.perObjectFrustumCulled = false;
       batched.receiveShadow = false;
       batched.sortObjects = false; // draw-order sort races geometry-ID swaps on WebGPU → one-frame glitches
@@ -541,7 +538,6 @@ export class TreePlanter {
     const camX = camera.position.x;
     const camZ = camera.position.z;
     const HIDDEN = 255;
-    const SHADOW_KEEP_SQ = 100 * 100; // near trees never cull: their shadows can reach into view
 
     const projScreen = new THREE.Matrix4()
       .multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
@@ -573,7 +569,8 @@ export class TreePlanter {
           level = Math.min(level, numLevels - 1);
         }
         // Frustum cull: out of view AND far enough that its shadow can't reach into view
-        if (level !== HIDDEN && dSq > SHADOW_KEEP_SQ) {
+        // if (level !== HIDDEN && dSq > SHADOW_KEEP_SQ) {
+        if (level !== HIDDEN) {
           sphere.center.setFromMatrixPosition(allMatrices[i]);
           sphere.radius = cullRadius;
           if (!frustum.intersectsSphere(sphere)) level = HIDDEN;
@@ -619,11 +616,7 @@ export class TreePlanter {
       this.#lastCamX = camera.position.x;
       this.#lastCamZ = camera.position.z;
 
-      // this.#updateLODs(camera);
-      // if (this.#updateLODs(camera) > 0 && this.refreshShadows) this.refreshShadows();
-      const changed = this.#updateLODs(camera);
-      if (changed > 0) console.log('[lod]', changed, 'swaps @', performance.now().toFixed(0));
-      if (changed > 0 && this.refreshShadows) this.refreshShadows();
+      this.#updateLODs(camera);
     }
   }
 

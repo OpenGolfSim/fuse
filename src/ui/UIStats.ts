@@ -189,8 +189,11 @@ export class UIStats {
 		this.#beginTime = ( performance || Date ).now();
     
     if (this.title) {
-      // @ts-expect-error
-      this.title.textContent = `${this.renderer?.backend?.isWebGPUBackend ? 'WebGPU' : 'WebGL'}`;
+      this.title.textContent = [
+        // @ts-expect-error
+        `${this.renderer?.backend?.isWebGPUBackend ? 'WebGPU' : 'WebGL'}`,
+        `(@${this.renderer?.getPixelRatio().toFixed(1)})`
+      ].join(' ');
     }
     // return this.stats.begin();
   }
