@@ -172,6 +172,8 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
     this.overlayCanvas.width = this.width;
     this.overlayCanvas.height = this.height;
     ctx.clearRect(0, 0, this.width, this.height);
+    ctx.fillStyle = '#343e18';
+    ctx.fillRect(0, 0, this.width, this.height);
 
     // Draw the map image using canvas transforms
     const { cx, cz, halfW, halfH, angle } = this.view;

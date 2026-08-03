@@ -1,9 +1,13 @@
 import * as THREE from 'three';
 import { QualityMode } from '@/utils/quality';
+import { sunDirectionFromAngles, SunSettings } from '@/utils/sun';
 
 export type CourseLightOptions = {
   color?: THREE.ColorRepresentation | undefined,
   qualityLevel?: QualityMode,
+  sun?: SunSettings,
+  worldSize?: number,
+
   ambient?: {
     enabled?: boolean,
     intensity?: number
@@ -13,6 +17,8 @@ export type CourseLightOptions = {
     intensity?: number
   }
 }
+
+
 export class CourseLight extends THREE.Group {
   ambient?: THREE.AmbientLight;
   overhead?: THREE.DirectionalLight;
@@ -22,7 +28,7 @@ export class CourseLight extends THREE.Group {
     const color = options.color ?? new THREE.Color('#ffffee');
     console.log('light-options', options);
     const ambientEnabled = options.ambient?.enabled !== false;
-    const ambientIntensity = options.ambient?.intensity ?? 0.9;
+    const ambientIntensity = options.ambient?.intensity ?? 0.35;
     if (ambientEnabled) {
       // Bright warm ambient
       this.ambient = new THREE.AmbientLight(color, ambientIntensity);
@@ -30,44 +36,24 @@ export class CourseLight extends THREE.Group {
     }
 
     const directionalEnabled = options.directional?.enabled !== false;
-    const directionalIntensity = options.directional?.intensity ?? 0.8;
+    const directionalIntensity = options.directional?.intensity ?? 1.3;
     if (directionalEnabled) {
       // Main overhead light for shadows
       this.overhead = new THREE.DirectionalLight(color, directionalIntensity);
-      this.overhead.position.set(600, 300, 600);
-      this.overhead.castShadow = true;
-      
-      let shadowMapSize = 1024;
-      if (options.qualityLevel === QualityMode.Medium) {
-        shadowMapSize = 2048;
-      } else if (options.qualityLevel === QualityMode.High) {
-        shadowMapSize = 4096;
-      }
-      this.overhead.shadow.mapSize.width = shadowMapSize; // Higher = crisper shadows
-      this.overhead.shadow.mapSize.height = shadowMapSize;
-      this.overhead.shadow.camera.near = 1;
-      // Adjust these to match the size of your scene
-      this.overhead.shadow.camera.far = 700;
-      this.overhead.shadow.camera.left = -500;
-      this.overhead.shadow.camera.right = 500;
-      this.overhead.shadow.camera.top = 500;
-      this.overhead.shadow.camera.bottom = -500;
+      // this.overhead.position.set(900, 300, 900);
+      // this.overhead.castShadow = true;
+      const center = (options.worldSize ?? 1000) / 2;
+      // const dir = sunDirectionFromAngles(options.sun?.elevation, options.sun?.azimuth);
+      const dir = new THREE.Vector3(...sunDirectionFromAngles(options.sun?.elevation, options.sun?.azimuth));
 
-      // Static sun + static course: render the shadow map on demand only.
-      // Anything that changes shadow casters must call refreshShadows().
-      this.overhead.shadow.autoUpdate = false;
-      this.overhead.shadow.needsUpdate = true;   // render once on first frame
-
-      // center of world
-      this.overhead.target.position.set(500, 0, 500);
+      // Directional lights only use position→target direction; distance is arbitrary
+      this.overhead.target.position.set(center, 0, center);
+      this.overhead.position.copy(this.overhead.target.position).addScaledVector(dir, -1000);
+      this.overhead.castShadow = false; // shadows come from the baked lightmap      
 
       this.add(this.overhead.target);
       this.add(this.overhead);
     }
-  }
-
-  refreshShadows() {
-    if (this.overhead) this.overhead.shadow.needsUpdate = true;
   }
 
 }

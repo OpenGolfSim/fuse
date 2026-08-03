@@ -48,6 +48,15 @@ export class FuseRenderer {
   height: number;
   qualityLevel: QualityMode;
 
+  #basePixelRatio = 1;
+  #minScale = 0.5;
+  #scale = 1;
+  #targetMs = 1000 / 30;
+  #emaMs = 0;
+  #lastFrameT = 0;
+  #lastAdjustT = 0;
+  #recoverAfter = 0;
+
   environment?: Texture;
   pipeline?: RenderPipeline;
   constructor(options: FuseRendererOptions) {
@@ -65,10 +74,10 @@ export class FuseRenderer {
       // Med/High: MSAA lives on the pipeline pass → canvas AA off.
       // Low: no pipeline, so canvas MSAA provides AA — safe because Low water
       // never samples scene depth (useDepthFade: false), the other half of the bug.
-      // const canvasAA = this.qualityLevel === QualityMode.Low;
+      const canvasAA = this.qualityLevel === QualityMode.Low;
       this.renderer = new WebGPURenderer({
         canvas: options.canvas,
-        antialias: this.qualityLevel === QualityMode.Low ? false : true,
+        antialias: false,
         depth: true,
         forceWebGL: !!options.forceWebGL,
       });
@@ -83,21 +92,29 @@ export class FuseRenderer {
     }
     this.renderer.setSize(this.width, this.height);  
     
-    let pixelRatio = 1.25;
-    if (this.qualityLevel === QualityMode.High) {
-      pixelRatio = 1;
+    let pixelRatio = 1.3;
+    if (this.qualityLevel === QualityMode.Medium) {
+      pixelRatio = 1.5;
+    } else if (this.qualityLevel === QualityMode.High) {
+      pixelRatio = 1.8;
     } else if (this.qualityLevel === QualityMode.VeryHigh) {
       pixelRatio = 2;
     }
 
     this.renderer.setPixelRatio(pixelRatio);
+    this.#basePixelRatio = pixelRatio;
+    // fps targets: Low 30, Medium 50, High+ 60
+    const targetFps = this.qualityLevel === QualityMode.Low ? 30 : 60;
+    this.#targetMs = 1000 / targetFps;
+    this.#emaMs = this.#targetMs;
+
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFShadowMap;
 
     // this.renderer.toneMapping = ACESFilmicToneMapping;
     // this.renderer.toneMapping = AgXToneMapping;
     this.renderer.toneMapping = NeutralToneMapping;
-    this.renderer.toneMappingExposure = 1.1;
+    this.renderer.toneMappingExposure = 1.2;
 
     window.addEventListener('resize', this._handleResize.bind(this));
 
@@ -158,6 +175,7 @@ export class FuseRenderer {
     if (fog) {
       scene.fog = fog;
     }
+    this.#adjustResolution(); 
     if (this.pipeline) {
       this.pipeline.render();
     } else {
@@ -219,12 +237,10 @@ export class FuseRenderer {
 
     // Get the color output texture node
     const scenePassColor = scenePass.getTextureNode('output');
-
-    if (this.qualityLevel <= QualityMode.Medium) {
-      // this.pipeline.outputNode = samples === 1 ? fxaa(scenePassColor) : scenePassColor;
+    if (this.qualityLevel === QualityMode.Medium) {
       this.pipeline.outputNode = scenePassColor;
       return;
-    }
+    };
 
     // Create the bloom effect on high quality
     const strength = 0.12;
@@ -269,4 +285,35 @@ export class FuseRenderer {
     // Restore original visibility
     meshes.forEach((o, i) => (o.visible = prevVisible[i]));
   }  
+
+  #adjustResolution() {
+    const now = performance.now();
+    if (this.#lastFrameT) {
+      const dt = Math.min(now - this.#lastFrameT, 100); // ignore tab-switch spikes
+      this.#emaMs = this.#emaMs * 0.95 + dt * 0.05;
+    }
+    this.#lastFrameT = now;
+
+    const prev = this.#scale;
+    if (this.#emaMs > this.#targetMs * 1.15) {
+      // Struggling: step down (at most 1x/sec), and pause recovery probes
+      if (now - this.#lastAdjustT < 1000) return;
+      this.#lastAdjustT = now;
+      this.#scale = Math.max(this.#minScale, this.#scale - 0.1);
+      this.#recoverAfter = now + 4000;
+    } else if (this.#emaMs < this.#targetMs * 1.05 && this.#scale < 1 && now > this.#recoverAfter) {
+      // Meeting target (rAF can't beat it — vsync floor): probe upward,
+      // then wait a few seconds; if the probe hurts, the branch above reverts.
+      this.#lastAdjustT = now;
+      this.#scale = Math.min(1, this.#scale + 0.05);
+      this.#recoverAfter = now + 3000;
+    }
+
+    if (this.#scale !== prev) {
+      const pr = this.#basePixelRatio * this.#scale;
+      console.warn(`Adjusting pixel ratio to ${pr}`);
+      this.renderer.setPixelRatio(pr);
+    }
+  }
+
 }
