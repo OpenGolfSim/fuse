@@ -136,6 +136,7 @@ async function setupRenderer() {
   gameContext.renderer = new FuseRenderer({
     canvas,
     renderMode: 'webgpu',
+    adaptive: true,
     forceWebGL: gameContext.setupData?.backend === 'webgl',
     qualityLevel: gameContext.qualityLevel,
   });

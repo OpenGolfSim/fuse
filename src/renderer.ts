@@ -31,6 +31,7 @@ import { app } from './';
 
 type FuseRendererOptions = {
   canvas: HTMLElement | null;
+  adaptive?: boolean;
   antialias?: boolean;
   width?: number;
   height?: number;
@@ -47,7 +48,7 @@ export class FuseRenderer {
   width: number;
   height: number;
   qualityLevel: QualityMode;
-
+  adaptive: boolean;
   #basePixelRatio = 1;
   #minScale = 0.5;
   #scale = 1;
@@ -67,6 +68,7 @@ export class FuseRenderer {
     this.width = this.container.offsetWidth;
     this.height = this.container.offsetHeight;
     this.qualityLevel = options.qualityLevel ?? QualityMode.Medium;
+    this.adaptive = options.adaptive ?? true;
 
     if (options.renderMode === 'webgpu') {
       // this.renderer = new WebGPURenderer({ canvas: options.canvas, antialias: options.antialias, depth: true, });
@@ -74,9 +76,9 @@ export class FuseRenderer {
       // Med/High: MSAA lives on the pipeline pass → canvas AA off.
       // Low: no pipeline, so canvas MSAA provides AA — safe because Low water
       // never samples scene depth (useDepthFade: false), the other half of the bug.
-      const canvasAA = this.qualityLevel === QualityMode.Low;
       this.renderer = new WebGPURenderer({
         canvas: options.canvas,
+        // antialias is handled via post-proc pipeline
         antialias: false,
         depth: true,
         forceWebGL: !!options.forceWebGL,
@@ -175,7 +177,9 @@ export class FuseRenderer {
     if (fog) {
       scene.fog = fog;
     }
-    this.#adjustResolution(); 
+    if (this.adaptive) {
+      this.#adjustResolution(); 
+    }
     if (this.pipeline) {
       this.pipeline.render();
     } else {
