@@ -1,6 +1,7 @@
 
 // Shaders
 export * from '@/shaders/clouds';
+export * from '@/shaders/blend';
 export * from '@/shaders/grass';
 export * from '@/shaders/grassFlat';
 export * from '@/shaders/lightmap';
