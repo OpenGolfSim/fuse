@@ -143,11 +143,6 @@ async function setupRenderer() {
 
   await gameContext.renderer.init();
 
-  let maxPixelRatio = Math.min(window.devicePixelRatio, 1);
-  if (gameContext.qualityLevel >= QualityMode.High) {
-    maxPixelRatio = Math.min(window.devicePixelRatio, 2);
-  }
-
   gameContext.camera = new ShotPerspectiveCamera(
     {
       autoPosition: true,

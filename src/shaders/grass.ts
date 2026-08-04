@@ -347,6 +347,7 @@ export class GrassShader {
   _cellSize: number;
   _maxNewPerFrame: number;
   _density: number;
+  _clumpRadius: number;
   _meshPool: THREE.InstancedMesh[];
   _activeCells: Map<string, any>;
   _cellCache: Map<string, any>;
@@ -422,6 +423,8 @@ export class GrassShader {
     const bladeCount = opts.bladeCount ?? 30;
 
     const clumpRadius = Math.min(0.6, clumpSpread / Math.sqrt(density));
+    this._clumpRadius = clumpRadius;
+
     this._geo = createClumpGeometry({
       bladeCount,
       radius: clumpRadius,
@@ -595,7 +598,15 @@ export class GrassShader {
     const mat = new THREE.Matrix4();
 
     // Precompute barycentric data for all triangles
-    const triData = [];
+    const triData: {
+      ti: number,
+      wax: number, waz: number,
+      v0x: number, v0z: number,
+      v1x: number, v1z: number,
+      d00: number, d01: number, d11: number,
+      invDenom: number,
+    }[] = [];
+
     for (let ti = 0; ti < triCount; ti++) {
       const wi = ti * 9;
       const wax = worldVerts[wi],   waz = worldVerts[wi+2];
@@ -612,6 +623,20 @@ export class GrassShader {
 
       triData.push({ ti, wax, waz, v0x, v0z, v1x, v1z, d00, d01, d11, invDenom: 1 / det });
     }
+
+    // True if (x,z) lies inside any of this cell's triangles.
+    const isInside = (x: number, z: number) => {
+      for (let t = 0; t < triData.length; t++) {
+        const td = triData[t];
+        const v2x = x - td.wax, v2z = z - td.waz;
+        const d02 = td.v0x * v2x + td.v0z * v2z;
+        const d12 = td.v1x * v2x + td.v1z * v2z;
+        const bv = (td.d11 * d02 - td.d01 * d12) * td.invDenom;
+        const bw = (td.d00 * d12 - td.d01 * d02) * td.invDenom;
+        if (bv >= 0 && bw >= 0 && (1 - bv - bw) >= 0) return true;
+      }
+      return false;
+    };
 
     // Iterate a uniform grid across the cell, find containing triangle per point
     const startX = Math.floor(cellMinX / spacing) * spacing;
@@ -637,6 +662,19 @@ export class GrassShader {
           const bu = 1 - bv - bw;
 
           if (bu < 0 || bv < 0 || bw < 0) continue;
+          // Clump-fit: probe 6 rim points — full size, else half, else skip.
+          let clumpScale = 1.0;
+          let fits = false;
+          for (const r of [this._clumpRadius, this._clumpRadius * 0.5]) {
+            fits = true;
+            for (let p = 0; p < 6; p++) {
+              const ang = (p / 6) * Math.PI * 2;
+              if (!isInside(px + Math.cos(ang) * r, pz + Math.sin(ang) * r)) { fits = false; break; }
+            }
+            if (fits) break;
+            clumpScale *= 0.5;
+          }
+          if (!fits) { found = true; break; } // spills even at half — skip
 
           // Found containing triangle — interpolate position in local space
           const li = td.ti * 9;
@@ -671,7 +709,7 @@ export class GrassShader {
           quat.multiply(leanQuat);
 
           const hVar = 1.0 + (Math.random() - 0.5) * 2 * this._heightVariation;
-          scaleVec.set(1, hVar, 1);
+          scaleVec.set(clumpScale, hVar, clumpScale);
 
           mat.compose(position, quat, scaleVec);
           const elements = mat.elements;

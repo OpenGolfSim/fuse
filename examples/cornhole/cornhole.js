@@ -510,7 +510,7 @@ async function setupGame() {
 
   const stats = document.createElement('div');
   document.body.append(stats);
-  gameContext.stats = new UIStats(stats, { hidden: false });
+  gameContext.stats = new UIStats(stats, { hidden: false, renderer: gameContext.renderer?.renderer });
 
 
   gameContext.controls = new CourseKeyboardControls({ testShots: false });

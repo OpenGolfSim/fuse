@@ -197,6 +197,17 @@ export class FuseRenderer {
     return 1;
   }
 
+  getMaxTextureSize(): number {
+    const backend: any = (this.renderer as any).backend;
+    // WebGPU backend
+    const gpuLimit = backend?.device?.limits?.maxTextureDimension2D;
+    if (gpuLimit) return gpuLimit;
+    // WebGL backend
+    const gl = backend?.gl;
+    if (gl) return gl.getParameter(gl.MAX_TEXTURE_SIZE);
+    return 4096; // conservative fallback
+  }
+
   generateEnvironment(scene: Scene, sky?: Mesh) {
     if (!this.renderer) {
       throw new Error('Missing renderer');

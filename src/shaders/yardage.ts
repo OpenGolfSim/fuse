@@ -23,6 +23,7 @@ export type YardageLinesMaterialOptions = {
   labelFont?: string;
   maxAnisotropy?: number;
   texelsPerMeter?: number;
+  maxTextureSize?: number;
 };
 
 export class YardageLinesMaterial {
@@ -58,7 +59,7 @@ export class YardageLinesMaterial {
 
     this.lineLength = lineLength;
     this.pxPerMeter = options.texelsPerMeter ?? 30;
-    this.maxTexSize = 8192;
+    this.maxTexSize = Math.min(options.maxTextureSize ?? 4096, 8192);
 
     const dir = new THREE.Vector2(
       aimPoint.x - ballPos.x,
@@ -140,8 +141,6 @@ export class YardageLinesMaterial {
       const mask: any = lineSample.a.mul(this.lineColorAUniform).mul(inBounds);
 
       // Overlay lines onto the base material color
-      // mat.colorNode = mix(materialColor, this.lineColorRGBUniform, mask);
-      // @ts-expect-error materialColor supports .rgb at runtime; @types/three doesn't type it
       mat.colorNode = mix(materialColor.rgb, this.lineColorRGBUniform, mask);
 
       mat.needsUpdate = true;
