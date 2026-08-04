@@ -105,9 +105,10 @@ async function setupWorld() {
   
   gameContext.renderer = new FuseRenderer({
     canvas,
-    antialias: true,
+    adaptive: true,
     renderMode: 'webgpu',
-    qualityLevel: gameContext.setupData?.qualityLevel ?? 2
+    forceWebGL: gameContext.setupData?.backend === 'webgl',
+    qualityLevel: gameContext.setupData?.qualityLevel ?? 1
   });
 
   await gameContext.renderer.init();
@@ -187,6 +188,7 @@ async function createGroundPlane() {
     {
       lineWidth:  0.5,
       lineLength: 50,
+      maxTextureSize: gameContext.renderer?.getMaxTextureSize(),
       labels: hashMarks,
       lineColor:  [1, 1, 1, 0.5],
       feather:    0.2,   // 10% soft fade at each end
@@ -286,7 +288,7 @@ async function setupRange() {
   gameContext.controls.on('testShot', shot => launchShot(shot));
   
   // start hidden (press S to toggle)
-  gameContext.stats = new UIStats('#render-stats', { hidden: false });
+  gameContext.stats = new UIStats('#render-stats', { hidden: false, renderer: gameContext.renderer?.renderer });
 
   // Sky/Clouds
   gameContext.clouds = new VolumetricClouds(gameContext.camera, {
