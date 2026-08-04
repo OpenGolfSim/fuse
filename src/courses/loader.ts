@@ -5,11 +5,14 @@ import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import EventEmitter from 'eventemitter3';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 
-import { getAverageTextureColor, getTextureImageData } from '@/utils/image';
+import { getTextureImageData } from '@/utils/image';
 import { TreeGroup, TreePlanter } from '@/trees';
-import { TargetShaderMaterial } from '@/shaders/target';
-import { SandMaterial } from '@/shaders/sand';
-import { GrassAssets, GrassShader } from '@/shaders/grass';
+import {
+  BlendMaterial,
+  GrassAssets,
+  GrassShader,
+  TargetShaderMaterial
+} from '@/shaders';
 import { FlagStick } from '@/objects/flagStick';
 import { type ShotPerspectiveCamera } from '@/camera';
 import { CourseSurfaceProperties, CourseSurfaces, isCourseSurfaceType } from '@/courses/surfaces';
@@ -455,10 +458,38 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
 
         const blendMap = this.#blendMaps.get(child.userData.id);
         if (blendMap) {
+          // Neighbor surface is decided at export time (extras.neighbor -> userData);
+          // raycast detection remains as a fallback for older course files.
+          const neighborName = child.userData.neighbor;
+          const neighborMesh =
+            (neighborName &&
+              allSurfaceMeshes.find(m => m !== child && m.userData.surface === neighborName)) ||
+            this.findNeighborMesh(child, allSurfaceMeshes);
+          const neighborMat =
+            neighborMesh?.material instanceof THREE.MeshStandardMaterial
+              ? neighborMesh.material
+              : null;
+          if (neighborMat?.map && this.grassAssets?.noiseTexture) {
+            new BlendMaterial(
+              child,
+              this.grassAssets.noiseTexture,
+              blendMap,
+              {
+                texture: neighborMat.map,
+                tint: neighborMat.color,
+                tileSize: neighborMesh!.userData.tileSize,
+              },
+              child.userData.blendSettings || {},
+            );
+          } else {
+            console.warn(`Unable to find usable neighbor material for ${child.name}`);
+          }
+
+
           // TODO: hard-code the neighbor material settings at export time
           // const neighborMesh = this.findNeighborMesh(child, allSurfaceMeshes);
           // if (neighborMesh && this.grassAssets?.noiseTexture) {
-          //    const sand = new SandMaterial(
+          //    const sand = new BlendMaterial(
           //      child,
           //      this.grassAssets.noiseTexture,
           //      blendMap,
