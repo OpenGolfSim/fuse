@@ -3,16 +3,13 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { type World } from '@dimforge/rapier3d-compat';
 import { seededRandom } from '@/utils/random';
 import { isMeshObject } from '@/utils/mesh';
-import { GROUP_BALL, GROUP_OBJECT } from './physics/ballPhysics';
-// import { GroundUtils } from './physics/groundPhysics';
-import { QualityMode } from './utils/quality';
+import { QualityMode } from '@/utils/quality';
+import { createImpostorMaterial, type ImpostorMeta } from '@/shaders/impostor';
 
 export type TreePlanterOptions = {
   groundMeshes?: THREE.Object3D | THREE.Object3D[];
   scene: THREE.Group;
   worldSize: number;
-  // world?: World;
-  // rapier?: RapierInstance;
   qualityLevel?: QualityMode;
 };
 
@@ -40,8 +37,16 @@ type BatchEntry = {
   instanceIds: number[];      // index = planted tree
 };
 
+type ImpostorEntry = {
+  mesh: THREE.Mesh;
+  posScale: THREE.InstancedBufferAttribute; // xyz = quad center (world), w = 0 when hidden
+  realScale: Float32Array;                  // per-tree scale to restore on show
+  level: number;                            // LOD level the impostor represents
+};
+
 type LODEntry = {
   batches: BatchEntry[];
+  impostor?: ImpostorEntry;
   allMatrices: THREE.Matrix4[];
   positions: Float32Array;    // XZ per planted tree
   cullRadius: number;         // approx tree bounding radius for frustum test
@@ -99,7 +104,9 @@ export class TreePlanter {
   #lastCamX = 0;
   #lastCamZ = 0;  
   #lastCamDir = new THREE.Vector3();
+  #tmpDir = new THREE.Vector3();
   #frameNum = 0;
+  #framesSinceLOD = 0;
 
   constructor(options: TreePlanterOptions) {
     const { scene, worldSize, groundMeshes } = options;
@@ -355,9 +362,25 @@ export class TreePlanter {
     // Group submeshes by material across ALL LOD levels.
     // One BatchedMesh per unique material — any texture layout works.
     const groups = new Map<string, { material: THREE.Material, perLevel: THREE.BufferGeometry[][] }>();
+    let impostorDef: { material: THREE.Material, level: number, bounds: THREE.Box3 } | null = null;
     for (const [level, sourceGroup] of levels.entries()) {
-      sourceGroup.children.forEach((child) => {
-        if (!isMeshObject(child)) return;
+      for (const child of sourceGroup.children) {
+        if (!isMeshObject(child)) continue;
+
+        // Impostor quads bypass batching — they need their own instanced
+        // material (metadata travels on material extras → userData)
+        const childMat = child.material as THREE.Material;
+        if ((childMat.userData as any)?.impostor) {
+          const geo = child.geometry.clone();
+          child.updateWorldMatrix(true, false);
+          const localMatrix = new THREE.Matrix4();
+          localMatrix.copy(sourceGroup.matrixWorld).invert().multiply(child.matrixWorld);
+          geo.applyMatrix4(localMatrix);
+          geo.computeBoundingBox();
+          impostorDef = { material: childMat, level, bounds: geo.boundingBox!.clone() };
+          geo.dispose();
+          continue;
+        }
 
         const geo = child.geometry.clone();
         child.updateWorldMatrix(true, false);
@@ -372,7 +395,7 @@ export class TreePlanter {
           groups.set(mat.uuid, g);
         }
         g.perLevel[level].push(geo);
-      });
+      }
     }
 
     const batches: BatchEntry[] = [];
@@ -385,10 +408,8 @@ export class TreePlanter {
       // Any material used at the billboard level gets cutout settings
       const hasBillboard = lodGeos[maxLevel] !== null;
       if (hasBillboard) {
-        // material.alphaTest = 0;
-        // (material as any).alphaToCoverage = true;
         if (this.qualityLevel === QualityMode.Low) {
-          material.alphaTest = 0.6;               // no MSAA on Low → A2C unavailable
+          material.alphaTest = 0.6; // no MSAA on Low → A2C unavailable
           (material as any).alphaToCoverage = false;
         } else {
           material.alphaTest = 0.0;
@@ -439,6 +460,13 @@ export class TreePlanter {
       for (const g of lodGeos) g?.dispose();
 
     }
+    
+    let impostor: ImpostorEntry | undefined;
+    if (impostorDef) {
+      // impostor = this.#buildImpostor(impostorDef.material, impostorDef.level, matrices, count);
+      impostor = this.#buildImpostor(impostorDef, matrices, count);
+
+    }
 
     const positions = new Float32Array(count * 2);
     const pos = new THREE.Vector3();
@@ -457,6 +485,7 @@ export class TreePlanter {
     
     this.lodEntries.push({
       batches,
+      impostor,
       allMatrices: matrices,
       positions,
       cullRadius,
@@ -466,6 +495,63 @@ export class TreePlanter {
     });
 
     return batches.map(b => b.mesh);
+  }
+
+  #buildImpostor(
+    def: { material: THREE.Material, level: number, bounds: THREE.Box3 },
+    matrices: THREE.Matrix4[],
+    count: number
+  ): ImpostorEntry {
+    const { material, level, bounds } = def;
+
+    const meta = (material.userData as any).impostor as ImpostorMeta;
+    const map = (material as THREE.MeshStandardMaterial).map!;
+    // const center = new THREE.Vector3(...meta.center);
+    // Derive size/placement from the quad geometry itself — it went through the
+    // same export-scale pipeline as the mesh LODs, unlike the baked metadata.
+    const center = bounds.getCenter(new THREE.Vector3());
+    const size = bounds.getSize(new THREE.Vector3());
+    const resolved: ImpostorMeta = {
+      ...meta,
+      radius: Math.max(size.x, size.y) / 2,
+      center: [center.x, center.y, center.z],
+    };
+    const base = new THREE.PlaneGeometry(2, 2); // unit; sized in-shader by radius × scale
+    const geo = new THREE.InstancedBufferGeometry();
+    geo.index = base.index;
+    geo.setAttribute('position', base.attributes.position);
+    geo.setAttribute('uv', base.attributes.uv);
+    geo.instanceCount = count;
+
+    const posScaleArr = new Float32Array(count * 4); // w starts 0 = hidden
+    const yawArr = new Float32Array(count);
+    const realScale = new Float32Array(count);
+    const p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+    const e = new THREE.Euler();
+    for (let i = 0; i < count; i++) {
+      matrices[i].decompose(p, q, s);
+      realScale[i] = s.x;
+      yawArr[i] = e.setFromQuaternion(q, 'YXZ').y;
+      p.copy(center).applyMatrix4(matrices[i]); // quad center in world space
+      posScaleArr[i * 4] = p.x;
+      posScaleArr[i * 4 + 1] = p.y;
+      posScaleArr[i * 4 + 2] = p.z;
+    }
+    const posScale = new THREE.InstancedBufferAttribute(posScaleArr, 4);
+    posScale.setUsage(THREE.DynamicDrawUsage);
+    const yaw = new THREE.InstancedBufferAttribute(yawArr, 1);
+    geo.setAttribute('iPosScale', posScale);
+    geo.setAttribute('iYaw', yaw);
+
+    const mat = createImpostorMaterial(map, resolved, posScale, yaw, this.qualityLevel);
+    const mesh = new THREE.Mesh(geo, mat);
+    // In-shader world placement → three.js can't cull this correctly per-mesh
+    mesh.frustumCulled = false;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    this.treeGroup.add(mesh);
+
+    return { mesh, posScale, realScale, level };
   }
 
   static loadTree(tree: THREE.Object3D) {
@@ -590,6 +676,13 @@ export class TreePlanter {
             batch.mesh.setVisibleAt(id, true);
           }
         }
+
+        if (entry.impostor) {
+          entry.impostor.posScale.array[i * 4 + 3] =
+            level === entry.impostor.level ? entry.impostor.realScale[i] : 0;
+          entry.impostor.posScale.needsUpdate = true;
+        }
+
       }
     }
     return changed;
@@ -597,6 +690,7 @@ export class TreePlanter {
   }
   update(camera: THREE.Camera, isShotActive: boolean) {
     this.#frameNum++;
+    this.#framesSinceLOD++;
     // First call: assign LODs immediately so frame 1 never draws
     // every tree at LOD0.
     if (this.#frameNum === 1) {
@@ -604,20 +698,28 @@ export class TreePlanter {
       return;
     }
 
-    const frameMod = this.qualityLevel && this.qualityLevel > QualityMode.Low ? 10 : 30;
-    if (this.#frameNum % frameMod === 0) {
-      const dx = camera.position.x - this.#lastCamX;
-      const dz = camera.position.z - this.#lastCamZ;
-      const dir = camera.getWorldDirection(new THREE.Vector3());
-      const turned = dir.dot(this.#lastCamDir) < 0.999; // ~2.5° rotation
-      if (dx * dx + dz * dz < 1.0 && !turned) return; // neither moved nor turned — skip
-      this.#lastCamDir.copy(dir);
+    // Cheap movement check EVERY frame; rate-limit only the expensive scan.
+    const dx = camera.position.x - this.#lastCamX;
+    const dz = camera.position.z - this.#lastCamZ;
+    const movedSq = dx * dx + dz * dz;
+    const dir = camera.getWorldDirection(this.#tmpDir);
+    const turned = dir.dot(this.#lastCamDir) < 0.999; // ~2.5° rotation
 
-      this.#lastCamX = camera.position.x;
-      this.#lastCamZ = camera.position.z;
+    // Teleport / camera cut: respond this frame, ignore the rate limit
+    const jumped = movedSq > 100; // >10m in one frame
 
-      this.#updateLODs(camera);
+    const minInterval = this.qualityLevel && this.qualityLevel > QualityMode.Low ? 5 : 10;
+    if (!jumped) {
+      if (this.#framesSinceLOD < minInterval) return;
+      if (movedSq < 1.0 && !turned) return; // idle — free
     }
+
+    this.#lastCamDir.copy(dir);
+    this.#lastCamX = camera.position.x;
+    this.#lastCamZ = camera.position.z;
+    this.#framesSinceLOD = 0;
+    this.#updateLODs(camera);
+
   }
 
   /**
