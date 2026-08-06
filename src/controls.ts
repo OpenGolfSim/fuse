@@ -13,23 +13,52 @@ interface CourseKeyboardControlEvents {
 
 const MODIFIER_KEYS = new Set(['Meta', 'Control', 'Alt', 'Shift']);
 const AIM_CODES = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
+// Touch gesture tuning
+const AIM_DEADZONE_PX = 20;      // horizontal movement before aim engages
+const SWIPE_START_PX = 30;       // downward movement before a shot swipe engages
+const SWIPE_UP_MIN_PX = 40;      // minimum up-phase length to count as a shot
+const MAX_HLA_DEG = 20;          // clamp for swipe-derived horizontal launch angle
+const SPEED_PER_PX_S = 0.05;     // px/s of up-swipe velocity -> mph ballSpeed
 
 export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEvents> {
   #testShots: boolean;
   aimKeys: AimKeys;
-  #lastTap = 0;
+  #gesture: {
+    id: number;
+    startX: number; startY: number;
+    mode: 'pending' | 'aim' | 'swipe';
+    apexX: number; apexY: number; apexTime: number; // lowest point of down-phase
+    lastX: number; lastY: number;
+  } | null = null;
+  #swipeShots: boolean;
 
-  constructor(options = { testShots: false }) {
+  constructor(options: { testShots?: boolean; swipeShots?: boolean } = {}) {
     super();
-    this.#testShots = options.testShots;
+    this.#testShots = options.testShots ?? false;
+    this.#swipeShots = options.swipeShots ?? false;
     this.aimKeys = { left: false, right: false, forward: false, backward: false };    
 
     window.addEventListener('keydown', this.#keyHandler.bind(this), true); // true = capture phase
     window.addEventListener('keyup',   this.#keyHandler.bind(this), true);
-    // Reset aim state when the window loses focus (Cmd+Tab, etc.)
-    window.addEventListener('blur', this.#resetAimKeys.bind(this));
+    // // Reset aim state when the window loses focus (Cmd+Tab, etc.)
+    // window.addEventListener('blur', this.#resetAimKeys.bind(this));
+    // Reset aim/gesture state when the window loses focus (Cmd+Tab, etc.)
+    window.addEventListener('blur', () => { this.#gestureCancel(); this.#resetAimKeys(); });
 
-    document.addEventListener('touchend', this.#touchEnd.bind(this));
+    // document.addEventListener('touchend', this.#touchEnd.bind(this));
+    // document.addEventListener('touchstart', this.#touchStart.bind(this), { passive: false });
+    // document.addEventListener('touchmove', this.#touchMove.bind(this), { passive: false });
+    // document.addEventListener('touchend', this.#touchEnd.bind(this));
+    // document.addEventListener('touchcancel', this.#touchCancel.bind(this));
+    // Pointer events unify mouse + touch
+    document.addEventListener('pointerdown', this.#pointerDown.bind(this));
+    document.addEventListener('pointermove', this.#pointerMove.bind(this));
+    document.addEventListener('pointerup', this.#pointerUp.bind(this));
+    document.addEventListener('pointercancel', this.#gestureCancel.bind(this));
+    // preventDefault on pointermove doesn't stop touch scrolling; this shim does.
+    document.addEventListener('touchmove', (e) => {
+      if (this.#gesture && this.#gesture.mode !== 'pending') e.preventDefault();
+    }, { passive: false });
 
     app.on('command', (key, state) => {
       console.log('COMMAND', key, state);
@@ -51,23 +80,23 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
     });
   }
 
-  #touchEnd(event: TouchEvent) {
-    const currentTime = new Date().getTime();
-    const tapLength = currentTime - this.#lastTap;
-    // Check if the delay between taps matches a double tap (e.g., under 300ms)
-    if (tapLength < 300 && tapLength > 0) {
-      event.preventDefault(); // Prevents the default browser zoom behavior
-      const range = (min: number, max: number) => (Math.floor(Math.random() * (max - min + 1)) + min);
-      this.emit('testShot', {
-        ballSpeed: range(90, 120),
-        verticalLaunchAngle: range(14, 20),
-        horizontalLaunchAngle: range(-2, 2),
-        spinSpeed: range(2000, 6000),
-        spinAxis: range(2, 2),
-      });
-    }
-    this.#lastTap = currentTime;
-  }
+  // #touchEnd(event: TouchEvent) {
+  //   const currentTime = new Date().getTime();
+  //   const tapLength = currentTime - this.#lastTap;
+  //   // Check if the delay between taps matches a double tap (e.g., under 300ms)
+  //   if (tapLength < 300 && tapLength > 0) {
+  //     event.preventDefault(); // Prevents the default browser zoom behavior
+  //     const range = (min: number, max: number) => (Math.floor(Math.random() * (max - min + 1)) + min);
+  //     this.emit('testShot', {
+  //       ballSpeed: range(90, 120),
+  //       verticalLaunchAngle: range(14, 20),
+  //       horizontalLaunchAngle: range(-2, 2),
+  //       spinSpeed: range(2000, 6000),
+  //       spinAxis: range(2, 2),
+  //     });
+  //   }
+  //   this.#lastTap = currentTime;
+  // }
   
   #keyHandler(event: KeyboardEvent) {
     const pressed = event.type === 'keydown';
@@ -205,5 +234,111 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
     }
   }
 
+  #pointerDown(event: PointerEvent) {
+    if (!event.isPrimary) { this.#gestureCancel(); return; } // ignore multi-touch
+    if (event.pointerType === 'mouse' && event.button !== 0) return; // left button only
+    this.#gesture = {
+      id: event.pointerId,
+      startX: event.clientX, startY: event.clientY,
+
+      mode: 'pending',
+      apexX: event.clientX, apexY: event.clientY, apexTime: performance.now(),
+      lastX: event.clientX, lastY: event.clientY,
+      // apexX: t.clientX, apexY: t.clientY, apexTime: performance.now(),
+      // lastX: t.clientX, lastY: t.clientY,
+    };
+  }
+
+  // #touchMove(event: TouchEvent) {
+  //   const g = this.#touch;
+  //   if (!g) return;
+  //   const t = Array.from(event.touches).find(t => t.identifier === g.id);
+  //   if (!t) return;
+  //   const dx = t.clientX - g.startX;
+  //   const dy = t.clientY - g.startY; // screen y grows downward
+  #pointerMove(event: PointerEvent) {
+    const g = this.#gesture;
+    if (!g || event.pointerId !== g.id) return;
+    const dx = event.clientX - g.startX;
+    const dy = event.clientY - g.startY; // screen y grows downward
+
+    if (g.mode === 'pending') {
+      if (this.#swipeShots && dy > SWIPE_START_PX && dy > Math.abs(dx)) {
+        g.mode = 'swipe';
+      } else if (Math.abs(dx) > AIM_DEADZONE_PX && Math.abs(dx) > Math.abs(dy)) {
+        g.mode = 'aim';
+      }
+    }
+
+    if (g.mode === 'aim') {
+      // event.preventDefault(); // stop scroll while aiming
+      this.#setAimDrag(dx > AIM_DEADZONE_PX ? 1 : dx < -AIM_DEADZONE_PX ? -1 : 0);
+    } else if (g.mode === 'swipe') {
+      // event.preventDefault();
+      // Track the lowest point reached (apex of the down-phase)
+      if (event.clientY >= g.apexY) {
+        g.apexX = event.clientX;
+        g.apexY = event.clientY;
+
+        g.apexTime = performance.now();
+      }
+    }
+    g.lastX = event.clientX;
+    g.lastY = event.clientY;
+
+  }
+
+  #pointerUp(event: PointerEvent) {
+    const g = this.#gesture;
+    if (g && event.pointerId !== g.id) return;
+    this.#gesture = null;
+    if (!g) return;
+
+    if (g.mode === 'aim') {
+      this.#setAimDrag(0);
+      return;
+    }
+
+    if (g.mode === 'swipe') {
+      const upDx = g.lastX - g.apexX;
+      const upDy = g.apexY - g.lastY; // positive = upward
+      if (upDy > SWIPE_UP_MIN_PX) {
+        // event.preventDefault();
+        // Angle of up-phase off vertical: right of vertical = positive HLA
+        const hla = Math.max(-MAX_HLA_DEG, Math.min(MAX_HLA_DEG,
+          Math.atan2(upDx, upDy) * (180 / Math.PI)));
+        const upDist = Math.hypot(upDx, upDy);
+        const upDurS = Math.max((performance.now() - g.apexTime) / 1000, 0.05);
+        const velocity = upDist / upDurS; // px/s
+        // TODO: scale by distance-to-target so short shots are easier near the pin
+        const ballSpeed = Math.min(160, Math.max(10, velocity * SPEED_PER_PX_S));
+        this.emit('testShot', {
+          ballSpeed,
+          verticalLaunchAngle: 18,
+          horizontalLaunchAngle: hla,
+          spinSpeed: 4000,
+          spinAxis: 0,
+        });
+      }
+      // return;
+    }
+
+
+  }
+
+  #gestureCancel() {
+    if (this.#gesture?.mode === 'aim') this.#setAimDrag(0);
+    this.#gesture = null;
+  }
+
+  #setAimDrag(dir: -1 | 0 | 1) {
+    const left = dir === -1;
+    const right = dir === 1;
+    if (this.aimKeys.left !== left || this.aimKeys.right !== right) {
+      this.aimKeys.left = left;
+      this.aimKeys.right = right;
+      this.emit('aim', this.aimKeys);
+    }
+  }  
   update(dt: number) {}
 }

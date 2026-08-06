@@ -220,7 +220,7 @@ async function setupControls() {
   });
 
   // Controls
-  gameContext.controls = new CourseKeyboardControls({ testShots: true });
+  gameContext.controls = new CourseKeyboardControls({ testShots: true, swipeShots: true });
   gameContext.controls.on('aim', aimKeys => {
     if (gameContext.camera) gameContext.camera.aimKeys = aimKeys;
   });
@@ -408,6 +408,7 @@ async function setupCourse() {
     gameContext.dialogs.hazard?.close();
   });
 
+  gameContext.mainMenu.on('help', () => app.help())
   gameContext.mainMenu.on('exit', () => app.exit())
 
   gameContext.playerMenu = new UIPlayerMenu('#top-left', { players: gameContext.game?.players || [] });
@@ -474,7 +475,7 @@ function preLoad() {
   console.log('[debug] Setup Data', gameContext.setupData);
   gameContext.loadingScreen = new UILoadingScreen(document.body, { loadingPrefix: 'Loading Course' });
   gameContext.loadingScreen.on('load', (error) => {
-    gameContext.stats = new UIStats('#render-stats', { hidden: false, renderer: gameContext.renderer?.renderer }); // start hidden (press S to toggle)
+    gameContext.stats = new UIStats('#render-stats', { hidden: true, renderer: gameContext.renderer?.renderer }); // start hidden (press S to toggle)
     if (!error) {
       requestAnimationFrame(animate);
       gameContext.isReady = true;
@@ -562,7 +563,6 @@ async function initializeDebug() {
   if (courseUrl) {
     preLoad();
   }
-  document.getElementById('debug-message')?.setAttribute('style', 'display: block;');
 }
 
 // listen for setup event from OpenGolfSim app
