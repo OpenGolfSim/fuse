@@ -58,6 +58,11 @@ export interface SceneSettings {
       scale?: number;
       position?: number[];
     };
+    hdri?: {
+      rotation?: number,
+      environmentIntensity?: number
+      backgroundIntensity?: number
+    };
   }
 }
 
@@ -404,10 +409,9 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       console.warn('No shadow map found!');
       return; // course exported before baking existed — no-op
     }
-    const worldSize = this.courseSize;
 
     for (const { mesh } of this.surfaces.values()) {
-      const applied = applyLightmapShadow(mesh, tex, { worldSize });
+      const applied = applyLightmapShadow(mesh, tex, { worldSize: this.courseSize });
       if (applied) this.lightmaps.set(mesh.uuid, applied);
     }
   }
@@ -776,6 +780,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     }
     const skyType = this.sceneSettings?.sky?.type;
     const cloudSettings = this.sceneSettings?.sky?.clouds;
+    const hdriSettings = this.sceneSettings?.sky?.hdri;
     const skyColor = new THREE.Color(cloudSettings?.skyColor ?? defaultSkyColor);
     const fogColor = new THREE.Color(cloudSettings?.fogColor ?? defaultFogColor);
     const cloudColor = new THREE.Color(cloudSettings?.cloudColor ?? defaultCloudColor);
@@ -817,8 +822,11 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         );
         const buffer: ArrayBuffer = await parser.getDependency('bufferView', skyboxDef.bufferView);
         const box = new SkyBox();
-        box.load(scene, buffer);
-        scene.environmentIntensity = 0.15;
+        box.load(scene, buffer, {
+          rotation: hdriSettings?.rotation,
+          environmentIntensity: hdriSettings?.environmentIntensity,
+          backgroundIntensity: hdriSettings?.backgroundIntensity
+        });
       }
     }
 
