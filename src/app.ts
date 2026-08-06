@@ -190,6 +190,17 @@ export class AppBridge extends EventEmitter<EventMap> {
       }
     }
   }
+  help() {
+    this.sendMessage({ type: 'help' });
+    
+    if (this.appType === 'web') {
+      try {
+        window.open('https://help.opengolfsim.com');
+      } catch (error) {
+        console.log(error);
+      }
+    }
+  }
 
   sendMessage(payload: any) {
     console.log('send', this.appType, payload);

@@ -4,6 +4,7 @@ import iconImage from '@/images/opengolfsim.svg';
 import { UIDropDownMenu } from './UIDropDownMenu';
 
 interface UIMainMenuEvents {
+  help: () => void;
   settings: () => void;
   exit: () => void;
 }
@@ -30,10 +31,15 @@ export class UIMainMenu extends UIElementBase<UIMainMenuEvents> {
       anchor: this.link, 
       placement: 'bottom-start',
       menuItems: [
+        // {
+        //   label: 'Settings',
+        //   id: 'settings',
+        //   action: () => this.emit('settings')
+        // },
         {
-          label: 'Settings',
-          id: 'settings',
-          action: () => this.emit('settings')
+          label: 'Help',
+          id: 'help',
+          action: () => this.emit('help')
         },
         {
           label: 'Exit',

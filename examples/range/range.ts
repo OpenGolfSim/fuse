@@ -30,6 +30,7 @@ import fairwayTexture from './textures/gen_fairway_tex.png?url';
 import fairwayMap from './textures/gen_fairway_map.png?url';
 import { PlayerState } from '@/courses/types';
 
+const bagStandModel = 'http://coursedata.opengolfsim.com/webgl/assets/models/bagstand.glb';
 const sunColor = new THREE.Color('#fcfae9');
 const skyColor = new THREE.Color('#abd0db');
 const fogColor = new THREE.Color('#9bb0b7');
@@ -232,6 +233,19 @@ async function loadMountain(
   gameContext.mountain.position.set(0, -12, offsetZ);
   gameContext.mountain.scale.set(20, 20, 20);
   gameContext.scene?.add(gameContext.mountain);
+  
+  
+  const bagStand = await gameContext.meshLoader?.load(bagStandModel);
+  if (!bagStand) {
+    console.warn('Unable to load mountain mesh!');
+    return;
+  }
+  
+  bagStand.rotation.y = THREE.MathUtils.degToRad(180);
+  // bagStand.rotation.set(0, -Math.PI / 2, 0);
+  bagStand.position.set(-2, 0.1, 0);
+  gameContext.scene?.add(bagStand);
+  
 }
 
 async function setupRange() {
@@ -248,6 +262,7 @@ async function setupRange() {
   }
   gameContext.meshLoader = new MeshLoader(gameContext.renderer, gameContext.loadingScreen?.manager);
 
+  
   gameContext.scene = new THREE.Scene();
   gameContext.scene.background = skyColor;
   gameContext.lightGroup = new CourseLight({
@@ -280,7 +295,7 @@ async function setupRange() {
   gameContext.scene.add(gameContext.visualAimPoint.object);
 
 
-  gameContext.controls = new CourseKeyboardControls({ testShots: true });
+  gameContext.controls = new CourseKeyboardControls({ testShots: true, swipeShots: true });
   gameContext.controls.on('aim', aimKeys => {
     if (gameContext.camera) gameContext.camera.aimKeys = aimKeys;
   });
@@ -288,7 +303,7 @@ async function setupRange() {
   gameContext.controls.on('testShot', shot => launchShot(shot));
   
   // start hidden (press S to toggle)
-  gameContext.stats = new UIStats('#render-stats', { hidden: false, renderer: gameContext.renderer?.renderer });
+  gameContext.stats = new UIStats('#render-stats', { hidden: true, renderer: gameContext.renderer?.renderer });
 
   // Sky/Clouds
   gameContext.clouds = new VolumetricClouds(gameContext.camera, {
@@ -319,6 +334,7 @@ async function setupRange() {
   console.log('gameContext.setupData?.players', gameContext.setupData?.players);
 
   gameContext.mainMenu = new UIMainMenu('#top-left');
+  gameContext.mainMenu.on('help', () => app.help())
   gameContext.mainMenu.on('exit', () => app.exit())
   gameContext.playerMenu = new UIPlayerMenu('#top-left', {
     // setupData: gameContext.setupData,
@@ -370,7 +386,6 @@ async function initializeSetup(payload: any) {
 async function initializeDebug() {
   gameContext.setupData = generateSetupData(1);
   preLoad();
-  document.getElementById('debug-message')?.setAttribute('style', 'display: block;');
 }
 
 

@@ -510,10 +510,10 @@ async function setupGame() {
 
   const stats = document.createElement('div');
   document.body.append(stats);
-  gameContext.stats = new UIStats(stats, { hidden: false, renderer: gameContext.renderer?.renderer });
+  gameContext.stats = new UIStats(stats, { hidden: true, renderer: gameContext.renderer?.renderer });
 
 
-  gameContext.controls = new CourseKeyboardControls({ testShots: false });
+  gameContext.controls = new CourseKeyboardControls({ testShots: false, swipeShots: true });
   gameContext.controls.on('aim', aimKeys => {
     if (gameContext.camera) gameContext.camera.aimKeys = aimKeys;
   });
@@ -619,6 +619,7 @@ async function setupGame() {
   }
 
   gameContext.mainMenu = new UIMainMenu('#top-left');
+  gameContext.mainMenu.on('help', () => app.help())
   gameContext.mainMenu.on('exit', () => app.exit())
 }
 

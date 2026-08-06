@@ -4,6 +4,7 @@ import {
   normalize, cross, texture, cameraPosition, positionGeometry, uv,
   instancedBufferAttribute, varying,
   instancedDynamicBufferAttribute,
+  vec4,
 } from 'three/tsl';
 import { QualityMode } from '@/utils/quality';
 
@@ -21,6 +22,8 @@ export function createImpostorMaterial(
   yawAttr: THREE.InstancedBufferAttribute,      // baked per-tree Y rotation
   qualityLevel?: QualityMode,
   bendNormals = true,
+  occlusion = 0.8, // <1 darkens to compensate for missing canopy self-shadowing
+
 ) {
   const N = meta.grid;
   const mat = new THREE.MeshStandardNodeMaterial({
@@ -30,8 +33,6 @@ export function createImpostorMaterial(
   });
 
   // Match the batch cutout logic: no MSAA on Low → A2C unavailable
-  // mat.alphaTest = 0.4;
-  // mat.alphaToCoverage = true;
   if (qualityLevel === QualityMode.Low) {
     mat.alphaTest = 0.6;
     mat.alphaToCoverage = false;
@@ -42,8 +43,6 @@ export function createImpostorMaterial(
   mat.transparent = false;
   mat.depthWrite = true;
 
-  // const inst = instancedBufferAttribute(posScaleAttr);
-  // const yaw = instancedBufferAttribute(yawAttr);
   const inst = instancedDynamicBufferAttribute<'vec4'>(posScaleAttr, 'vec4');
   const yaw = instancedBufferAttribute<'float'>(yawAttr, 'float');
 
@@ -78,18 +77,25 @@ export function createImpostorMaterial(
     const cell = round(g.mul(N - 1));
     // If trees render upside-down, replace uv() with vec2(uv().x, uv().y.oneMinus())
     const frameUV = cell.add(uv()).div(N);
-    return texture(map, frameUV);
+    // return texture(map, frameUV);
+    const t = texture(map, frameUV);
+    return vec4(t.rgb.mul(occlusion), t.a);
   })();
 
-  if (bendNormals) {
-    // Fake spherical canopy normal: bend outward from quad center so the
-    // sun side lights up and the far side falls into shade.
-    mat.normalNode = normalize(
-      right.mul(positionGeometry.x.mul(0.7))
-        .add(up.mul(positionGeometry.y.mul(0.7)))
-        .add(fwd),
-    );
-  }
-
+  // if (bendNormals) {
+  //   // Fake spherical canopy normal, anchored in WORLD space (not camera space):
+  //   // normal = direction from quad center to the vertex, pulled toward world-up.
+  //   // Camera-relative normals over-brighten whenever the camera is sun-side.
+  //   mat.normalNode = normalize(
+  //     right.mul(positionGeometry.x.mul(0.8))
+  //       .add(up.mul(positionGeometry.y.mul(0.8)))
+  //       .add(vec3(0, 1, 0)),
+  //   );
+  // }
+  // Constant world-up normal: N·L is one fixed value (set by sun elevation),
+  // identical for every tree from every angle — no view-dependent brightness
+  // shifts. Curved fake normals always over-brighten at some sun/camera geometry;
+  // 'occlusion' is the single knob that matches this constant level to the LODs.
+  mat.normalNode = vec3(0, 1, 0);
   return mat;
 }
