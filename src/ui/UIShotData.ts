@@ -97,7 +97,7 @@ export class UIShotData {
         units: feetConvert,
         conversion: (val) => {
           if (this.units === 'imperial') { 
-            return val < 5 ? UnitConversions.metersToFeet(val): UnitConversions.metersToYards(val);
+            return val < 30 ? UnitConversions.metersToFeet(val): UnitConversions.metersToYards(val);
           }
           return val
         },
