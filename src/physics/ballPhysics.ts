@@ -109,6 +109,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     this.mesh = mesh;
 
     if (stimpLevel) {
+      console.log(`Using STIMP level of ${stimpLevel}`);
       this.stimpLevel = stimpLevel;
     }
     

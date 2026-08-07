@@ -30,7 +30,7 @@ import fairwayTexture from './textures/gen_fairway_tex.png?url';
 import fairwayMap from './textures/gen_fairway_map.png?url';
 import { PlayerState } from '@/courses/types';
 
-const bagStandModel = 'http://coursedata.opengolfsim.com/webgl/assets/models/bagstand.glb';
+const bagStandModel = 'https://coursedata.opengolfsim.com/webgl/assets/models/bagstand.glb';
 const sunColor = new THREE.Color('#fcfae9');
 const skyColor = new THREE.Color('#abd0db');
 const fogColor = new THREE.Color('#9bb0b7');

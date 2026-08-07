@@ -21,6 +21,7 @@ type GolfBallOptions = {
   /** Clear ball trail before the shot. Default is to clear when the shot ends. */
   clearTrail?: BallTrailClearMode;
   groundMeshes: THREE.Mesh[];
+  stimpLevel?: number;
 }
 
 export type ShotStats = {
@@ -99,7 +100,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     this.#scene.add(this.object);
 
     // Create physics once — reused across all shots
-    this.physics = new BallPhysics(this.object, this.radius, this.groundMeshes);
+    this.physics = new BallPhysics(this.object, this.radius, this.groundMeshes, options.setupData?.stimpLevel);
     this.physics.on('shotEnded', event => this._onShotEnded(event));
     this.physics.on('holedOut', () => this.emit('holedOut'));
     this.physics.on('landed', (v) => this.emit('landed', v));

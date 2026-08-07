@@ -76,6 +76,7 @@ namespace OpenGolfSim {
     units?: MeasurementUnits;
     cameraOffset?: number;
     qualityLevel?: number;
+    stimpLevel?: number;
     gimmeDistances?: number[];
     backend: 'webgl' | 'webgpu';
   }
