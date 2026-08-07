@@ -57,6 +57,8 @@ export class WaterSurface {
 
     // this.mesh = new THREE.Mesh(geometry.clone(), this.material);
     this.water = new THREE.Mesh(waterObject.geometry.clone(), this.material);
+    // Render before other transparent meshes (grass/trees) so they blend over the water
+    this.water.renderOrder = -1;
     if (options.yOffset) {
       this.water.position.set(this.water.position.x, this.water.position.y - options.yOffset, this.water.position.z);
     }
