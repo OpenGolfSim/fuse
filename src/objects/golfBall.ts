@@ -4,6 +4,7 @@ import EventEmitter from 'eventemitter3';
 import { BallPhysics, ShotEndEvent } from '@/physics/ballPhysics';
 import { BallTrail } from '@/objects/ballTrail';
 import { CourseColliderType, CourseSurfaceProperties, CourseSurfaceType } from '@/courses/surfaces';
+import { QualityMode } from '@/utils/quality';
 
 const FIXED_DT = 1 / 60;
 
@@ -22,6 +23,7 @@ type GolfBallOptions = {
   clearTrail?: BallTrailClearMode;
   groundMeshes: THREE.Mesh[];
   stimpLevel?: number;
+  qualityLevel?: QualityMode
 }
 
 export type ShotStats = {
@@ -58,6 +60,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
   trail?: BallTrail;
   physics: BallPhysics;
   clearTrail: BallTrailClearMode;
+  qualityLevel: QualityMode;
   #setupData: Partial<OpenGolfSim.SetupData>;
   #waitTime: number;
   #timeout?: number;
@@ -80,6 +83,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     this.clearTrail = options.clearTrail ?? 'end';
     this.#setupData = options.setupData;
     this.#waitTime = options.waitTime ?? 3000;
+    this.qualityLevel = options.qualityLevel ?? QualityMode.Low;
     this.#scene = scene;
     // this.#world = world;
     // this.#rapier = R;
@@ -135,7 +139,9 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     if (this.trail) {
       this.trail.reset(this.object);  // reuse existing instance
     } else {
-      this.trail = new BallTrail(this.#scene, this.object);
+      this.trail = new BallTrail(this.#scene, this.object, {
+        qualityLevel: this.qualityLevel,
+      });
     }
   }
 

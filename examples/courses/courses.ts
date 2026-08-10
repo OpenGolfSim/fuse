@@ -464,6 +464,11 @@ function preLoad() {
     const practiceMode = practiceParam === '1' || practiceParam === 'true';
     if (gameContext.setupData) gameContext.setupData.practiceMode = practiceMode;
   }
+  const puttingParam = params.get('putting');
+  if (puttingParam) {
+    const puttingEnabled = puttingParam === '1' || puttingParam === 'true';
+    if (puttingEnabled && gameContext.setupData) gameContext.setupData.puttingEnabled = puttingEnabled;
+  }
 
   const backendParam = params.get('backend');
   if (backendParam === 'webgl') {
@@ -479,6 +484,7 @@ function preLoad() {
     if (!error) {
       requestAnimationFrame(animate);
       gameContext.isReady = true;
+      gameContext.renderer?.startAdaptiveResolution();
     }
   });
   gameContext.loadingScreen.load(setupCourse);

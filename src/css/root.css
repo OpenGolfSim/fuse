@@ -14,8 +14,8 @@
 
   
   /* spacing */
-  --border-radius: 0.6vh;
-  --grid-size: 5px;
+  --border-radius: 5px;
+  --grid-size: 8px;
   --base-padding: var(--grid-size);
 
   /* text */

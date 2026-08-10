@@ -2,21 +2,16 @@ import {
   Color,
   WebGLRenderer,
   PCFShadowMap,
-  ACESFilmicToneMapping,
-  AgXToneMapping,
-  ReinhardToneMapping,
-  LinearToneMapping,
-  CineonToneMapping,
   NeutralToneMapping,
   PMREMGenerator,
   Scene,
-  Vector2,
   type Camera,
   type Fog,
   type Mesh,
   type Texture,
 } from 'three';
 import { pass } from 'three/tsl';
+import { TimestampQuery } from 'three/webgpu';
 import { QualityMode } from './utils/quality';
 import {
   WebGPURenderer,
@@ -57,7 +52,7 @@ export class FuseRenderer {
   #lastFrameT = 0;
   #lastAdjustT = 0;
   #recoverAfter = 0;
-
+  #adaptiveActive = false;
   environment?: Texture;
   pipeline?: RenderPipeline;
   constructor(options: FuseRendererOptions) {
@@ -302,6 +297,7 @@ export class FuseRenderer {
   }  
 
   #adjustResolution() {
+    if (!this.#adaptiveActive) return;
     const now = performance.now();
     if (this.#lastFrameT) {
       const dt = Math.min(now - this.#lastFrameT, 100); // ignore tab-switch spikes
@@ -330,5 +326,9 @@ export class FuseRenderer {
       this.renderer.setPixelRatio(pr);
     }
   }
-
+  startAdaptiveResolution() {
+    this.#emaMs = this.#targetMs;   // clean history
+    this.#lastFrameT = 0;           // don't count the gap since load began
+    this.#adaptiveActive = true;
+  }
 }
