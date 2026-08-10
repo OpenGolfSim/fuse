@@ -358,6 +358,7 @@ async function preLoad() {
   gameContext.loadingScreen = new UILoadingScreen(document.body, { loadingPrefix: 'Hitting the range' });
   gameContext.loadingScreen.on('load', () => {
     requestAnimationFrame(animate);
+    gameContext.renderer?.startAdaptiveResolution();
   });
   gameContext.loadingScreen.load(setupRange);
   document.body.style.opacity = '1';

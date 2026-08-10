@@ -508,11 +508,6 @@ async function setupGame() {
 
   gameContext.eventQueue = new gameContext.rapier.EventQueue(true);
 
-  const stats = document.createElement('div');
-  document.body.append(stats);
-  gameContext.stats = new UIStats(stats, { hidden: true, renderer: gameContext.renderer?.renderer });
-
-
   gameContext.controls = new CourseKeyboardControls({ testShots: false, swipeShots: true });
   gameContext.controls.on('aim', aimKeys => {
     if (gameContext.camera) gameContext.camera.aimKeys = aimKeys;
@@ -528,10 +523,18 @@ async function setupGame() {
   }
   gameContext.renderer = new FuseRenderer({
     canvas,
-    antialias: true,
-    renderMode: 'webgpu'
+    adaptive: true,
+    renderMode: 'webgpu',
+    forceWebGL: gameContext.setupData?.backend === 'webgl',
+    qualityLevel: gameContext.setupData?.qualityLevel ?? 1
   });
+
+  await gameContext.renderer.init();
   
+  const stats = document.createElement('div');
+  document.body.append(stats);
+  gameContext.stats = new UIStats(stats, { hidden: true, renderer: gameContext.renderer?.renderer });
+
   const dialogParent = document.getElementById('game-over');
   gameContext.gameOverDialog = new UIDialog(dialogParent, { title: 'Game Over', preventClose: true });
 
@@ -564,7 +567,6 @@ async function setupGame() {
     cameraOffsetYZ: [1.5, 1],
   });
 
-  await gameContext.renderer.init();
 
   gameContext.meshLoader = new MeshLoader(gameContext.renderer);  
   
@@ -592,17 +594,12 @@ async function setupGame() {
   await loadModels();
   
 
-  // gameContext.renderer.generateEnvironment(gameContext.scene, gameContext.clouds.object);
-  // if (gameContext.renderer.environment) {
-  //   gameContext.waterSurface.updateEnvironment(gameContext.renderer.environment);
-  //   // gameContext.course.updateEnvironment(gameContext.renderer.environment);
-  // }
+  gameContext.renderer.generateEnvironment(gameContext.scene, gameContext.clouds.object);
+  gameContext.renderer.setupPostProcessing(gameContext.scene, gameContext.camera);
+  await gameContext.renderer.compile(gameContext.scene, gameContext.camera);  
 
   startRound();
   updateScoreboard();
-  // positionCamera();
-
-
   
   // Create custom geometry to hold Rapier's line data
   if (gameContext.debug.enabled) {
@@ -636,6 +633,7 @@ function loadGame() {
     gameContext.loadingScreen.on('load', async () => {
       gameContext.clock.start();
       requestAnimationFrame(animate);
+      gameContext.renderer?.startAdaptiveResolution();
     });
     gameContext.loadingScreen.load(setupGame);
 

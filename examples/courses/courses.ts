@@ -485,7 +485,7 @@ function preLoad() {
     if (!error) {
       requestAnimationFrame(animate);
       gameContext.isReady = true;
-      // gameContext.renderer?.startAdaptiveResolution();      
+      gameContext.renderer?.startAdaptiveResolution();
     }
   });
   gameContext.loadingScreen.load(setupCourse);
