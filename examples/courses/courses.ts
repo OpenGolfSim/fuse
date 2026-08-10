@@ -466,7 +466,6 @@ function preLoad() {
   }
   const puttingParam = params.get('putting');
   if (puttingParam) {
-    console.log('ENABLE PUTTING', puttingParam);
     const puttingEnabled = puttingParam === '1' || puttingParam === 'true';
     if (puttingEnabled && gameContext.setupData) gameContext.setupData.puttingEnabled = puttingEnabled;
   }
