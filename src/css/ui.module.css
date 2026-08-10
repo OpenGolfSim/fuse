@@ -130,8 +130,8 @@
   display: block;
 }
 .mainMenu a {
-  width: calc(var(--base-padding) * 4);
-  height: calc(var(--base-padding) * 4);
+  width: calc(var(--base-padding) * 5);
+  height: calc(var(--base-padding) * 5);
   display: block;
   padding: calc(var(--base-padding) / 2);
 }
@@ -325,9 +325,14 @@
   background-color: var(--bg-color);
   border-radius: var(--border-radius);
   padding: var(--base-padding) 0;
-  display: flex;
-  flex-direction: column;
+  /* display: flex;
+  flex-direction: column; */
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(9, auto); /* max items per column */
+
   user-select: none;
+  /* max-height: 300px; */
   /* min-width: 10vw; */
 }
 
@@ -349,7 +354,7 @@
   padding-bottom: var(--base-padding);
   padding-left: calc(var(--base-padding) * 2);
   padding-right: calc(var(--base-padding) * 8);
-  font-size: var(--base-font-size);
+  font-size: var(--medium-font-size);
 }
 .dropDownItemSecondary {
   flex: 0 0 auto;

@@ -226,6 +226,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   #direction: THREE.Vector3;
   #accumulator = 10;
   #blendMaps: Map<string, BlendMapData>;
+  gameMode?: 'course' | 'minigolf';
 
   constructor(
     // world: World,
@@ -276,6 +277,10 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         }
       }
     });
+
+    if (this.gltf.userData?.gameMode) {
+      this.gameMode = this.gltf.userData?.gameMode;
+    }
     if (this.gltf.userData?.courseSize) {
       this.courseSize = this.gltf.userData.courseSize;
     } else {

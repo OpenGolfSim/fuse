@@ -334,8 +334,8 @@ async function setupRange() {
   console.log('gameContext.setupData?.players', gameContext.setupData?.players);
 
   gameContext.mainMenu = new UIMainMenu('#top-left');
-  gameContext.mainMenu.on('help', () => app.help())
-  gameContext.mainMenu.on('exit', () => app.exit())
+  // gameContext.mainMenu.on('help', () => app.help())
+  // gameContext.mainMenu.on('exit', () => app.exit())
   gameContext.playerMenu = new UIPlayerMenu('#top-left', {
     // setupData: gameContext.setupData,
     players: [gameContext.currentPlayer]

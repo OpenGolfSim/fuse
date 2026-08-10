@@ -1,7 +1,7 @@
 import { computePosition, flip, shift, offset, autoUpdate, Placement } from '@floating-ui/dom';
 import styles from '@/css/ui.module.css';
 
-interface UIDropDownMenuItem {
+export interface UIDropDownMenuItem {
   label: string;
   id?: string;
   secondary?: string;

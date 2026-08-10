@@ -4,6 +4,8 @@ import {
   Fn, float, smoothstep,
   uniform as tslUniform,
   cameraPosition, positionWorld, distance,
+  positionGeometry, max as tslMax,
+  cameraProjectionMatrix, screenSize, vec4
 } from 'three/tsl';
 import type { UniformNode } from 'three/webgpu';
 import { QualityMode } from '@/utils/quality';
@@ -66,7 +68,6 @@ export class BallTrail {
   camFadeNear: UniformNode<"float", number>;
   camFadeFar: UniformNode<"float", number>;
   activeRatioUniform: UniformNode<"float", number>;
-
   renderOrder = 1;
   #positions: Float32Array;
   #activePoints = 0;
@@ -93,6 +94,25 @@ export class BallTrail {
     this.camFadeNear = tslUniform(options.cameraFadeNear ?? 15);
     this.camFadeFar = tslUniform(options.cameraFadeFar ?? 20);
     this.activeRatioUniform = tslUniform(1.0);
+
+    // Low quality (no AA): clamp world-space width so the projected width
+    // never drops below ~1.25px — sub-pixel lines miss sample centers and
+    // stipple/vanish. Self-contained: projMatrix[1][1] = 1/tan(fov/2) and
+    // screenSize tracks the drawing buffer, so no camera/renderer plumbing
+    // and adaptive pixel-ratio changes are handled automatically.
+    // @ts-expect-error - makio-meshline Fn hook typing
+    const trailWidthFn = Fn(([width, progress, side]) => {
+      const dist = distance(positionGeometry, cameraPosition);
+      // const minWorldWidth = dist.mul(2.0 * 1.25)
+      //   .div(cameraProjectionMatrix.element(1).y.mul(screenSize.y));
+      // .element() exists at runtime (TSL proxy) but isn't in the mat4 uniform typings
+      // const projScaleY = (cameraProjectionMatrix as any).element(1).y; // = 1/tan(fov/2)
+      // P·(0,1,0,0) selects column 1; .y = P[1][1] = 1/tan(fov/2)
+      const projScaleY = cameraProjectionMatrix.mul(vec4(0, 1, 0, 0)).y;
+      const minWorldWidth = dist.mul(2.0 * 1.25)
+        .div(projScaleY.mul(screenSize.y));      
+      return tslMax(width, minWorldWidth);
+    });
 
     // TSL hook: fade opacity at both ends of the trail.
     // Receives (alpha, progress, side) where progress is 0→1 along the line.
@@ -132,6 +152,8 @@ export class BallTrail {
       opacity: 1.0,
       opacityFn: trailOpacityFn,
       fragmentAlphaFn: trailAlphaFn,
+      ...(this.qualityLevel === QualityMode.Low ? { widthFn: trailWidthFn } : {}),
+      // widthFn: trailWidthFn,
     });
 
     // Build immediately to pre-allocate GPU buffers and compile shaders

@@ -39,11 +39,13 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
   puttingEnabled: boolean;
   gimmeDistances: number[];
   #orderedHoles: Hole[];
+  gameMode: OpenGolfSim.SetupData['gameMode'];
   // #playerData: Map<string, PlayerState>;
 
   constructor(course: CourseLoader, golfBall: GolfBall, options: CourseGameOptions) {
     super();
     this.course = course;
+    this.gameMode = course.gameMode || 'course';
     this.players = options?.setupData.players.map(player => new CoursePlayer(player));
     this.practiceMode = !!options?.setupData.practiceMode;
     this.golfBall = golfBall;
@@ -115,7 +117,13 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     //   throw new Error('No player found!');
     // }
     const distFromStart = this.activePlayer.originalStart?.distanceTo(position) || 0;
-    if (this.activePlayer.pin && distFromStart > AIMPOINT_THRESHOLD) {
+    if (!this.activePlayer.pin) {
+      console.warn('No pin location!');
+      return;
+    }
+    if (this.gameMode === 'minigolf') {
+      this.activePlayer.aim = this.activePlayer.pin.clone();
+    } else if (distFromStart > AIMPOINT_THRESHOLD) {
       // playerState.aim ? playerState.aim.copy(playerState.pin) : playerState.aim = playerState.pin.clone();
       this.activePlayer.aim = this.activePlayer.pin.clone();
     }

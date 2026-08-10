@@ -178,6 +178,10 @@ export class AppBridge extends EventEmitter<EventMap> {
     }
     this.sendMessage(update);
   }
+
+  settings() {
+    this.sendMessage({ type: 'settings' });
+  }
   exit() {
 
     this.sendMessage({ type: 'exit' });
