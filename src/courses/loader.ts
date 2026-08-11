@@ -30,6 +30,7 @@ import { type GolfBall } from '@/objects/golfBall';
 import { PuttingGridMaterial } from '@/shaders/putting';
 import { SkyBox } from '@/sky';
 import { CourseLight } from '@/lights';
+import { OceanSurface } from '@/shaders/water/ocean';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -201,6 +202,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   meshLoader: MeshLoader;
   holes: CourseHoleMap;
   waterSurfaces: Map<string, any>;
+  ocean?: OceanSurface;
   surfaces: Map<string, LoadedCourseSurface>;
   grasses: Map<string, any>;
   greenGrids: Map<string, any>;
@@ -327,6 +329,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     
     // update water and other animations that happen each frame
     this.waterSurfaces.forEach(water => water.update(dt));
+    this.ocean?.update();
     
     const hole = this.holes.get(activeHole);
 
@@ -776,6 +779,10 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         this.scene?.remove(child);
       }
     });
+
+    // if ocean in scene settings...
+    this.ocean = new OceanSurface({ size: 400 });
+    this.scene?.add(this.ocean.water);
   }
 
   async _addSkyAndEnvironment(scene: THREE.Scene) {
@@ -842,6 +849,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
 
   updateEnvironment(environment: THREE.Texture) {
     this.waterSurfaces.forEach(water => water.updateEnvironment && water.updateEnvironment(environment));
+    this.ocean?.updateEnvironment(environment);
   }
 
   _detectSurface(mesh: THREE.Object3D) {
