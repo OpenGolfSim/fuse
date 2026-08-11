@@ -11,4 +11,5 @@ export * from '@/shaders/target';
 export * from '@/shaders/water/index';
 export * from '@/shaders/water/lake';
 export * from '@/shaders/water/river';
+export * from '@/shaders/water/ocean';
 export * from '@/shaders/yardage';
