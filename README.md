@@ -9,7 +9,7 @@ Download and install [OpenGolfSim](https://opengolfsim.com) Desktop or Mobile, t
 > <small>This software is licensed under the PolyForm Noncommercial License 1.0.0. For commercial use, please contact us at help@opengolfsim.com.</small>
 
 ---
-### 🚀 [Examples](https://github.com/OpenGolfSim/fuse/tree/main/public/games) - 📖 [Docs](https://help.opengolfsim.com) - 🛟 [Support](https://help.opengolfsim.com/connect-with-us)
+### 🚀 [Examples](https://github.com/OpenGolfSim/fuse/tree/main/examples) - 📖 [Docs](https://help.opengolfsim.com) - 🛟 [Support](https://help.opengolfsim.com/connect-with-us)
 
 <img src="https://coursedata.opengolfsim.com/webgl/courses/posters/mtn-vista-poster.jpg" />
 
