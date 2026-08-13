@@ -44,6 +44,7 @@ export class FuseRenderer {
   height: number;
   qualityLevel: QualityMode;
   adaptive: boolean;
+  adaptiveHold = false;
   #basePixelRatio = 1;
   #minScale = 0.5;
   #scale = 1;
@@ -304,6 +305,11 @@ export class FuseRenderer {
       this.#emaMs = this.#emaMs * 0.95 + dt * 0.05;
     }
     this.#lastFrameT = now;
+    if (this.adaptiveHold) {
+      // EMA stays warm; on release, wait the normal cooldown before acting
+      this.#lastAdjustT = now;
+      return;
+    }
 
     const prev = this.#scale;
     if (this.#emaMs > this.#targetMs * 1.15) {

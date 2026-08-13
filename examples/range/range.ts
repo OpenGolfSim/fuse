@@ -16,7 +16,6 @@ import {
   VolumetricClouds,
   MeshLoader,
   YardageLinesMaterial,
-  FlatGrassShaderMaterial,
   CourseSurfaces,
   generateSetupData,
   CoursePlayer,
@@ -144,6 +143,7 @@ async function createGroundPlane() {
     name: 'floor',
     map: grassTexture,
     normalMap: grassNormalMap,
+    color: new THREE.Color('#fbd9ff'),
     roughness: 1,
     metalness: 0,
   });
@@ -196,12 +196,6 @@ async function createGroundPlane() {
       texelsPerMeter: 40
     }
   );
-
-  // @ts-expect-error
-  gameContext.ground.material = new FlatGrassShaderMaterial(gameContext.ground.material, {
-    blendNoiseScale: 0.1,
-  });
-
 
   await loadMountain(grassTexture, grassNormalMap);
 }

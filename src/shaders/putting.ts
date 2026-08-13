@@ -1,6 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { MeshStandardNodeMaterial } from 'three/webgpu';
-import type { Node } from 'three/webgpu';
+import { MeshStandardNodeMaterial, type Node } from 'three/webgpu';
 import {
   vec2, vec3, vec4, float,
   uniform as tslUniform,
@@ -10,6 +9,7 @@ import {
   Fn, Discard,
 } from 'three/tsl';
 import { type ShotPerspectiveCamera } from '@/camera';
+import { GrassSurface, GrassSurfaceOptions } from './grassSurface';
 
 type FloatNode = Node<'float'>;
 type Vec2Node = Node<'vec2'>;
@@ -34,6 +34,7 @@ export type PuttingGridMaterialOptions = {
   baseSpeed?: number,
   /** Minimum dot speed in m/s (default 0.02) */
   minSpeed?: number,
+  surfaceOptions?: GrassSurfaceOptions,
 };
 
 // ---------------------------------------------------------------------------
@@ -112,36 +113,38 @@ export class PuttingGridMaterial {
     if (!(object instanceof THREE.Mesh)) return;
     this.mesh = object;
 
-    this.setupMaterial(object);
+    this.setupMaterial(object, options);
     this.buildGrid(0);
   }
 
   // -----------------------------------------------------------------
   // Grid line shader (Pristine Grid — lines only, no dots)
   // -----------------------------------------------------------------
-  private setupMaterial(object: THREE.Mesh) {
+  private setupMaterial(object: THREE.Mesh, options: PuttingGridMaterialOptions) {
     const origMat = object.material as THREE.MeshStandardMaterial;
-    const mat = new MeshStandardNodeMaterial();
+    // const mat = new MeshStandardNodeMaterial();
 
-    if (origMat.color) mat.color = origMat.color.clone();
-    if (origMat.map) mat.map = origMat.map;
-    if (origMat.normalMap) mat.normalMap = origMat.normalMap;
-    mat.roughness = origMat.roughness ?? 1.0;
-    mat.metalness = origMat.metalness ?? 0.0;
-    if (origMat.roughnessMap) mat.roughnessMap = origMat.roughnessMap;
-    if (origMat.metalnessMap) mat.metalnessMap = origMat.metalnessMap;
-    if (origMat.emissive) mat.emissive = origMat.emissive.clone();
-    if (origMat.emissiveMap) mat.emissiveMap = origMat.emissiveMap;
-    mat.emissiveIntensity = origMat.emissiveIntensity ?? 1.0;
-    if (origMat.aoMap) mat.aoMap = origMat.aoMap;
-    mat.aoMapIntensity = origMat.aoMapIntensity ?? 1.0;
-    mat.envMapIntensity = origMat.envMapIntensity ?? 1.0;
-    if (origMat.lightMap) mat.lightMap = origMat.lightMap;
-    mat.lightMapIntensity = origMat.lightMapIntensity ?? 1.0;
-    mat.side = origMat.side;
-    mat.toneMapped = origMat.toneMapped;
-    if (origMat.normalScale) mat.normalScale = origMat.normalScale.clone();
+    // if (origMat.color) mat.color = origMat.color.clone();
+    // if (origMat.map) mat.map = origMat.map;
+    // if (origMat.normalMap) mat.normalMap = origMat.normalMap;
+    // mat.roughness = origMat.roughness ?? 1.0;
+    // mat.metalness = origMat.metalness ?? 0.0;
+    // if (origMat.roughnessMap) mat.roughnessMap = origMat.roughnessMap;
+    // if (origMat.metalnessMap) mat.metalnessMap = origMat.metalnessMap;
+    // if (origMat.emissive) mat.emissive = origMat.emissive.clone();
+    // if (origMat.emissiveMap) mat.emissiveMap = origMat.emissiveMap;
+    // mat.emissiveIntensity = origMat.emissiveIntensity ?? 1.0;
+    // if (origMat.aoMap) mat.aoMap = origMat.aoMap;
+    // mat.aoMapIntensity = origMat.aoMapIntensity ?? 1.0;
+    // mat.envMapIntensity = origMat.envMapIntensity ?? 1.0;
+    // if (origMat.lightMap) mat.lightMap = origMat.lightMap;
+    // mat.lightMapIntensity = origMat.lightMapIntensity ?? 1.0;
+    // mat.side = origMat.side;
+    // mat.toneMapped = origMat.toneMapped;
+    // if (origMat.normalScale) mat.normalScale = origMat.normalScale.clone();
 
+    // Turf base: fade/discolor/terrain shading from the shared green preset
+    const mat = new GrassSurface(origMat, options.surfaceOptions ?? {});
     const cellSizeU    = float(this.gridSize);
     const uvLW         = float(this.lineWidth / this.gridSize);
     const lineColorRGB = vec3(this.lineColor.r, this.lineColor.g, this.lineColor.b);
@@ -168,7 +171,10 @@ export class PuttingGridMaterial {
 
     const gridBlend = grid.mul(lineOpacityU).mul(this.intensityUniform);
 
-    const baseColor = materialColor.rgb;
+    // const baseColor = materialColor.rgb;
+    // const baseColor: any = mat.colorNode;
+    // const baseColor = vec3(mat.colorNode!);
+    const baseColor = mat.surfaceColor;
     // const color = mix(baseColor, lineColorRGB, gridBlend);
     const color = baseColor.add(lineColorRGB.mul(gridBlend));
 

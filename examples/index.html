@@ -21,13 +21,24 @@
               uri += '?' + new URLSearchParams({ courseUrl: game.courseUrl});
             }
             const gameItemPoster = document.createElement('img');
+            gameItemPoster.className = 'poster';
             gameItemPoster.width = 160;
             gameItemPoster.height = 90;
             gameItemPoster.src = game.posterUrl;
             
             const gameItemTitle = document.createElement('div');
             gameItemTitle.textContent = game.title;
-            gameItemLink.append(gameItemPoster, gameItemTitle);
+
+            const gameItemType = document.createElement('div');
+            gameItemType.className = 'chip';
+            let type = 'Practice';
+            if (game.gameMode === 1) {
+              type = 'Game'
+            } else if (game.gameMode === 2) {
+              type = 'Course'
+            }
+            gameItemType.textContent = type;
+            gameItemLink.append(gameItemPoster, gameItemTitle, gameItemType);
 
             // gameItemLink.textContent = game.title;
 
@@ -108,6 +119,16 @@
       #game-list ul li a {
         color: #fff;
       }
+      .poster {
+        border-radius: 4px;
+      }
+      .chip {
+        background-color: rgba(0, 0, 0, 0.4);
+        color: #ccc;
+        display: inline-block;
+        padding: 4px 6px;
+        font-size: 0.7rem;
+      }
     </style>
   </head>
   <body>
@@ -132,6 +153,9 @@
             <a href="https://github.com/OpenGolfSim/fuse/">FUSE</a> (Fast Universal Simulator Engine) is <a href="https://opengolfsim.com">OpenGolfSim</a>'s free, lightweight 3D golf simulation and physics engine. 
             It provides components and utilities for building fully featured golf simulator experiences in any WebGL-capable browser or device.
           </p>
+          <p>
+            See it in action in our official <a href="https://opengolfsim.com/simulator">Desktop or Mobile</a> apps.
+          </p>
         </div>
 
         <div class="section">
@@ -139,12 +163,11 @@
           
           <div id="game-list"></div>
 
-          <p style="padding: 1rem; background-color: rgba(0, 200, 0, 0.2);">To use the examples: Press any number key (1-9) or the space bar to take a shot.</p>
+          <!-- <p style="padding: 1rem; background-color: rgba(0, 200, 0, 0.2);">To use the examples: Press any number key (1-9) or the space bar to take a shot.</p> -->
         </div>
 
         <div class="section">
-          <h3>Documentation</h3>
-          <p style="color: #888">Coming soon!</p>
+          
         </div>
       </div>
     </main>

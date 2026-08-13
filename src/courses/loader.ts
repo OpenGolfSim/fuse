@@ -7,29 +7,27 @@ import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-
 
 import { getTextureImageData } from '@/utils/image';
 import { TreeGroup, TreePlanter } from '@/trees';
-import {
-  BlendMaterial,
-  GrassAssets,
-  GrassShader,
-  TargetShaderMaterial
-} from '@/shaders';
 import { FlagStick } from '@/objects/flagStick';
 import { type ShotPerspectiveCamera } from '@/camera';
 import { CourseSurfaceProperties, CourseSurfaces, isCourseSurfaceType } from '@/courses/surfaces';
 import perlinNoise from '@/images/perlinnoise.webp?url';
+import grainNoise from '@/images/grainnoise.png?url';
 import { isMeshObject } from '@/utils/mesh';
 import grassBladesModel from '@/models/grassBlades.glb?url';
 import golfCupModel from '@/models/golfCup.glb?url';
 import { QualityMode } from '@/utils/quality';
 import { DefaultGimmeDistances } from '@/utils/data';
 import { Hole } from './types';
-import { LakeSurface, RiverSurface, VolumetricClouds } from '@/shaders';
+import { LakeSurface, RiverSurface, VolumetricClouds, BlendMaterial, TargetShaderMaterial } from '@/shaders';
 import { LightmapMaterial, applyLightmapShadow, configureLightmapTexture } from '@/shaders/lightmap';
+import { GrassBlades, GrassAssets } from '@/shaders/grassBlades';
+import { GrassSurface, GrassSurfaceOptions } from '@/shaders/grassSurface';
 import { FuseRenderer } from '@/renderer';
 import { type GolfBall } from '@/objects/golfBall';
 import { PuttingGridMaterial } from '@/shaders/putting';
 import { SkyBox } from '@/sky';
 import { CourseLight } from '@/lights';
+import { OceanSurface } from '@/shaders/water/ocean';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -63,6 +61,14 @@ export interface SceneSettings {
       environmentIntensity?: number
       backgroundIntensity?: number
     };
+  },
+  sun?: {
+    elevation?: number,
+    azimuth?: number,
+  },
+  ocean?: {
+    enabled?: boolean;
+    yOffset?: number;
   }
 }
 
@@ -201,6 +207,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   meshLoader: MeshLoader;
   holes: CourseHoleMap;
   waterSurfaces: Map<string, any>;
+  ocean?: OceanSurface;
   surfaces: Map<string, LoadedCourseSurface>;
   grasses: Map<string, any>;
   greenGrids: Map<string, any>;
@@ -295,12 +302,17 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     this.golfCup = await this.meshLoader.load(golfCupModel, true);
 
     // load the model + textures once during init
-    this.grassAssets = await GrassShader.loadAssets({
+    this.grassAssets = await GrassBlades.loadAssets({
       modelPath: grassBladesModel,
+      grainPath: grainNoise,
       noisePath: perlinNoise
     });
     if (!this.grassAssets) {
       throw new Error('Unable to load grass assets');
+    }
+
+    if (this.grassAssets?.grainTexture) {
+      this.grassAssets.grainTexture.anisotropy = this.#renderer.getMaxAnisotropy() || 1;
     }
 
     await this._parseTextures();
@@ -327,6 +339,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     
     // update water and other animations that happen each frame
     this.waterSurfaces.forEach(water => water.update(dt));
+    this.ocean?.update();
     
     const hole = this.holes.get(activeHole);
 
@@ -475,9 +488,11 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
               allSurfaceMeshes.find(m => m !== child && m.userData.surface === neighborName)) ||
             this.findNeighborMesh(child, allSurfaceMeshes);
           const neighborMat =
-            neighborMesh?.material instanceof THREE.MeshStandardMaterial
-              ? neighborMesh.material
+            neighborMesh?.material instanceof THREE.MeshStandardMaterial ||
+            neighborMesh?.material instanceof GrassSurface
+              ? neighborMesh.material as THREE.MeshStandardMaterial
               : null;
+
           if (neighborMat?.map && this.grassAssets?.noiseTexture) {
             new BlendMaterial(
               child,
@@ -494,70 +509,137 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
             console.warn(`Unable to find usable neighbor material for ${child.name}`);
           }
 
+        } else if (surfaceType === 'rough') {
 
-          // TODO: hard-code the neighbor material settings at export time
-          // const neighborMesh = this.findNeighborMesh(child, allSurfaceMeshes);
-          // if (neighborMesh && this.grassAssets?.noiseTexture) {
-          //    const sand = new BlendMaterial(
-          //      child,
-          //      this.grassAssets.noiseTexture,
-          //      blendMap,
-          //      neighborMesh,
-          //      child.userData.blendSettings || {},
-          //    );
-          // } else {
-          //   console.warn(`Unable to find neighbor mesh for ${child.name}`);
-          // }
-
-        } else if (this.qualityLevel > QualityMode.Medium && surfaceType === 'rough') {
           let renderDistance = this.qualityLevel === QualityMode.VeryHigh ? 100 : 60;
-          const grassOptions = {
-            density: 15,
-            clumpSpread: 0.4,
-            lightmap: this.#lightmapTexture,
-            lightmapWorldSize: this.courseSize,
-            renderDistance,
-            // cellSize: 10,
-            layer: 2,
-            lean: 0.01,
-            heightVariation: 0.5,
-            // maxNewCellsPerFrame: 20,
-            scaleXZ: 0.6,
-            scaleY: 0.5,
-            rootDarken: 0.4,
-            // baseColor: new THREE.Color('#415722'),
-            // tipColor1: new THREE.Color('#5c7c2e'),
-            // tipColor2: new THREE.Color('#ffffff'),
-          };
           
-          // if (this.qualityLevel > QualityMode.Medium) {
-          //   grassOptions.renderDistance = 50;
-          //   grassOptions.density = 15;
-          // }
-          
-          const grass = new GrassShader(child, this.grassAssets!, grassOptions);
-          this.scene.add(grass.mesh);
-          this.grasses.set(child.uuid, grass);
+          if (this.grassAssets!.grainTexture) {
+            child.material = new GrassSurface(
+              child.material as THREE.MeshStandardMaterial,
+              {
+                fadeStart: 40,
+                fadeEnd: 120,
+                shading: {
+                  elevation: this.sceneSettings?.sun?.elevation ?? 40,
+                  azimuth: this.sceneSettings?.sun?.azimuth ?? 225,
+                  contrast: 20.0,
+                  slopeTint: 1.0
+                },
+                distantDetail: {
+                  scale: 40,
+                  strength: 0.4,
+                  rampStart: renderDistance,
+                  rampEnd: 100,
+                  noiseTexture: this.grassAssets!.grainTexture,
+                },
+              },
+            );
+          }
+          if (this.qualityLevel > QualityMode.Medium) {
 
-        } else if (this.qualityLevel > QualityMode.Medium && ['deep_rough', 'base'].includes(surfaceType)) {
+            const grass = new GrassBlades(child, this.grassAssets!, {
+              density: 15,
+              clumpSpread: 0.4,
+              lightmap: this.#lightmapTexture,
+              lightmapWorldSize: this.courseSize,
+              renderDistance,
+              layer: 2,
+              lean: 0.01,
+              heightVariation: 0.5,
+              scaleXZ: 0.6,
+              scaleY: 0.5,
+              rootDarken: 0.4,
+            });
+            this.scene.add(grass.mesh);
+            this.grasses.set(child.uuid, grass);
+          }
+        } else if (['deep_rough', 'base'].includes(surfaceType)) {
           
           let renderDistance = this.qualityLevel === QualityMode.VeryHigh ? 100 : 60;
 
-          const grass = new GrassShader(child, this.grassAssets!, {
-            density: 2,
-            lightmap: this.#lightmapTexture,
-            lightmapWorldSize: this.courseSize,
-            renderDistance,
-            // cellSize: 10,
-            layer: 2,
-            lean: 0.03,
-            heightVariation: 0.8,
-            // maxNewCellsPerFrame: 10,
-            scaleXZ: 0.9,
-            scaleY: 0.7,
-          });
-          this.scene.add(grass.mesh);
-          this.grasses.set(child.uuid, grass);
+          if (this.grassAssets!.grainTexture) {
+            child.material = new GrassSurface(
+              child.material as THREE.MeshStandardMaterial,
+              {
+                fadeStart: 40,
+                fadeEnd: 120,
+                mowLines: {
+                  direction: 22,
+                  width: 3,
+                  strength: 0.04,
+                  wobble: 0.8,
+                  fadeVariation: 0.9,
+                },
+                discolor: {
+                  patchScale: 50,
+                  coverage: 0.45,
+                  strength: 0.35,
+                },
+                shading: {
+                  elevation: this.sceneSettings?.sun?.elevation ?? 40,
+                  azimuth: this.sceneSettings?.sun?.azimuth ?? 225,
+                  contrast: 5.0,
+                  slopeTint: 1.0
+                },
+                distantDetail: {
+                  scale: 40,
+                  strength: 0.6,
+                  noiseTexture: this.grassAssets!.grainTexture,
+                },
+              }
+            );
+          }
+
+          if (this.qualityLevel > QualityMode.Medium) {
+
+            const grass = new GrassBlades(child, this.grassAssets!, {
+              density: 2,
+              lightmap: this.#lightmapTexture,
+              lightmapWorldSize: this.courseSize,
+              renderDistance,
+              // cellSize: 10,
+              layer: 2,
+              lean: 0.03,
+              heightVariation: 0.8,
+              // maxNewCellsPerFrame: 10,
+              scaleXZ: 0.9,
+              scaleY: 0.7,
+            });
+            this.scene.add(grass.mesh);
+            this.grasses.set(child.uuid, grass);
+          }
+
+
+        } else if (['fairway', 'first_cut'].includes(surfaceType)) {
+          // mesh has a MeshStandardMaterial with a .map
+          if (this.grassAssets!.grainTexture) {
+
+            child.material = new GrassSurface(
+              child.material as THREE.MeshStandardMaterial,
+              {
+                fadeStart: 40,
+                fadeEnd: 80,
+                mowLines: {
+                  direction: 45,
+                  width: 3,
+                  strength: 0.04
+                },
+                shading: {
+                  elevation: this.sceneSettings?.sun?.elevation ?? 40,
+                  azimuth: this.sceneSettings?.sun?.azimuth ?? 225,
+                  contrast: 10.0,
+                  slopeTint: 0.15
+                },
+                distantDetail: {
+                  scale: 10,
+                  strength: 0.4,
+                  rampStart: 10,
+                  rampEnd: 100,
+                  noiseTexture: this.grassAssets!.grainTexture,
+                },
+              }
+            );
+          }
         }
 
         this.surfaces.set(child.uuid, { ...surfaceOptions, mesh: child });
@@ -676,6 +758,8 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         } else if (this.qualityLevel === QualityMode.High) {
           lodDistances = [150, 200];
           maxDistance = Infinity;
+        } else if (this.qualityLevel === QualityMode.VeryHigh) {
+          lodDistances = [500, 900];
         }
         console.log(`[plant] Planting tree layer... (lods:${lodDistances.join(',')})`, group);
         const config: TreeGroup = {
@@ -776,6 +860,27 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         this.scene?.remove(child);
       }
     });
+    
+    if (this.sceneSettings?.ocean?.enabled) {
+      this.ocean = new OceanSurface({
+        size: 4000,
+        speed: 0.5,
+        uvTiling: [1, 1],
+        tileSize: 100,
+        normalStrength: 1,
+        roughness: 0.2,
+        yOffset: this.sceneSettings?.ocean?.yOffset,
+        depthRange: 10,
+        envMapIntensity: 0.25,
+        specularColor: new THREE.Color('#c8ced1'),
+        opacity: 0.9,
+        // opacity: 0.95,
+        shallowColor: new THREE.Color('#185f57'),
+        deepColor: new THREE.Color('#042a34'),
+      });
+      this.scene?.add(this.ocean.water);
+      console.log('added ocean!');
+    }
   }
 
   async _addSkyAndEnvironment(scene: THREE.Scene) {
@@ -810,7 +915,6 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         // position: new THREE.Vector3(0, -40, 0)
       });
       scene.add(this.clouds.object);
-      this.#renderer.generateEnvironment(scene, this.clouds.object);
 
       const fog = new THREE.Fog(fogColor, 500, 900);
       scene.fog = fog;
@@ -820,6 +924,8 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     } else if (skyType === 'hdri') {
       // lightOptions.ambient = { enabled: true, intensity: 0.5 };
       // lightOptions.directional = { enabled: true, intensity: 0.6 };
+      console.log('hdriSettings', hdriSettings);
+
       const parser = this?.gltf?.parser;
       if (parser) {
         const skyboxDef = (parser.json?.images || []).find(
@@ -834,6 +940,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         });
       }
     }
+    this.#renderer.generateEnvironment(scene, this.clouds?.object);
 
     this.light = new CourseLight(lightOptions);
     
@@ -842,6 +949,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
 
   updateEnvironment(environment: THREE.Texture) {
     this.waterSurfaces.forEach(water => water.updateEnvironment && water.updateEnvironment(environment));
+    this.ocean?.updateEnvironment(environment);
   }
 
   _detectSurface(mesh: THREE.Object3D) {
@@ -916,10 +1024,37 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
 
     let target;
     let grid;
+    const surfaceOptions: GrassSurfaceOptions = {
+      fadeStart: 40,
+      fadeEnd: 120,
+      mowLines: {
+        direction: 60,
+        width: 0.5,
+        strength: 0.05,
+        wobble: 0.01,
+        fadeVariation: 1.2,
+      },
+      shading: {
+        elevation: this.sceneSettings?.sun?.elevation ?? 40,
+        azimuth: this.sceneSettings?.sun?.azimuth ?? 225,
+        contrast: 22.0,
+        slopeTint: 0.1
+      } 
+    }
+    if (this.grassAssets?.grainTexture) {
+      surfaceOptions.distantDetail = {
+        scale: 30,
+        strength: 0.2,
+        rampStart: 20,
+        rampEnd: 120,
+        nearAmount: 0.8,
+        noiseTexture: this.grassAssets!.grainTexture,
+      };
+    }
     if (this.setupData?.puttingEnabled) {
-      grid = new PuttingGridMaterial(hit.object, { holeWorldPos: position });
+      grid = new PuttingGridMaterial(hit.object, { surfaceOptions, holeWorldPos: position });
     } else {
-      target = new TargetShaderMaterial(hit.object, position, { gimmeDistances: this.setupData?.gimmeDistances || DefaultGimmeDistances });
+      target = new TargetShaderMaterial(hit.object, position, { surfaceOptions, gimmeDistances: this.setupData?.gimmeDistances || DefaultGimmeDistances });
     }
 
     return { object: hit.object, flag, target, grid };
