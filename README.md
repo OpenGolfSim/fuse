@@ -11,7 +11,7 @@ Download and install [OpenGolfSim](https://opengolfsim.com) Desktop or Mobile, t
 ---
 ### 🚀 [Examples](https://github.com/OpenGolfSim/fuse/tree/main/public/games) - 📖 [Docs](https://help.opengolfsim.com) - 🛟 [Support](https://help.opengolfsim.com/connect-with-us)
 
-<img src="https://coursedata.opengolfsim.com/webgl/courses/mountain-vista/v1/mountain-vista-poster.jpg" />
+<img src="https://coursedata.opengolfsim.com/webgl/courses/posters/mtn-vista-poster.jpg" />
 
 #### Features:
 
