@@ -6,6 +6,15 @@ import { UnitConversions } from '@/utils/units';
 import { CourseSurfaceProperties, CourseSurfaces, isCourseSurfaceType, CourseSurfaceType, CourseColliderType } from '@/courses/surfaces';
 import { PhysicsLookupTable, GRAVITY } from './constants';
 
+// A real Stimpmeter releases the ball at 1.83 m/s; the stimp rating is
+// how many FEET it rolls. Constant-braking physics gives:
+//   decel = speed² / (2 × distance)  →  5.49 / stimp  (in m/s²)
+const STIMP_RELEASE_SPEED = 1.83 // m/s
+// Braking scales smoothly with speed — no cutoff. At exactly the
+          // release speed, braking matches the stimp rating, so putts stay correct.
+          // Tuning knob: bigger = long shots brake harder, smaller = chips run out more.
+const SPEED_BRAKING_SCALE = 0.3;
+
 export type ShotEndEvent = {
   surface?: CourseColliderType,
   isInWater?: boolean,
@@ -614,7 +623,14 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
             vel.addScaledVector(slip, -impulse);
 
             // Spin converges toward rolling by the fraction of grip achieved
-            const f = impulse / gripImpulse;
+            // const f = impulse / gripImpulse;
+            // Capped: a single impact can't fully convert backspin to rolling —
+            // residual backspin drives the skid phase after roll transition
+            // const f = Math.min(impulse / gripImpulse, 0.6);
+            // Low-spin shots keep some backspin to skid against after landing;
+            // high-spin shots (bite → 1) convert spin exactly as before.
+            const f = Math.min(impulse / gripImpulse, THREE.MathUtils.lerp(0.6, 1.0, bite));            
+
             const vtAfter = new THREE.Vector3().copy(vel).addScaledVector(normal, -vel.dot(normal));
             const rollSpin = new THREE.Vector3().crossVectors(normal, vtAfter).divideScalar(this.ballRadius);
             spin.lerp(rollSpin, f);
@@ -640,9 +656,18 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
         // Stimp-driven roll on the green: Stimpmeter releases at 1.83 m/s,
         // rating = rollout in feet, so constant decel a = 5.49 / stimp
         const useStimpLevel = this.currentSurface?.type === CourseSurfaceType.Green;
-        const decel = useStimpLevel
-          ? 5.49 / this.stimpLevel
-          : resistance * GRAVITY;
+        // const decel = useStimpLevel
+        //   ? 5.49 / this.stimpLevel
+        //   : resistance * GRAVITY;
+        let decel;
+        if (useStimpLevel) {
+          const stimpDecel = (STIMP_RELEASE_SPEED * STIMP_RELEASE_SPEED) / (2 * UnitConversions.feetToMeters(this.stimpLevel));
+          decel = stimpDecel *
+            (1 + SPEED_BRAKING_SCALE * (horizontalSpeed - STIMP_RELEASE_SPEED));
+        } else {
+          decel = resistance * GRAVITY;
+        }
+
         const friction = Math.min(decel * normalForce * dt, horizontalSpeed);
 
 

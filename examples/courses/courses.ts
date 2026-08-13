@@ -146,6 +146,7 @@ async function setupRenderer() {
   gameContext.camera = new ShotPerspectiveCamera(
     {
       autoPosition: true,
+      far: 2000,
       cameraOffsetX: (gameContext.setupData?.cameraOffset ? -(gameContext.setupData.cameraOffset / 100) : 0),
     }
   );
@@ -464,6 +465,12 @@ function preLoad() {
     const practiceMode = practiceParam === '1' || practiceParam === 'true';
     if (gameContext.setupData) gameContext.setupData.practiceMode = practiceMode;
   }
+  const stimpParam = params.get('stimp');
+  if (stimpParam) {
+    const stimpValue = Math.max(Math.min(parseInt(stimpParam, 10), 14), 6);
+    console.log(`setting stimp: ${stimpValue}`);
+    if (gameContext.setupData && stimpValue) gameContext.setupData.stimpLevel = stimpValue;
+  }
   const puttingParam = params.get('putting');
   if (puttingParam) {
     const puttingEnabled = puttingParam === '1' || puttingParam === 'true';
@@ -480,7 +487,7 @@ function preLoad() {
   console.log('[debug] Setup Data', gameContext.setupData);
   gameContext.loadingScreen = new UILoadingScreen(document.body, { loadingPrefix: 'Loading Course' });
   gameContext.loadingScreen.on('load', (error) => {
-    gameContext.stats = new UIStats('#render-stats', { hidden: true, renderer: gameContext.renderer?.renderer }); // start hidden (press S to toggle)
+    gameContext.stats = new UIStats('#render-stats', { hidden: false, renderer: gameContext.renderer?.renderer }); // start hidden (press S to toggle)
     if (!error) {
       requestAnimationFrame(animate);
       gameContext.isReady = true;
@@ -540,6 +547,9 @@ function animate(animDelta: number) {
       }
 
       if (gameContext.camera) {
+        if (gameContext.renderer) {
+          gameContext.renderer.adaptiveHold = !!gameContext.golfBall?.isShotActive;
+        }
         gameContext.renderer?.render(gameContext.scene, gameContext.camera, gameContext.fog);
       }
     }

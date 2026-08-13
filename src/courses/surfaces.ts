@@ -92,7 +92,7 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
     friction: 0.2,
     restitution: 0.2,
     stopSpeed: 0.20,
-    rollResistance: 0.20,
+    rollResistance: 0.10,
   },
   [CourseSurfaceType.Base]: {
     hasCollider: true,

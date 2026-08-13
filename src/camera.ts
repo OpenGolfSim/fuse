@@ -268,6 +268,7 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
 
       this.desiredCamPos.copy(targetPosition).addScaledVector(tmpBack, this.cameraTrackingOffsetYZ[1]);
       this.desiredCamPos.y += this.cameraTrackingOffsetYZ[0];
+      this.desiredCamPos.x += 1;
       this.desiredLookAt.copy(targetPosition);
       
       this.position.lerp(this.desiredCamPos, posSmooth);

@@ -19,6 +19,7 @@ export class OceanSurface extends WaterSurface {
     const proxy = new THREE.Mesh(geo);
 
     super(proxy, undefined, {
+      uvTiling: [1, 1],   // neutralize base-class tiling; tileSize (world units) is the wave-scale knob
       depthRange: 12,
       opacity: 0.95,
       shallowColor: new THREE.Color('#184a5f'),

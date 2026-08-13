@@ -13,11 +13,12 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshSurfaceSampler } from 'three/addons/math/MeshSurfaceSampler.js';
 
 export type GrassAssets = {
-  noiseTexture: THREE.Texture<HTMLImageElement, THREE.TextureEventMap>;
-  geometry: THREE.BufferGeometry | null;
+  grainTexture?: THREE.Texture<HTMLImageElement, THREE.TextureEventMap>;
+  noiseTexture?: THREE.Texture<HTMLImageElement, THREE.TextureEventMap>;
+  geometry?: THREE.BufferGeometry | null;
 }
 
-export type GrassShaderOptions = {
+export type GrassBladesOptions = {
   bladeWidth?: number,
   bladeHeight?: number,
   scaleXZ?: number,
@@ -194,10 +195,10 @@ function createBladeGeometry() {
 
 function createBladeMaterial(
   noiseTexture: GrassAssets['noiseTexture'],
-  opts: GrassShaderOptions = {},
+  opts: GrassBladesOptions = {},
   terrainBounds: TerrainBounds | null = null,
 ) {
-  // Uniforms — these have .value so the GrassShader setters still work
+  // Uniforms — these have .value so the GrassBlades setters still work
   const uniforms: Record<string, any> = {
     baseColor:            tslUniform(new THREE.Color(opts.baseColor ?? '#3a5a20')),
     tipColor1:            tslUniform(new THREE.Color(opts.tipColor1 ?? '#6a9a45')),
@@ -224,7 +225,7 @@ function createBladeMaterial(
 
   if (opts.terrainTexture && terrainBounds) {
     // Tint uniform: share the terrain material's node if provided,
-    // otherwise own one (settable via GrassShader.terrainTint).
+    // otherwise own one (settable via GrassBlades.terrainTint).
     uniforms.uTerrainTint = opts.terrainTintNode
       ?? tslUniform(new THREE.Color(opts.terrainTint ?? '#ffffff'));
     uniforms.uGroundMatch = tslUniform(opts.groundMatch ?? 1.0);
@@ -309,18 +310,26 @@ function createBladeMaterial(
   return { material, uniforms };
 }
 
-export class GrassShader {
-  static async loadAssets(paths: { noisePath: string, modelPath: string }): Promise<GrassAssets> {
+export class GrassBlades {
+  static async loadAssets(paths: { grainPath?: string, noisePath?: string, modelPath?: string }): Promise<GrassAssets> {
     const texLoader = new THREE.TextureLoader();
 
-    const noiseTexture = texLoader.load(paths.noisePath);
-    noiseTexture.wrapS = noiseTexture.wrapT = THREE.RepeatWrapping;
-
+    let grainTexture: THREE.Texture<HTMLImageElement, THREE.TextureEventMap> | undefined;
+    if (paths.grainPath) {
+      grainTexture = await texLoader.loadAsync(paths.grainPath);
+      grainTexture.wrapS = grainTexture.wrapT = THREE.RepeatWrapping;
+    }
+    let noiseTexture: THREE.Texture<HTMLImageElement, THREE.TextureEventMap> | undefined;
+    if (paths.noisePath) {
+      noiseTexture = await texLoader.loadAsync(paths.noisePath);
+      noiseTexture.wrapS = noiseTexture.wrapT = THREE.RepeatWrapping;
+    }
+    
     let geometry: THREE.BufferGeometry | null = null;
     if (paths.modelPath) {
       const gltfLoader = new GLTFLoader();
       geometry = await new Promise((resolve, reject) => {
-        gltfLoader.load(paths.modelPath, (gltf) => {
+        gltfLoader.load(paths.modelPath!, (gltf) => {
           let geo: THREE.BufferGeometry | null = null;
           gltf.scene.traverse((child) => {
             if (!(child instanceof THREE.Mesh)) { return; }
@@ -331,7 +340,7 @@ export class GrassShader {
       });
     }
 
-    return { noiseTexture, geometry };
+    return { noiseTexture, geometry, grainTexture };
   }
 
   _uniforms: Record<string, any>;
@@ -353,7 +362,7 @@ export class GrassShader {
   _cellCache: Map<string, any>;
   _cellTriangles: Map<string, any>;
 
-  constructor(sourceMesh: THREE.Mesh, assets: GrassAssets, opts: GrassShaderOptions = {}) {
+  constructor(sourceMesh: THREE.Mesh, assets: GrassAssets, opts: GrassBladesOptions = {}) {
     const bladeWidth  = opts.bladeWidth  ?? 0.025;
     const bladeHeight = opts.bladeHeight ?? 0.08;
 
@@ -556,7 +565,7 @@ export class GrassShader {
     }
 
     console.log(
-      `[GrassShader] chunked: "${sourceMesh.name}" ` +
+      `[GrassBlades] chunked: "${sourceMesh.name}" ` +
       `${this._cellTriangles.size} cells, density=${this._density}, cellSize=${cs}`
     );
 
@@ -866,7 +875,7 @@ export class GrassShader {
       instancedMesh.setMatrixAt(i, mat);
     }
     instancedMesh.instanceMatrix.needsUpdate = true;
-    console.log(`[GrassShader] ${count} blades on "${sourceMesh.name}"`);
+    console.log(`[GrassBlades] ${count} blades on "${sourceMesh.name}"`);
   }
 
   static _getSurfaceArea(mesh: THREE.Mesh) {

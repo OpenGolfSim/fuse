@@ -8,11 +8,13 @@ import {
   smoothstep as tslSmoothstep, mix, max,
   fwidth, Fn, Discard,
 } from 'three/tsl';
+import { GrassSurface, GrassSurfaceOptions } from './grassSurface';
 
 export type TargetShaderMaterialOptions = {
   gimmeDistances: number[],
   ringWidth?: number,
-  puttingEnabled?: boolean
+  puttingEnabled?: boolean,
+  surfaceOptions?: GrassSurfaceOptions,
 };
 
 // --- TSL helper: anti-aliased ring outline ---
@@ -76,30 +78,32 @@ export class TargetShaderMaterial {
     if (object instanceof THREE.Mesh) {
       const origMat = object.material as THREE.MeshStandardMaterial;
 
-      const mat = new MeshStandardNodeMaterial({
-        // alphaToCoverage: true,
-      });
+      // const mat = new MeshStandardNodeMaterial({
+      //   // alphaToCoverage: true,
+      // });
 
-      // Copy properties from the original GLTF material
-      if (origMat.color) mat.color = origMat.color.clone();
-      if (origMat.map) mat.map = origMat.map;
-      if (origMat.normalMap) mat.normalMap = origMat.normalMap;
-      mat.roughness = origMat.roughness ?? 1.0;
-      mat.metalness = origMat.metalness ?? 0.0;
-      if (origMat.roughnessMap) mat.roughnessMap = origMat.roughnessMap;
-      if (origMat.metalnessMap) mat.metalnessMap = origMat.metalnessMap;
-      // if (origMat.emissive) mat.emissive = origMat.emissive.clone();
-      // if (origMat.emissiveMap) mat.emissiveMap = origMat.emissiveMap;
-      // mat.emissiveIntensity = origMat.emissiveIntensity ?? 1.0;
-      if (origMat.aoMap) mat.aoMap = origMat.aoMap;
-      mat.aoMapIntensity = origMat.aoMapIntensity ?? 1.0;
-      mat.envMapIntensity = origMat.envMapIntensity ?? 1.0;
-      if (origMat.lightMap) mat.lightMap = origMat.lightMap;
-      mat.lightMapIntensity = origMat.lightMapIntensity ?? 1.0;
-      mat.side = origMat.side;
-      mat.toneMapped = origMat.toneMapped;
-      if (origMat.normalScale) mat.normalScale = origMat.normalScale.clone();
+      // // Copy properties from the original GLTF material
+      // if (origMat.color) mat.color = origMat.color.clone();
+      // if (origMat.map) mat.map = origMat.map;
+      // if (origMat.normalMap) mat.normalMap = origMat.normalMap;
+      // mat.roughness = origMat.roughness ?? 1.0;
+      // mat.metalness = origMat.metalness ?? 0.0;
+      // if (origMat.roughnessMap) mat.roughnessMap = origMat.roughnessMap;
+      // if (origMat.metalnessMap) mat.metalnessMap = origMat.metalnessMap;
+      // // if (origMat.emissive) mat.emissive = origMat.emissive.clone();
+      // // if (origMat.emissiveMap) mat.emissiveMap = origMat.emissiveMap;
+      // // mat.emissiveIntensity = origMat.emissiveIntensity ?? 1.0;
+      // if (origMat.aoMap) mat.aoMap = origMat.aoMap;
+      // mat.aoMapIntensity = origMat.aoMapIntensity ?? 1.0;
+      // mat.envMapIntensity = origMat.envMapIntensity ?? 1.0;
+      // if (origMat.lightMap) mat.lightMap = origMat.lightMap;
+      // mat.lightMapIntensity = origMat.lightMapIntensity ?? 1.0;
+      // mat.side = origMat.side;
+      // mat.toneMapped = origMat.toneMapped;
+      // if (origMat.normalScale) mat.normalScale = origMat.normalScale.clone();
 
+      // Turf base: fade/discolor/terrain shading from the shared green preset
+      const mat = new GrassSurface(origMat, options.surfaceOptions ?? {});
       // --- Distance from fragment to hole (XZ plane) ---
       const dist: any = positionWorld.xz.sub(this.holePosUniform.xz).length();
 
@@ -122,8 +126,10 @@ export class TargetShaderMaterial {
 
       // --- Composite rings onto the base color ---
       // Start with the material's base color (includes .color * .map)
-      let color: any = materialColor;
-
+      // let color: any = materialColor;
+      // Start from the turf shader's output instead of the raw material color
+      let color: any = mat.colorNode;
+      
       // White outlines — always visible
       color = mix(color, inactiveColorRGB, outline1.mul(inactiveColorA));
       color = mix(color, inactiveColorRGB, outline2.mul(inactiveColorA));
