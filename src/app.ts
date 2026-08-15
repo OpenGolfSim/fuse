@@ -24,6 +24,14 @@ export type SetupMessage = {
   gameData: OpenGolfSim.GameData,
 };
 
+export type StatusMessage = {
+  type: 'status',
+  isReady: boolean,
+  isConnected: boolean,
+  batteryLevel?: number,
+  firmware?: string
+};
+
 export type ShotMessage = {
   type: 'shot',
   shot: OpenGolfSim.Shot
@@ -47,6 +55,7 @@ interface EventMap {
   ready: () => void;
   command: (key: CommandMessage['key'], state: CommandMessage['state']) => void;
   shot: (shotData: OpenGolfSim.Shot) => void;
+  status: (status: Omit<StatusMessage, 'type'>) => void;
   setup: (message: Omit<SetupMessage, 'type'>) => void;
 }
 
@@ -56,10 +65,11 @@ interface EventMap {
 export class AppBridge extends EventEmitter<EventMap> {
   appType: 'mobile' | 'desktop' | 'web' | 'webapp';
   isReady: boolean;
-
+  isLoaded: boolean;
   constructor() {
     super();
     this.isReady = false;
+    this.isLoaded = false;
     this.appType = 'web';
     if (typeof window.ReactNativeWebView !== 'undefined') {
       this.appType = 'mobile';
@@ -90,13 +100,17 @@ export class AppBridge extends EventEmitter<EventMap> {
     this.#handleEvent(data);
   }
 
-  #handleEvent(data: CommandMessage | ShotMessage | SetupMessage) {
+  #handleEvent(data: CommandMessage | ShotMessage | SetupMessage | StatusMessage) {
+    const { type, ...rest } = data;
     switch (data.type) {
       case 'shot':
         this.emit('shot', data.shot);
         break;
       case 'setup':
-        this.emit('setup', data);
+        this.emit('setup', rest as Omit<SetupMessage, 'type'>);
+        break;
+      case 'status':
+        this.emit('status', rest as Omit<StatusMessage, 'type'>);
         break;
       case 'command':
         this.emit('command', data.key, data.state);
@@ -119,6 +133,11 @@ export class AppBridge extends EventEmitter<EventMap> {
     console.log('[runtime] FUSE initialized');
     this.isReady = true;
     this.sendMessage({ type: 'ready' });
+  }
+  
+  setLoaded() {
+    this.isLoaded = true;
+    this.sendMessage({ type: 'loaded' });
   }
 
   sendPlayerUpdate(player: CoursePlayer, position: [number, number, number]) {
@@ -182,6 +201,11 @@ export class AppBridge extends EventEmitter<EventMap> {
   settings() {
     this.sendMessage({ type: 'settings' });
   }
+  
+  launchMonitor() {
+    this.sendMessage({ type: 'launch-monitor' });
+  }
+
   exit() {
 
     this.sendMessage({ type: 'exit' });

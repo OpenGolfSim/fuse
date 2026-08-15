@@ -233,7 +233,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   #direction: THREE.Vector3;
   #accumulator = 10;
   #blendMaps: Map<string, BlendMapData>;
-  gameMode?: 'course' | 'minigolf';
+  gameMode?: 'course' | 'minigolf' | 'range';
 
   constructor(
     // world: World,
@@ -293,6 +293,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     } else {
       console.warn('Course missing world size! Defaulting to 1000');
     }
+
     this.sceneSettings = this.gltf.userData?.sceneSettings ?? {};
 
     console.log(' ---- Loaded FUSE course ---- ');
@@ -940,7 +941,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         });
       }
     }
-    this.#renderer.generateEnvironment(scene, this.clouds?.object);
+    this.#renderer.generateEnvironment(scene);
 
     this.light = new CourseLight(lightOptions);
     
@@ -987,14 +988,15 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
           this.holes.set(holeNum, { number: `${holeNum}`, par, waypoints: new Map() });
         }
       } else if (type === 'waypoint') {
-        // ['tee','aim','pin'].includes(type)
+        
+        // setup pin locations for courses only
         const { holeNum, order, mapX, mapY, waypoint: waypointType } = node.userData;
         raycaster.set(new THREE.Vector3(mapX, 5000, mapY), down);
         const hits = raycaster.intersectObjects(groundMeshes);
         let position = new THREE.Vector3(mapX, 10, mapY);
         if (hits.length > 0) {
           position.y = hits[0].point.y;
-          if (waypointType === 'pin') {
+          if ((!this.gameMode || this.gameMode === 'course') && waypointType === 'pin') {
             // add flagstick and target material
             if (this.holes.has(holeNum)) {
               const hole = this.holes.get(holeNum);
@@ -1002,7 +1004,6 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
                 hole.green = this._setupGreen(hits[0], position, hole.number);
               }
             }
-
           }
         }
         const hole = this.holes.get(holeNum);

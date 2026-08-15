@@ -76,5 +76,21 @@ button:hover {
   flex-wrap: nowrap;
   align-items: center;
   gap: calc(var(--grid-size) / 2);
+}
 
+#bottom-left {
+  position: absolute;
+  bottom: calc(var(--grid-size) / 4);
+  left: var(--grid-size);
+  display: flex;
+  flex-direction: column;
+}
+#bottom-right {
+  position: absolute;
+  bottom: calc(var(--grid-size) / 4);
+  right: var(--grid-size);
+  display: flex;
+  flex-direction: column;
+  gap: var(--grid-size);
+  max-width: 13vh;
 }

@@ -1,4 +1,3 @@
-import { type World } from '@dimforge/rapier3d-compat';
 import {
   THREE,
   app,
@@ -22,7 +21,8 @@ import {
   UIPlayerMenu,
   UIMainMenu,
   CourseSurfaceType,
-  FuseRenderer
+  FuseRenderer,
+  UILaunchMonitor
 } from '@opengolfsim/fuse';
 import rangeMtnsModel from './models/rangeMtns.glb?url';
 import fairwayTexture from './textures/gen_fairway_tex.png?url';
@@ -43,7 +43,6 @@ const gameContext: {
   currentPlayer?: CoursePlayer,
   // Environment
   timer: THREE.Timer,
-  world?: World,
   scene?: THREE.Scene,
   renderer?: FuseRenderer,
   golfBall?: GolfBall,
@@ -66,6 +65,7 @@ const gameContext: {
   stats?: UIStats,
   playerMenu?: UIPlayerMenu,
   mainMenu?: UIMainMenu,
+  launchMonitor?: UILaunchMonitor,
   
   // Controls
   camera?: ShotPerspectiveCamera,
@@ -116,7 +116,6 @@ async function setupWorld() {
 
 
 async function createGroundPlane() {
-  // if (!app.world) throw new Error('Missing physics world. Did you call app.initialize() first?');
   if (!gameContext.scene) throw new Error('Missing base scene');
   const rangeWidth = 500;
   const rangeHeight = 700;
@@ -143,7 +142,7 @@ async function createGroundPlane() {
     name: 'floor',
     map: grassTexture,
     normalMap: grassNormalMap,
-    color: new THREE.Color('#fbd9ff'),
+    color: new THREE.Color('#fce3ff'),
     roughness: 1,
     metalness: 0,
   });
@@ -297,6 +296,7 @@ async function setupRange() {
   gameContext.controls.on('testShot', shot => launchShot(shot));
   
   // start hidden (press S to toggle)
+  gameContext.launchMonitor = new UILaunchMonitor('#lm-status');
   gameContext.stats = new UIStats('#render-stats', { hidden: true, renderer: gameContext.renderer?.renderer });
 
   // Sky/Clouds
@@ -328,6 +328,7 @@ async function setupRange() {
   console.log('gameContext.setupData?.players', gameContext.setupData?.players);
 
   gameContext.mainMenu = new UIMainMenu('#top-left');
+  gameContext.mainMenu.on('stats', () => gameContext.stats?.toggle());
   // gameContext.mainMenu.on('help', () => app.help())
   // gameContext.mainMenu.on('exit', () => app.exit())
   gameContext.playerMenu = new UIPlayerMenu('#top-left', {
@@ -353,6 +354,7 @@ async function preLoad() {
   gameContext.loadingScreen.on('load', () => {
     requestAnimationFrame(animate);
     gameContext.renderer?.startAdaptiveResolution();
+    app.setLoaded();
   });
   gameContext.loadingScreen.load(setupRange);
   document.body.style.opacity = '1';
@@ -381,37 +383,6 @@ async function initializeSetup(payload: any) {
 async function initializeDebug() {
   gameContext.setupData = generateSetupData(1);
   preLoad();
-}
-
-
-function testSetupData() {
-  const clubs = [
-    { fullName: 'Driver', name: 'DR', id: 'DR', distance: 180 },
-    { fullName: '5 Iron', name: '5i', id: '5I', distance: 150 },
-    { fullName: 'Pitching Wedge', name: 'PW', id: 'PW', distance: 100 },
-    { fullName: 'Putter', name: 'P', id: 'PT', distance: 0 }
-  ];
-  return {
-    units: 'imperial',
-    players: [
-      {
-        name: 'Player One',
-        id: 'player-1',
-        clubs: [...clubs]
-      },
-      {
-        name: 'Player Two',
-        id: 'player-2',
-        clubs: [...clubs]
-      }
-    ],
-    cameraOffset: 0,
-    puttingEnabled: false,
-    gimmesEnabled: true,
-    gimmeDistances: [10, 20],
-    elevation: 0,
-    gameMode: 2,
-  }
 }
 
 function clubChange(club: OpenGolfSim.Club) {

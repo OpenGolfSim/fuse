@@ -141,8 +141,10 @@ export class YardageLinesMaterial {
       const mask: any = lineSample.a.mul(this.lineColorAUniform).mul(inBounds);
 
       // Overlay lines onto the base material color
-      mat.colorNode = mix(materialColor.rgb, this.lineColorRGBUniform, mask);
-
+      mat.colorNode = this.lineColorRGBUniform;
+      mat.opacityNode = mask;
+      mat.transparent = true;
+      mat.depthWrite = false;
       mat.needsUpdate = true;
       object.material = mat;
       this.material = mat;

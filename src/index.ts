@@ -36,6 +36,7 @@ export * from '@/ui';
 // Utils
 export * from '@/utils/units';
 export * from '@/utils/data';
+export * from '@/utils/quality';
 
 import '@/css/base.css';
 

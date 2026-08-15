@@ -2,6 +2,7 @@ export * from '@/ui/UICourseMap';
 export * from '@/ui/UIDialog';
 export * from '@/ui/UIMainMenu';
 export * from '@/ui/UIPlayerMenu';
+export * from '@/ui/UILaunchMonitor';
 export * from '@/ui/UILoadingScreen';
 export * from '@/ui/UIRangeFinder';
 export * from '@/ui/UIScorecard';

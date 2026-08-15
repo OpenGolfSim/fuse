@@ -1,14 +1,10 @@
 import '@/css/base.css';
 import './cornhole.css';
-
-const FIXED_DT = 1 / 60;
-const MAX_SUBSTEPS = 5; // cap to prevent "spiral of death"
-
 import {
+  THREE,
   CourseKeyboardControls,
   MeshLoader,
   ShotPerspectiveCamera,
-  THREE,
   UIMainMenu,
   UIStats,
   VolumetricClouds,
@@ -18,7 +14,8 @@ import {
   FuseRenderer,
   WaterSurface,
   UIDialog,
-  GRAVITY_VECTOR
+  GRAVITY_VECTOR,
+  UnitConversions
 } from '@opengolfsim/fuse';
 
 import * as RAPIER from '@dimforge/rapier3d-compat';
@@ -32,11 +29,15 @@ import sandCastleModel from './models/SandCastle.glb?url';
 import cornHoleBlue from './textures/cornhole_blue.png?url';
 import sandTexture from './textures/gen_sand_tex.png?url';
 import waterNormals from './textures/waternormals.jpg?url';
+import { Vector3 } from 'three';
+
+const FIXED_DT = 1 / 60;
+const MAX_SUBSTEPS = 5; // cap to prevent "spiral of death"
 
 const YARDS_IN_METER = 1.09361;
 const stopThreshold = 0.05;
-const baseBoardDistance = 7;
-let boardZOffset = 10;
+const baseBoardDistance = 7; // meters
+let boardZOffset = 0; // meters
 
 const fogColor = new THREE.Color('#bddefc');
 const skyColor = new THREE.Color('#bddefc');
@@ -83,16 +84,11 @@ const gameContext = {
     // { name: 'Blue Player 2', team: 'blue' },
   ],
   bags: [],
-  boards: {
-    blue: {
-      object: null,
+  board: {
+    object: null,
+    positions: {
       start: new THREE.Vector3(0, 0.3, -2.5),
-      board: new THREE.Vector3(0, 0.2, -baseBoardDistance)
-    },
-    red: {
-      object: null,
-      start: new THREE.Vector3(0, 0.05, 15),
-      board: new THREE.Vector3(0, 0.2, baseBoardDistance)
+      board: new THREE.Vector3(0, 0.22, -baseBoardDistance)
     }
   },
   debug: {
@@ -114,8 +110,8 @@ function clearRoundBags() {
   );
 }
 
-function setupBoard(team, boardMeshOriginal) {
-  const boardData = gameContext.boards[team];
+function setupBoard(boardMeshOriginal) {
+  const boardData = gameContext.board;
   const tiltRad = 10 * (Math.PI / 180);
 
   // Tear down existing physics if rebuilding
@@ -129,17 +125,17 @@ function setupBoard(team, boardMeshOriginal) {
     boardMesh = boardMeshOriginal.clone();
     let rotateRad = 90 * (Math.PI / 180);
 
-    if (team === 'red') {
-      const newMaterial = boardMesh.material.clone();
-      const redBoardTexture = textureLoader.load(cornHoleBlue);
-      redBoardTexture.flipY = false;
-      redBoardTexture.colorSpace = THREE.SRGBColorSpace;
-      newMaterial.map = redBoardTexture;
-      boardMesh.receiveShadow = true;
-      boardMesh.material = newMaterial;
-      boardMesh.material.needsUpdate = true;
-      rotateRad = 270 * (Math.PI / 180);
-    }
+    // if (team === 'red') {
+    //   const newMaterial = boardMesh.material.clone();
+    //   const redBoardTexture = textureLoader.load(cornHoleBlue);
+    //   redBoardTexture.flipY = false;
+    //   redBoardTexture.colorSpace = THREE.SRGBColorSpace;
+    //   newMaterial.map = redBoardTexture;
+    //   boardMesh.receiveShadow = true;
+    //   boardMesh.material = newMaterial;
+    //   boardMesh.material.needsUpdate = true;
+    //   rotateRad = 270 * (Math.PI / 180);
+    // }
 
     boardMesh.scale.set(0.25, 0.25, 0.25);
     boardMesh.rotation.set(0, rotateRad, tiltRad);
@@ -156,10 +152,10 @@ function setupBoard(team, boardMeshOriginal) {
   }
 
   // Position (or reposition) the visual
-  boardMesh.position.copy(boardData.board);
-  boardMesh.position.y += 0.02;
+  boardMesh.position.copy(boardData.positions.board);
+  boardMesh.position.z -= boardZOffset;
+  // boardMesh.position.y += 0.02;
   boardMesh.castShadow = true;
-  boardMesh.position.z += boardData.boardOffset || 0;
   boardMesh.updateWorldMatrix(true, false);
 
   // Bake world transform into geometry and create the trimesh
@@ -181,7 +177,7 @@ function setupBoard(team, boardMeshOriginal) {
   );
 
   // Hole sensor
-  const holeZOffset = team === 'red' ? 0.75 : -0.75;
+  const holeZOffset = -0.75;
   boardData.colliderHole = gameContext.world.createCollider(
     gameContext.rapier.ColliderDesc.cylinder(0.3, 0.2)
       .setSensor(true)
@@ -191,7 +187,7 @@ function setupBoard(team, boardMeshOriginal) {
       })
   );
 
-  return boardMesh;
+  // return boardMesh;
 }
 
 async function loadModels() {
@@ -207,8 +203,8 @@ async function loadGameBoards() {
   // const boardMeshOriginal = await gameContext.meshLoader('models/CornHoleBoard.glb', true);  
   console.log('boardMesh', boardMeshOriginal);
   boardMeshOriginal.receiveShadow = true;
-  setupBoard('blue', boardMeshOriginal);
-  setupBoard('red', boardMeshOriginal);
+  setupBoard(boardMeshOriginal);
+  // setupBoard('red', boardMeshOriginal);
 }
 
 function createWater(tex) {
@@ -395,7 +391,7 @@ async function createGround(tex, width = 100, depth = 100) {
 }
 
 function updateScoreboard() {
-  document.getElementById('round').textContent =
+  document.getElementById('round-number').textContent =
     `Round ${gameContext.round.number}`;
   document.getElementById('blue-team-score').textContent =
     gameContext.scores.blue;
@@ -416,8 +412,16 @@ function updateScoreboard() {
     .slice(gameContext.round.currentThrowIdx)
     .filter(team => team === currentTeam).length;
 
-  document.getElementById('current-team-bags').innerHTML =
-    Array(remainingBags).fill('<div class="team-bag"></div>').join('');
+  const eles = document.querySelectorAll('.team-bag');
+  eles.forEach((ele, index) => {
+    if (index < remainingBags) {
+      ele.classList.remove('used');
+    } else {
+      ele.classList.add('used');
+    }
+  });
+  // document.getElementById('current-team-bags').innerHTML =
+  //   Array(remainingBags).fill('<div class="team-bag"></div>').join('');
 
 
   // document.getElementById('current-team-bags').innerHTML = '<div class="team-bag"></div>';
@@ -433,7 +437,7 @@ function updateScoreboard() {
 
 function positionCamera() {
   const cameraPosition = new THREE.Vector3();
-  cameraPosition.copy(gameContext.boards.blue.start);
+  cameraPosition.copy(gameContext.board.positions.start);
   cameraPosition.y += 1;
   cameraPosition.z += 1;
 
@@ -458,11 +462,54 @@ function getBoardDistance() {
   return baseBoardDistance + boardZOffset;
 }
 
+function adjustDistance(operation) {
+  const MIN_OFFSET = 0;
+  const MAX_OFFSET = 7;
+  const BOARD_SCALE_MIN = 0.25;
+  const BOARD_SCALE_MAX = 0.5;
+  const POSITION_Y_MIN = 0.22;
+  const POSITION_Y_MAX = 0.44;
+
+  let newOffset = boardZOffset + operation;
+  newOffset = Math.max(Math.min(newOffset, MAX_OFFSET), MIN_OFFSET);
+  console.log(`before-boardZOffset:${boardZOffset}`);
+  boardZOffset = newOffset;
+
+  console.log(`newOffset:${newOffset}, boardZOffset:${boardZOffset}`);
+
+  // gameContext.board.object.position.copy(gameContext.board.positions.board);
+  const dist = getBoardDistance();
+  gameContext.board.object.position.z = dist * -1;
+  // const scale = THREE.MathUtils.mapLinear(newOffset, MIN_OFFSET, MAX_OFFSET, BOARD_SCALE_MIN, BOARD_SCALE_MAX);
+  // const posY = THREE.MathUtils.mapLinear(newOffset, MIN_OFFSET, MAX_OFFSET, POSITION_Y_MIN, POSITION_Y_MAX);
+  // console.log(`scale: ${scale}`);
+  // gameContext.board.object.scale.set(scale, scale, scale);
+  // gameContext.board.object.position.y = posY;
+  // gameContext.board.object.scale = new Vector3(scale, scale, scale);
+  
+  setAimPosition();
+  updateDistance();
+}
+
+function setAimPosition() {
+  const aimPos = gameContext.board.object.position.clone();
+  aimPos.z -= 1;
+  gameContext.aimPoint.copy(aimPos);
+  gameContext.aimMesh.position.copy(gameContext.aimPoint);
+  gameContext.camera?.setPositions(gameContext.startPoint, gameContext.aimPoint);
+}
+
 function updateDistance() {
-  gameContext.boards.blue
   const distanceText = document.querySelector("#board-distance");
   const distanceMeters = getBoardDistance();
-  distanceText.textContent = `${(distanceMeters * YARDS_IN_METER).toFixed(0)}`;
+  let distanceVal = distanceMeters;
+  let unitVal = 'm';
+  if (gameContext.setupData?.units === 'imperial') {
+    distanceVal = UnitConversions.metersToYards(distanceMeters);
+    unitVal = 'yd';
+  }
+  document.getElementById('board-distance').textContent = `${distanceVal.toFixed(0)}`;
+  document.getElementById('board-units').textContent = `${unitVal}`;
 }
 
 function computeRoundScore() {
@@ -499,11 +546,11 @@ function startRound() {
 
 async function setupGame() {
 
-  const boardOffset = window.localStorage.getItem('boardOffset') || 0;
+  const boardOffset = window.localStorage.getItem('boardOffset');
   if (boardOffset) {
     boardZOffset = parseFloat(boardOffset);
-    gameContext.boards.blue.boardOffset = boardZOffset * -1;
-    gameContext.boards.red.boardOffset = boardZOffset;
+    console.log(`Setting boardOffset: ${boardZOffset}`);
+    // gameContext.board.boardOffset = boardZOffset * -1;
   }
 
   gameContext.eventQueue = new gameContext.rapier.EventQueue(true);
@@ -531,15 +578,16 @@ async function setupGame() {
 
   await gameContext.renderer.init();
   
-  const stats = document.createElement('div');
-  document.body.append(stats);
-  gameContext.stats = new UIStats(stats, { hidden: true, renderer: gameContext.renderer?.renderer });
+  gameContext.stats = new UIStats('#render-stats', { hidden: true, renderer: gameContext.renderer?.renderer });
 
   const dialogParent = document.getElementById('game-over');
   gameContext.gameOverDialog = new UIDialog(dialogParent, { title: 'Game Over', preventClose: true });
 
   document.getElementById('btn-exit').addEventListener('click', () => app.exit());
   document.getElementById('btn-replay').addEventListener('click', () => window.location.reload());
+  
+  document.getElementById('distance-increase').addEventListener('click', () => adjustDistance(1));
+  document.getElementById('distance-decrease').addEventListener('click', () => adjustDistance(-1));
   
   // gameContext.renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
   // gameContext.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -564,7 +612,7 @@ async function setupGame() {
     fov: 35,
     autoPosition: false,
     cameraOffsetX: 0,
-    cameraOffsetYZ: [1.5, 1],
+    cameraOffsetYZ: [1.5, 2],
   });
 
 
@@ -582,11 +630,10 @@ async function setupGame() {
   
   gameContext.aimMesh = new THREE.Mesh(geo, mat);
   gameContext.aimMesh.visible = false;
-  gameContext.aimMesh.castShadow = true;
-  gameContext.aimMesh.position.copy(gameContext.aimPoint);
+  // gameContext.aimMesh.castShadow = true;
   gameContext.scene.add(gameContext.aimMesh);
 
-  gameContext.camera?.setPositions(gameContext.startPoint, gameContext.aimPoint);
+  // gameContext.camera?.setPositions(gameContext.startPoint, gameContext.aimPoint);
   createSky();
 
 
@@ -600,6 +647,7 @@ async function setupGame() {
 
   startRound();
   updateScoreboard();
+  setAimPosition()
   
   // Create custom geometry to hold Rapier's line data
   if (gameContext.debug.enabled) {
@@ -618,6 +666,7 @@ async function setupGame() {
   gameContext.mainMenu = new UIMainMenu('#top-left');
   gameContext.mainMenu.on('help', () => app.help())
   gameContext.mainMenu.on('exit', () => app.exit())
+  gameContext.mainMenu.on('stats', () => gameContext.stats?.toggle())
 }
 
 function loadGame() {
@@ -632,6 +681,7 @@ function loadGame() {
     gameContext.loadingScreen = new UILoadingScreen(document.body, { loadingPrefix: 'Filling the bags' });
     gameContext.loadingScreen.on('load', async () => {
       gameContext.clock.start();
+      updateDistance();
       requestAnimationFrame(animate);
       gameContext.renderer?.startAdaptiveResolution();
     });
@@ -713,7 +763,7 @@ function launchShot(shot) {
 }
 
 function createBag(team) {
-  const position = gameContext.boards.blue.start;
+  const position = gameContext.board.positions.start;
   console.log('create bag');
   // Official cornhole bag: ~6" x 6" x ~1" thick, ~15-16 oz (~0.43 kg)
   const halfW = 0.0762;  // 3 inches
@@ -773,25 +823,25 @@ function createBag(team) {
 
 function evaluateBagPosition(bag) {
   if (bag.inHole) {
-    return { status: 'in', board: bag.inHole };
+    return { status: 'in' };
   }
 
   const t = bag.body.translation();
   const bagPos = new THREE.Vector3(t.x, t.y, t.z);
 
-  for (const team of ['red', 'blue']) {
-    const boardData = gameContext.boards[team];
-    const localPos = boardData.object.worldToLocal(bagPos.clone());
-    const bounds = boardData.localBounds;
+  // for (const team of ['red', 'blue']) {
+    // const boardData = gameContext.boards[team];
+    const localPos = gameContext.board.object.worldToLocal(bagPos.clone());
+    const bounds = gameContext.board.localBounds;
 
     if (
       Math.abs(localPos.x) < bounds.halfW &&
       Math.abs(localPos.z) < bounds.halfL &&
       localPos.y > 0
     ) {
-      return { status: 'on', board: team };
+      return { status: 'on' };
     }
-  }
+  // }
 
   return { status: 'off', board: null };
 }
@@ -803,8 +853,7 @@ function scoreRound() {
   for (const bag of gameContext.round.bagsThrown) {
     const result = evaluateBagPosition(bag);
     bag.scored = result.status;
-    bag.scoringBoard = result.board;
-
+    // bag.scoringBoard = result.board;
     if (result.status === 'in') {
       if (bag.team === 'red') redPoints += 3;
       else bluePoints += 3;
@@ -884,8 +933,8 @@ function animate(animDelta) {
     // miss events from intermediate substeps
     gameContext.eventQueue.drainCollisionEvents((h1, h2, started) => {
       if (!started) return;
-      const blueHole = gameContext.boards.blue.colliderHole.handle;
-      const redHole  = gameContext.boards.red.colliderHole.handle;
+      const blueHole = gameContext.board.colliderHole.handle;
+      const redHole  = gameContext.board.colliderHole.handle;
 
       let holeTeam = null;
       if (h1 === blueHole || h2 === blueHole) holeTeam = 'blue';

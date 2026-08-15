@@ -297,20 +297,27 @@
 }
 
 .uiStats {
-  position: fixed;
+  /* position: fixed;
   background-color: red;
   bottom: 1vw;
   right: 1vw;
-  position:fixed;
+  position:fixed; */
+  
   cursor:pointer;
   opacity:0.9;
-  z-index:10000;
+  /* z-index:10000; */
+  background-color: var(--bg-color);
   border-radius: var(--border-radius);
+  overflow: hidden;
+}
+.uiStats canvas {
+  width: 100%;
+  object-fit: contain;
 }
 .statsTitle {
-  background-color: var(--bg-color);
   font-size: 8px;
-  font-family: monospace;
+  font-family: Helvetica,Arial,sans-serif;
+  font-weight: bold;
   padding: 2px 4px;
 }
 
@@ -499,3 +506,50 @@
   width: 5vh;
 }
 
+.launchMonitorMenu {
+  background-color: var(--bg-color);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  /* height: clamp(40px, calc(30.77px + 1.923vh), 60px); */
+  /* height: 5vh; */
+  height: var(--vhu);
+  /* height: 5vh; */
+  /* min-height: 40px; */
+  aspect-ratio: 2.25;
+}
+.launchMonitorMenu a {
+  display: block;
+  color: var(--text-color);
+  height: 100%;
+}
+.launchMonitorMenuHeader {
+  color: #aaa;
+  width: 100%;
+  font-size: var(--small-font-size);
+  letter-spacing: 1px;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-align: center;
+}
+.launchMonitorMenuHeaderText {
+  padding: calc(var(--base-padding) / 2);
+}
+.launchMonitorMenuStatus {
+  background-color: #aaa;
+  height: 10%;
+}
+.launchMonitorMenuStatusConnected {
+  background-color: #ddd725
+}
+.launchMonitorMenuStatusReady {
+  background-color: var(--primary-color);
+}
+.launchMonitorMenuStatusDisconnected {
+  background-color: var(--danger-color);
+}
+.launchMonitorMenuStatusText {
+  font-weight: bold;
+  font-size: var(--small-font-size);
+  text-align: center;
+  text-transform: uppercase;
+}

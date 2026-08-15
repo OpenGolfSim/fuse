@@ -34,7 +34,7 @@ export class UIStatsPanel {
     this.fg = fg;
     this.bg = bg;
 
-    this.pixelRatio = 1;
+    this.pixelRatio = window.devicePixelRatio || 1;
 
     this.width = 80 * this.pixelRatio;
     this.height = 48 * this.pixelRatio;
@@ -42,7 +42,7 @@ export class UIStatsPanel {
     this.#text_y = 2 * this.pixelRatio;
     this.#graph = {
       x: 3 * this.pixelRatio,
-      y: 15 * this.pixelRatio,
+      y: 10 * this.pixelRatio,
       width: 74 * this.pixelRatio,
       height: 30 * this.pixelRatio
     };
@@ -50,14 +50,14 @@ export class UIStatsPanel {
     this.dom = document.createElement('canvas');
     this.dom.width = this.width;
     this.dom.height = this.height;
-    this.dom.style.cssText = 'width:80px;height:48px';
+    // this.dom.style.cssText = 'width:80px;height:48px';
 
     const ctx = this.dom.getContext( '2d' );
     if (!ctx) {
       throw new Error('Unable to create context');
     }
     this.context = ctx;
-    this.context.font = 'bold ' + ( 9 * this.pixelRatio ) + 'px Helvetica,Arial,sans-serif';
+    this.context.font = 'bold ' + ( 6 * this.pixelRatio ) + 'px Helvetica,Arial,sans-serif';
     this.context.textBaseline = 'top';
 
     this.context.fillStyle = bg;
@@ -144,14 +144,14 @@ export class UIStats {
     this.container = document.createElement('div');
     // this.container.style.cssText = 'position:fixed;top:0;left:0;cursor:pointer;opacity:0.9;z-index:10000';
 	  this.container.addEventListener('click', (event) => this.#handleClick(event), false);
-    Object.assign(this.container.style, {
-      position: 'fixed',
-      width: '80px',
-      height: '48px',
-      bottom: '10px',
-      right: '10px',
-      zIndex: '9999'
-    });
+    // Object.assign(this.container.style, {
+    //   position: 'fixed',
+    //   width: '80px',
+    //   height: '48px',
+    //   bottom: '10px',
+    //   right: '10px',
+    //   zIndex: '9999'
+    // });
     
     this.container.style.display = options.hidden ? 'none' : 'block';
     this.container.style.display = options.hidden ? 'none' : 'block';
@@ -169,14 +169,14 @@ export class UIStats {
     this.title.className = styles.statsTitle;
     this.container.append(this.title);
 
-    this.fpsPanel = new UIStatsPanel( 'FPS', '#21d48d', '#111c1c' );
+    this.fpsPanel = new UIStatsPanel( 'FPS', '#a3eccf', '#111c1c' );
     this.container.append(this.fpsPanel.dom);
-    this.msPanel = new UIStatsPanel( 'MS', 'rgb(255, 8, 0)', 'rgb(34, 11, 0)' );
+    this.msPanel = new UIStatsPanel( 'MS FRAME', 'rgb(229, 141, 138)', 'rgb(34, 11, 0)' );
     this.container.append(this.msPanel.dom);
-    this.memoryPanel = new UIStatsPanel( 'MEMORY', 'rgb(115, 192, 255)', 'rgb(7, 0, 50)' );
+    this.memoryPanel = new UIStatsPanel( 'MEMORY', 'rgb(185, 220, 248)', 'rgb(24, 28, 36)' );
     this.container.append(this.memoryPanel.dom);
 
-    this.drawCallsPanel = new UIStatsPanel( 'DRAWS', 'rgb(169, 115, 255)', 'rgb(34, 0, 50)' );
+    this.drawCallsPanel = new UIStatsPanel( 'DRAWS', 'rgb(206, 176, 255)', 'rgb(15, 10, 17)' );
     this.container.append(this.drawCallsPanel.dom);
     this.showPanel(0);
   }

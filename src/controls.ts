@@ -196,7 +196,7 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
         break;
       case 'Digit4':
       case 'Numpad4':
-        this.emit('testShot', { ballSpeed: 80, verticalLaunchAngle: 25, horizontalLaunchAngle: 0, spinSpeed: 7500, spinAxis: 0 });
+        this.emit('testShot', { ballSpeed: 82, verticalLaunchAngle: 34, horizontalLaunchAngle: 0.013, spinSpeed: 8500, spinAxis: 0 });
         break;
       case 'Digit5':
       case 'Numpad5':

@@ -1,5 +1,6 @@
 import { UIHazardDialog } from '@/ui/UIHazardDialog';
 import { QualityMode } from '@/utils/quality';
+
 import {
   THREE,
   app,
@@ -22,6 +23,7 @@ import {
   FuseRenderer,
   UIScorecard,
   AudioPlayer,
+  UILaunchMonitor
  } from '@opengolfsim/fuse';
 
 const HoleOutSound = '../sounds/holeout.wav';
@@ -60,6 +62,7 @@ const gameContext: {
   courseMap?: UICourseMap,
   playerMenu?: UIPlayerMenu,
   mainMenu?: UIMainMenu,
+  launchMonitor?: UILaunchMonitor,
   loadingScreen?: UILoadingScreen,
   rangeFinder?: UIRangeFinder,
   stats?: UIStats,
@@ -390,7 +393,9 @@ async function setupCourse() {
   gameContext.shotData = new UIShotData('#shot-data', { units: gameContext.setupData?.units });
   gameContext.rangeFinder = new UIRangeFinder('#top-center', { units: gameContext.setupData?.units });
   gameContext.mainMenu = new UIMainMenu('#top-left');
-  
+  gameContext.mainMenu.on('stats', () => gameContext.stats?.toggle());
+  gameContext.launchMonitor = new UILaunchMonitor('#lm-status');
+
   gameContext.dialogs.scorecard = new UIScorecard('#scorecard', {
     players: gameContext.game?.players || [],
     holes: gameContext.course.holes
@@ -487,11 +492,12 @@ function preLoad() {
   console.log('[debug] Setup Data', gameContext.setupData);
   gameContext.loadingScreen = new UILoadingScreen(document.body, { loadingPrefix: 'Loading Course' });
   gameContext.loadingScreen.on('load', (error) => {
-    gameContext.stats = new UIStats('#render-stats', { hidden: false, renderer: gameContext.renderer?.renderer }); // start hidden (press S to toggle)
+    gameContext.stats = new UIStats('#render-stats', { hidden: true, renderer: gameContext.renderer?.renderer }); // start hidden (press S to toggle)
     if (!error) {
       requestAnimationFrame(animate);
       gameContext.isReady = true;
       gameContext.renderer?.startAdaptiveResolution();
+      app.setLoaded();
     }
   });
   gameContext.loadingScreen.load(setupCourse);
