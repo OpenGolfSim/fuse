@@ -65,7 +65,8 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
     spinGrip: 1.2,
     divot: 0.01,
     restitution: 0.3,
-    rollResistance: 0.09
+    rollResistance: 0.09,
+    stopSpeed: 0.20,
   },
   [CourseSurfaceType.Fairway]: {
     hasCollider: true,
@@ -79,19 +80,20 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
     friction: 0.4,
     spinGrip: 1.0,
     restitution: 0.3,
-    rollResistance: 0.10
+    rollResistance: 0.10,
   },
   [CourseSurfaceType.Tee]: {
     hasCollider: true,
     friction: 0.3,
     restitution: 0.1,
-    rollResistance: 0.2
+    rollResistance: 0.2,
+    stopSpeed: 0.20,
   },
   [CourseSurfaceType.Rough]: {
     hasCollider: true,
     friction: 0.2,
     restitution: 0.2,
-    stopSpeed: 0.20,
+    stopSpeed: 0.30,
     rollResistance: 0.10,
   },
   [CourseSurfaceType.Base]: {
@@ -148,7 +150,8 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
     hasCollider: true,
     friction: 0.5,
     restitution: 0.02,
-    rollResistance: 0.05
+    rollResistance: 0.05,
+    stopSpeed: 0.30,
   },
 };
 
