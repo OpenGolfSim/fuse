@@ -1,7 +1,7 @@
 import { colors } from '@/utils/colors';
 import { UnitConversions } from '@/utils/units';
 import * as THREE from 'three';
-import fontUrl from '@/css/fonts/Rubik-Bold.woff';
+import styles from '@/css/ui.module.css';
 
 const MIN_SCALE = 0.05;
 

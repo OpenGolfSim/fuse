@@ -93,7 +93,10 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   #mergedBVH!: MeshBVH;
   #mergedMesh!: THREE.Mesh;
   #surfaceKeys: string[] = [];
-
+  #dynamicSurfaces: { mesh: THREE.Mesh; bvh: MeshBVH; surfaceKey: string }[] = [];
+  #invMat = new THREE.Matrix4();
+  #normalMat = new THREE.Matrix3();
+  #localRay = new THREE.Ray();
   #terrainRay = new THREE.Ray();
   #surfaceSpin = new THREE.Vector3();
 
@@ -737,14 +740,12 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     this.#terrainRay.origin.set(x, 1000, z);
     this.#terrainRay.direction.set(0, -1, 0);
 
-    const hit = this.#mergedBVH.raycastFirst(this.#terrainRay, THREE.DoubleSide);
-    if (!hit) {
-      console.warn('[terrain] raycast MISS at', x.toFixed(1), z.toFixed(1));
-      return this.#lastTerrainInfo;
-    }
+    // const hit = this.#mergedBVH.raycastFirst(this.#terrainRay, THREE.DoubleSide);
+    // if (!hit) {
+    let hit = this.#mergedBVH.raycastFirst(this.#terrainRay, THREE.DoubleSide);
 
     let surfaceKey = 'base';
-    if (hit.faceIndex != null && this.#mergedMesh.geometry.groups.length > 0) {
+    if (hit && hit.faceIndex != null && this.#mergedMesh.geometry.groups.length > 0) {
       const vertIndex = hit.faceIndex * 3;
       for (const group of this.#mergedMesh.geometry.groups) {
         if (vertIndex >= group.start && vertIndex < group.start + group.count) {
@@ -753,12 +754,52 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
         }
       }
     }
+    let hitNormalWorld = hit?.face?.normal ?? null;
+
+    // Dynamic surfaces: raycast in local space via current matrixWorld
+    for (const d of this.#dynamicSurfaces) {
+      d.mesh.updateMatrixWorld();
+      this.#invMat.copy(d.mesh.matrixWorld).invert();
+      this.#localRay.copy(this.#terrainRay).applyMatrix4(this.#invMat);
+      const dHit = d.bvh.raycastFirst(this.#localRay, THREE.DoubleSide);
+      if (!dHit) continue;
+      dHit.point.applyMatrix4(d.mesh.matrixWorld);
+      // Downward ray: higher y = topmost surface = what the ball rests on
+      if (!hit || dHit.point.y > hit.point.y) {
+        hit = dHit;
+        surfaceKey = d.surfaceKey;
+        hitNormalWorld = dHit.face
+          ? dHit.face.normal.applyNormalMatrix(
+              this.#normalMat.getNormalMatrix(d.mesh.matrixWorld)
+            ).normalize()
+          : null;
+      }
+    }
+
+    if (!hit) {
+
+      console.warn('[terrain] raycast MISS at', x.toFixed(1), z.toFixed(1));
+      return this.#lastTerrainInfo;
+    }
+
+    // let surfaceKey = 'base';
+    // if (hit.faceIndex != null && this.#mergedMesh.geometry.groups.length > 0) {
+    //   const vertIndex = hit.faceIndex * 3;
+    //   for (const group of this.#mergedMesh.geometry.groups) {
+    //     if (vertIndex >= group.start && vertIndex < group.start + group.count) {
+    //       surfaceKey = this.#surfaceKeys[group.materialIndex ?? 0];
+    //       break;
+    //     }
+    //   }
+    // }
 
     const validSurfaceKey = isCourseSurfaceType(surfaceKey) ? surfaceKey : CourseSurfaceType.Base;
     const surfaceSettings = CourseSurfaces[validSurfaceKey];
 
-    const normal = hit.face
-      ? this.#hitNormal.copy(hit.face.normal)
+    // const normal = hit.face
+    //   ? this.#hitNormal.copy(hit.face.normal)
+    const normal = hitNormalWorld
+      ? this.#hitNormal.copy(hitNormalWorld)
       : this.#hitNormal.set(0, 1, 0);
 
     this.#lastTerrainInfo = {
@@ -950,4 +991,14 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     this.isGrounded = false; // stop the rest-check from ending the shot mid-drop
   }
 
+  /** Register a movable mesh (e.g. practice green) as a physics surface.
+   *  BVH is built once in local space; current matrixWorld is applied per
+   *  query, so the mesh can be repositioned/scaled at runtime freely. */
+  addDynamicSurface(mesh: THREE.Mesh, surfaceKey?: string) {
+    this.#dynamicSurfaces.push({
+      mesh,
+      bvh: new MeshBVH(mesh.geometry),
+      surfaceKey: surfaceKey ?? mesh.userData.surface ?? 'base',
+    });
+  }
 }

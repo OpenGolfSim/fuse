@@ -7,6 +7,7 @@ import { app } from '..';
 interface UIMainMenuEvents {
   help: () => void;
   settings: () => void;
+  stats: () => void;
   exit: () => void;
 }
 
@@ -29,6 +30,11 @@ export class UIMainMenu extends UIElementBase<UIMainMenuEvents> {
     // this.parent.append(this.element);
  
     const menuItems: UIDropDownMenuItem[] = [
+      {
+        label: 'Debug Stats',
+        id: 'stats',
+        action: () => this.emit('stats')
+      },
       {
         label: 'Help',
         id: 'help',

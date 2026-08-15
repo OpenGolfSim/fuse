@@ -6,7 +6,8 @@ import { UIElementBase } from './UIElementBase';
 
 type UIPlayerMenuOptions = {
   players: CoursePlayer[],
-  disablePutting?: boolean
+  disablePutting?: boolean,
+  disableScore?: boolean,
 };
 
 interface UIPlayerMenuEvents {
@@ -24,6 +25,7 @@ export class UIPlayerMenu extends UIElementBase<UIPlayerMenuEvents> {
   playerClub?: HTMLElement;
   playerScore?: HTMLElement;
   disablePutting: boolean;
+  disableScore: boolean;
   allPlayers: CoursePlayer[];
 
   constructor(parent: string | Element, options: UIPlayerMenuOptions) {
@@ -32,6 +34,7 @@ export class UIPlayerMenu extends UIElementBase<UIPlayerMenuEvents> {
     this.element.className = styles.playerMenu;
 
     this.disablePutting = !!options.disablePutting;
+    this.disableScore = !!options.disableScore;
 
     if (!options.players?.length) {
       throw new Error('No players found in options');
@@ -69,13 +72,16 @@ export class UIPlayerMenu extends UIElementBase<UIPlayerMenuEvents> {
     this.playerClub.className = styles.playerMenuClub;
     this.playerClub.textContent = 'DR';
     
-    this.playerScore = document.createElement('a');
-    // this.playerScore.className = styles.playerMenuScore;
-    this.playerScore.textContent = 'E';
-    this.playerScore.classList.add(styles.playerMenuScore, styles.clickableArea);
-    this.playerScore.addEventListener('click', () => this.emit('showScorecard'));
+    this.wrapper.append(playerName, this.playerClub);
+    if (!this.disableScore) {
+      this.playerScore = document.createElement('a');
+      // this.playerScore.className = styles.playerMenuScore;
+      this.playerScore.textContent = 'E';
+      this.playerScore.classList.add(styles.playerMenuScore, styles.clickableArea);
+      this.playerScore.addEventListener('click', () => this.emit('showScorecard'));
+      this.wrapper.append(this.playerScore);
+    }
     
-    this.wrapper.append(playerName, this.playerClub, this.playerScore);
   
     this.element.append(this.wrapper);
 

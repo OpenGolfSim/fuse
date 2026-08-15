@@ -63,17 +63,18 @@ export class TargetShaderMaterial {
     this.holePosUniform = tslUniform(new THREE.Vector3(holeWorldPos.x, 0, holeWorldPos.z));
     this.ringActiveUniform = tslUniform(new THREE.Vector3(0, 0, 0));
     // this.glowIntensityUniform = tslUniform(1.5); // > 1.0 so bloom picks it up
-    const glowIntensity = float(4.0); // baked into the shader
+    const glowIntensity = float(3.0); // baked into the shader
 
     // Static values
     const holeRadius = float(0.054);
     const ringRadii = vec3(inner, middle, outer);
     const ringW = float(ringWidth);
     const activeColor = new THREE.Color('#ffd900');
+    const inactiveColor = new THREE.Color('#ffffff');
     const activeColorRGB = vec3(...activeColor.toArray());
     const activeColorA = float(0.01);
-    const inactiveColorRGB = vec3(1.0, 1.0, 1.0);
-    const inactiveColorA = float(0.2);
+    const inactiveColorRGB = vec3(...inactiveColor.toArray());
+    const inactiveColorA = float(0.8);
 
     if (object instanceof THREE.Mesh) {
       const origMat = object.material as THREE.MeshStandardMaterial;

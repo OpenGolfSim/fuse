@@ -14,7 +14,7 @@
     <div id="top-center">
       <div class="distance-item">
         <span class="digit" id="board-distance">0</span>
-        <span class="unit">yds</span>
+        <span class="unit" id="board-units">YDS</span>
       </div>
       <div id="current-team">
         <div id="current-team-up">
@@ -29,7 +29,10 @@
       </div>
     </div>
     <div id="scoreboard">
-      <div id="round">Round 1</div>
+      <div id="round-details">
+        <div id="round-number">Round 1</div>
+        <div id="round-rules">Playing to 10</div>
+      </div>
       <div class="team-row" id="team-blue">
         <div class="team-name">Blue Team</div>
         <div class="team-score" id="blue-team-score">0</div>
@@ -49,5 +52,17 @@
         </div>
       </div>
     </div>
+
+    <div id="bottom-left">
+      <div class="increase-decrease">
+        <button id="distance-increase">+</button>
+        <button id="distance-decrease">-</button>
+      </div>      
+    </div>
+    <div id="bottom-right">
+      <div id="render-stats"></div>
+      <div id="lm-status"></div>
+    </div>
+
   </body>
 </html>

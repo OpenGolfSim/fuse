@@ -8,13 +8,13 @@ export class UIElementBase<TEvents extends object = {}> extends EventEmitter<TEv
     if (typeof parentElement === 'string') {
       const match = document.querySelector(parentElement);
       if (!match) {
-        throw new Error('Unable to find UIPlayerMenu root element');
+        throw new Error(`Unable to find ${this.constructor.name} root element`);
       }
       this.parent = match;
     } else if (parentElement instanceof Element) {
       this.parent = parentElement;
     } else {
-      throw new Error('Unable to find UIPlayerMenu root element');
+      throw new Error(`Unable to find ${this.constructor.name} root element`);
     }
     this.element = document.createElement('div');
     this.parent.append(this.element);
