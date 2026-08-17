@@ -70,7 +70,7 @@ namespace OpenGolfSim {
 
   type SetupData = {
     players: OpenGolfSim.Player[],
-    gameMode: 'course' | 'minigolf';
+    gameMode: 'course' | 'minigolf' | 'range';
     practiceMode: boolean;
     puttingEnabled?: boolean;
     elevation?: number;

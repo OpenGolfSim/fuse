@@ -230,7 +230,9 @@ async function setupControls() {
   });
   gameContext.controls.on('testShot', launchShot);
   gameContext.controls.on('toggleStats', () => gameContext.stats?.toggle());
-
+  gameContext.controls.on('mulligan', () => gameContext.game?.mulligan());
+  gameContext.controls.on('rehit', () => gameContext.game?.rehit());
+  gameContext.controls.on('scorecard', () => gameContext.dialogs.scorecard?.toggle());
 }
 
 /**
@@ -359,7 +361,7 @@ async function setupCourse() {
   });
   gameContext.golfBall.on('shotEnded', (result) => {
     console.log('result', result);
-    if (result.isInWater) {
+    if (result.isInWater && !gameContext.setupData?.practiceMode) {
       gameContext.dialogs.hazard?.open();
     }
     app.sendShotResult(
@@ -389,6 +391,15 @@ async function setupCourse() {
     console.log(`The round is over!`);
     gameContext.dialogs.scorecard?.open();
   });
+  gameContext.game.on('mulligan', () => {
+    gameContext.dialogs.hazard?.close();
+  });
+  gameContext.game.on('rehit', () => {
+    gameContext.dialogs.hazard?.close();
+  });
+  gameContext.game.on('drop', () => {
+    gameContext.dialogs.hazard?.close();
+  });
 
   gameContext.shotData = new UIShotData('#shot-data', { units: gameContext.setupData?.units });
   gameContext.rangeFinder = new UIRangeFinder('#top-center', { units: gameContext.setupData?.units });
@@ -403,15 +414,12 @@ async function setupCourse() {
   gameContext.dialogs.hazard = new UIHazardDialog('#hazard', { preventClose: true });
   gameContext.dialogs.hazard.on('drop', () => {
     gameContext.game?.drop();
-    gameContext.dialogs.hazard?.close();
   });
   gameContext.dialogs.hazard.on('mulligan', () => {
     gameContext.game?.mulligan();
-    gameContext.dialogs.hazard?.close();
   });
   gameContext.dialogs.hazard.on('rehit', () => {
     gameContext.game?.rehit();
-    gameContext.dialogs.hazard?.close();
   });
 
   gameContext.mainMenu.on('help', () => app.help())

@@ -69,7 +69,6 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     this.autoPosition = options.autoPosition ?? false;
 
     this.#activeFrustumOffset = this.cameraOffsetX;
-    this.projectionMatrix.elements[8] = this.#activeFrustumOffset;
     this.shotDirection = new THREE.Vector3();
     this.staticCamPos = new THREE.Vector3();
     this.staticLookAt = new THREE.Vector3();
@@ -116,7 +115,6 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     }
     this.aspect = width / height;
     this.updateProjectionMatrix();
-    this.projectionMatrix.elements[8] = this.#activeFrustumOffset;
   }
   
   applyFrustumOffset(dt: number, target: number, smooth: boolean) {
@@ -128,6 +126,13 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
       this.#activeFrustumOffset = target;
     }
     this.projectionMatrix.elements[8] = this.#activeFrustumOffset;
+  }
+  
+  updateProjectionMatrix() {
+    super.updateProjectionMatrix();
+    if (#activeFrustumOffset in this) {
+      this.projectionMatrix.elements[8] = this.#activeFrustumOffset;
+    }
   }
 
   setTracking(track: boolean, timeScale = 1) {
@@ -293,4 +298,5 @@ export class ShotPerspectiveCamera extends THREE.PerspectiveCamera {
     if (aimChanged) return true;
     return false;
   }
+  
 }

@@ -6,7 +6,9 @@ import { OGSKeyCommands } from './app';
 interface CourseKeyboardControlEvents {
   testShot: (shot: OpenGolfSim.Shot) => void;
   toggleStats: () => void;
+  scorecard: () => void;
   mulligan: () => void;
+  rehit: () => void;
   fullscreen: () => void;
   aim: (aimKeys: AimKeys) => void;
 }
@@ -101,14 +103,28 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
   #keyHandler(event: KeyboardEvent) {
     const pressed = event.type === 'keydown';
     let handled = false;
+    // const isCommand = event.metaKey || event.ctrlKey;
+    const isCommand = event.metaKey || event.ctrlKey || event.altKey
+    if (isCommand) {
+      return;
+    }
     if (pressed) {
       switch (event.code) {
         case 'KeyS':
+        case 'KeyV':
           this.emit('toggleStats');
+          handled = true;
+          break;
+        case 'KeyC':
+          this.emit('scorecard');
           handled = true;
           break;
         case 'KeyM':
           this.emit('mulligan');
+          handled = true;
+          break;
+        case 'KeyR':
+          this.emit('rehit');
           handled = true;
           break;
         case 'KeyF':

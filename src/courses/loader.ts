@@ -233,7 +233,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   #direction: THREE.Vector3;
   #accumulator = 10;
   #blendMaps: Map<string, BlendMapData>;
-  gameMode?: 'course' | 'minigolf' | 'range';
+  gameMode?: OpenGolfSim.SetupData['gameMode'];
 
   constructor(
     // world: World,

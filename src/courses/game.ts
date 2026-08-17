@@ -6,6 +6,8 @@ import EventEmitter from 'eventemitter3';
 import { CoursePlayer } from './player';
 import { DefaultGimmeDistances } from '@/utils/data';
 import { ShotEndEvent } from '@/physics/ballPhysics';
+import { app } from '@/index';
+import { OGSKeyCommands } from '@/app';
 
 // how far away from the tee box position to auto-aim at the pin instead of aim point
 const AIMPOINT_THRESHOLD = 25;
@@ -18,6 +20,9 @@ const INVALID_DROP_SURFACES = ['plane_river', 'plane_lake', 'water', 'bunker', '
 interface CourseGameEvents {
   nextShot: (player: CoursePlayer) => void;
   roundEnded: () => void;
+  drop: () => void;
+  mulligan: () => void;
+  rehit: () => void;
 }
 // export type PlayerStatus = {
 //   player: CoursePlayer;
@@ -67,6 +72,17 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     
     // setup first hole
     this._setupHole();
+
+    app.on('command', (key, state) => {
+      switch (key.ogs_code) {
+        case OGSKeyCommands.Mulligan:
+          this.mulligan();
+          break;
+        case OGSKeyCommands.ReHit:
+          this.rehit();
+          break;
+      }
+    });
   }
   
   _setupHole() {
@@ -202,12 +218,13 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
         this.activePlayer.disabled = true;
         this._nextPlayer();
       }
+
+      if (isInWater) {
+        return;
+      }
     }
 
 
-    if (isInWater) {
-      return;
-    }
     this.updateAimPoint(this.activePlayer.start);
     this.emit('nextShot', this.activePlayer);
   
@@ -334,12 +351,18 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     this.activePlayer.start.copy(this.activePlayer.previousStart);
     this.golfBall.isShotActive = false;
     this.updateAimPoint(this.activePlayer.start);
+    this.emit('rehit');
     this.emit('nextShot', this.activePlayer);
   }
 
   mulligan() {
+    if (!this.activePlayer.previousStart) {
+      console.warn('No previous position');
+      return;
+    }
     this._addStrokes(-1);
     this.rehit();
+    this.emit('mulligan');
   }
 
   drop() {
@@ -363,6 +386,7 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     this._addStrokes(1); // penalty stroke
     this.golfBall.isShotActive = false;
     this.updateAimPoint(this.activePlayer.start);
+    this.emit('drop');
     this.emit('nextShot', this.activePlayer);
   }
 

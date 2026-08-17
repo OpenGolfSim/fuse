@@ -20,6 +20,7 @@ export class UIDialog<Events extends UIDialogEvents = UIDialogEvents> extends UI
   closeButton?: Element;
   content: Element;
   preventClose: boolean;
+  isOpen: boolean;
 
   constructor(parent: string | Element, options: UIDialogOptions = {}) {
     super(parent);
@@ -28,6 +29,7 @@ export class UIDialog<Events extends UIDialogEvents = UIDialogEvents> extends UI
     this.header = document.createElement('div');
     this.header.classList.add(styles.dialogHeader);
     
+    this.isOpen = false;
     if (options.title) {
       this.title = document.createElement('div');
       this.title.textContent = options.title;
@@ -66,9 +68,11 @@ export class UIDialog<Events extends UIDialogEvents = UIDialogEvents> extends UI
   }
 
   open() {
+    this.isOpen = true;
     this.parent.classList.add(styles.dialogOpen);
   }
   close() {
+    this.isOpen = false;
     this.parent.classList.remove(styles.dialogOpen);
   }
 }
