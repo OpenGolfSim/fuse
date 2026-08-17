@@ -82,7 +82,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     this.groundMeshes = options.groundMeshes;
     this.clearTrail = options.clearTrail ?? 'end';
     this.#setupData = options.setupData;
-    this.#waitTime = options.waitTime ?? 3000;
+    this.#waitTime = options.waitTime ?? 2000;
     this.qualityLevel = options.qualityLevel ?? QualityMode.Low;
     this.#scene = scene;
     // this.#world = world;
@@ -166,12 +166,13 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     //   this.emit('shotEnded', event);
     //   return;
     // }
-    let waitTime = event.isInWater ? 500 : this.#waitTime;
+    // let waitTime = event.isInWater ? 500 : this.#waitTime;
     clearTimeout(this.#timeout);
     this.#timeout = setTimeout(() => {
-      this.isShotActive = !!event.isInWater;
+      this.isShotActive = !this.#setupData.practiceMode && !!event.isInWater;
+      console.log(`[golfBall.shotEnded] isShotActive: ${this.isShotActive}`);
       this.emit('shotEnded', event);
-    }, waitTime);
+    }, this.#waitTime);
   }
 
   aimAt(aimPoint: THREE.Vector3) {

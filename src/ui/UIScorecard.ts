@@ -85,6 +85,14 @@ export class UIScorecard extends UIDialog {
     
   }
 
+  toggle() {
+    if (this.isOpen) {
+      this.close();
+    } else {
+      this.open();
+    }
+  }
+
   open(roundOver = false) {
     this.updateScores();
     if (roundOver) {
