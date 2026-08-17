@@ -75,6 +75,9 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
 
     app.on('command', (key, state) => {
       switch (key.ogs_code) {
+        case OGSKeyCommands.Drop:
+          this.drop();
+          break;
         case OGSKeyCommands.Mulligan:
           this.mulligan();
           break;
