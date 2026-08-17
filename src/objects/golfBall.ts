@@ -250,8 +250,8 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     if (this.isShotActive && this.object) {
       const height = this.object.position.y - this.startPoint.y;
 
-      if (this.object.position.y > this.stats.apex) {
-        this.stats.apex = this.object.position.y;
+      if (height > this.stats.apex) {
+        this.stats.apex = height;
       }
       this.stats.total = this.startPoint.distanceTo(this.object.position);
 
@@ -267,7 +267,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
       }
 
       if (this.#frameNum % 4 === 0) {
-        this.stats.heightSamples.push(this.object.position.y);
+        this.stats.heightSamples.push(height);
         this.stats.lateralSamples.push(this.stats.lateral);
         this.stats.distanceSamples.push(this.stats.total);
       }
