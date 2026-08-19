@@ -299,6 +299,9 @@ export class GrassSurface extends MeshStandardNodeMaterial {
     // Optional: kill normal-map detail at distance too, so the far
     // surface reads truly flat rather than flat-colored-but-bumpy.
     if (baseMat.normalMap) {
+      // Expose for consumers that copy maps off this material (BlendMaterial);
+      // normalNode below drives this material's own rendering.
+      this.normalMap = baseMat.normalMap;
       const scale = baseMat.normalScale || new THREE.Vector2(1, 1);
       const fadedScale = vec2(scale.x, scale.y).mul(float(1.0).sub(fade));
       this.normalNode = normalMap(tslTexture(baseMat.normalMap, uv()), fadedScale);

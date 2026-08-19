@@ -478,7 +478,27 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       if (detected?.surfaceType && detected?.surfaceSettings) {
         const { surfaceType, surfaceSettings } = detected;
         const surfaceOptions = { type: surfaceType, ...surfaceSettings };
-
+        
+        // Apply grass surface settings
+        if (child.userData?.grassSettings && this.grassAssets!.grainTexture) {
+          const { enabled, ...settings } = child.userData.grassSettings;
+          child.material = new GrassSurface(
+            child.material as THREE.MeshStandardMaterial,
+            {
+              ...settings,
+              shading: settings.shading && {
+                ...settings.shading,
+                elevation: this.sceneSettings!.sun!.elevation,
+                azimuth: this.sceneSettings!.sun!.azimuth,
+              },
+              distantDetail: settings.distantDetail ? {
+                ...settings.distantDetail,
+                noiseTexture: this.grassAssets!.grainTexture
+              } : undefined
+            }
+          );
+        }
+        // Apply blending
         const blendMap = this.#blendMaps.get(child.userData.id);
         if (blendMap) {
           // Neighbor surface is decided at export time (extras.neighbor -> userData);
@@ -514,28 +534,28 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
 
           let renderDistance = this.qualityLevel === QualityMode.VeryHigh ? 100 : 60;
           
-          if (this.grassAssets!.grainTexture) {
-            child.material = new GrassSurface(
-              child.material as THREE.MeshStandardMaterial,
-              {
-                fadeStart: 40,
-                fadeEnd: 120,
-                shading: {
-                  elevation: this.sceneSettings?.sun?.elevation ?? 40,
-                  azimuth: this.sceneSettings?.sun?.azimuth ?? 225,
-                  contrast: 20.0,
-                  slopeTint: 1.0
-                },
-                distantDetail: {
-                  scale: 40,
-                  strength: 0.4,
-                  rampStart: renderDistance,
-                  rampEnd: 100,
-                  noiseTexture: this.grassAssets!.grainTexture,
-                },
-              },
-            );
-          }
+          // if (this.grassAssets!.grainTexture) {
+          //   child.material = new GrassSurface(
+          //     child.material as THREE.MeshStandardMaterial,
+          //     {
+          //       fadeStart: 40,
+          //       fadeEnd: 120,
+          //       shading: {
+          //         elevation: this.sceneSettings?.sun?.elevation ?? 40,
+          //         azimuth: this.sceneSettings?.sun?.azimuth ?? 225,
+          //         contrast: 20.0,
+          //         slopeTint: 1.0
+          //       },
+          //       distantDetail: {
+          //         scale: 40,
+          //         strength: 0.4,
+          //         rampStart: renderDistance,
+          //         rampEnd: 100,
+          //         noiseTexture: this.grassAssets!.grainTexture,
+          //       },
+          //     },
+          //   );
+          // }
           if (this.qualityLevel > QualityMode.Medium) {
 
             const grass = new GrassBlades(child, this.grassAssets!, {
@@ -558,38 +578,38 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
           
           let renderDistance = this.qualityLevel === QualityMode.VeryHigh ? 100 : 60;
 
-          if (this.grassAssets!.grainTexture) {
-            child.material = new GrassSurface(
-              child.material as THREE.MeshStandardMaterial,
-              {
-                fadeStart: 40,
-                fadeEnd: 120,
-                mowLines: {
-                  direction: 22,
-                  width: 3,
-                  strength: 0.04,
-                  wobble: 0.8,
-                  fadeVariation: 0.9,
-                },
-                discolor: {
-                  patchScale: 50,
-                  coverage: 0.45,
-                  strength: 0.35,
-                },
-                shading: {
-                  elevation: this.sceneSettings?.sun?.elevation ?? 40,
-                  azimuth: this.sceneSettings?.sun?.azimuth ?? 225,
-                  contrast: 5.0,
-                  slopeTint: 1.0
-                },
-                distantDetail: {
-                  scale: 40,
-                  strength: 0.6,
-                  noiseTexture: this.grassAssets!.grainTexture,
-                },
-              }
-            );
-          }
+          // if (this.grassAssets!.grainTexture) {
+          //   child.material = new GrassSurface(
+          //     child.material as THREE.MeshStandardMaterial,
+          //     {
+          //       fadeStart: 40,
+          //       fadeEnd: 120,
+          //       mowLines: {
+          //         direction: 22,
+          //         width: 3,
+          //         strength: 0.04,
+          //         wobble: 0.8,
+          //         fadeVariation: 0.9,
+          //       },
+          //       discolor: {
+          //         patchScale: 50,
+          //         coverage: 0.45,
+          //         strength: 0.35,
+          //       },
+          //       shading: {
+          //         elevation: this.sceneSettings?.sun?.elevation ?? 40,
+          //         azimuth: this.sceneSettings?.sun?.azimuth ?? 225,
+          //         contrast: 5.0,
+          //         slopeTint: 1.0
+          //       },
+          //       distantDetail: {
+          //         scale: 40,
+          //         strength: 0.6,
+          //         noiseTexture: this.grassAssets!.grainTexture,
+          //       },
+          //     }
+          //   );
+          // }
 
           if (this.qualityLevel > QualityMode.Medium) {
 
@@ -611,36 +631,36 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
           }
 
 
-        } else if (['fairway', 'first_cut'].includes(surfaceType)) {
-          // mesh has a MeshStandardMaterial with a .map
-          if (this.grassAssets!.grainTexture) {
+        // } else if (['fairway', 'first_cut'].includes(surfaceType)) {
+        //   // mesh has a MeshStandardMaterial with a .map
+        //   if (this.grassAssets!.grainTexture) {
 
-            child.material = new GrassSurface(
-              child.material as THREE.MeshStandardMaterial,
-              {
-                fadeStart: 40,
-                fadeEnd: 80,
-                mowLines: {
-                  direction: 45,
-                  width: 3,
-                  strength: 0.04
-                },
-                shading: {
-                  elevation: this.sceneSettings?.sun?.elevation ?? 40,
-                  azimuth: this.sceneSettings?.sun?.azimuth ?? 225,
-                  contrast: 10.0,
-                  slopeTint: 0.15
-                },
-                distantDetail: {
-                  scale: 10,
-                  strength: 0.4,
-                  rampStart: 10,
-                  rampEnd: 100,
-                  noiseTexture: this.grassAssets!.grainTexture,
-                },
-              }
-            );
-          }
+        //     child.material = new GrassSurface(
+        //       child.material as THREE.MeshStandardMaterial,
+        //       {
+        //         fadeStart: 40,
+        //         fadeEnd: 80,
+        //         mowLines: {
+        //           direction: 45,
+        //           width: 3,
+        //           strength: 0.04
+        //         },
+        //         shading: {
+        //           elevation: this.sceneSettings?.sun?.elevation ?? 40,
+        //           azimuth: this.sceneSettings?.sun?.azimuth ?? 225,
+        //           contrast: 10.0,
+        //           slopeTint: 0.15
+        //         },
+        //         distantDetail: {
+        //           scale: 10,
+        //           strength: 0.4,
+        //           rampStart: 10,
+        //           rampEnd: 100,
+        //           noiseTexture: this.grassAssets!.grainTexture,
+        //         },
+        //       }
+        //     );
+        //   }
         }
 
         this.surfaces.set(child.uuid, { ...surfaceOptions, mesh: child });
@@ -762,7 +782,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         } else if (this.qualityLevel === QualityMode.VeryHigh) {
           lodDistances = [500, 900];
         }
-        console.log(`[plant] Planting tree layer... (lods:${lodDistances.join(',')})`, group);
+        console.log(`[plant] Planting tree layer... (lods:${lodDistances.join(',')})`, child.userData);
         const config: TreeGroup = {
           collider: {
             radius: 0.3,
@@ -1025,37 +1045,23 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
 
     let target;
     let grid;
-    const surfaceOptions: GrassSurfaceOptions = {
-      fadeStart: 40,
-      fadeEnd: 120,
-      mowLines: {
-        direction: 60,
-        width: 0.5,
-        strength: 0.05,
-        wobble: 0.01,
-        fadeVariation: 1.2,
-      },
-      shading: {
-        elevation: this.sceneSettings?.sun?.elevation ?? 40,
-        azimuth: this.sceneSettings?.sun?.azimuth ?? 225,
-        contrast: 22.0,
-        slopeTint: 0.1
-      } 
-    }
-    if (this.grassAssets?.grainTexture) {
-      surfaceOptions.distantDetail = {
-        scale: 30,
-        strength: 0.2,
-        rampStart: 20,
-        rampEnd: 120,
-        nearAmount: 0.8,
+    const { enabled, ...grassSettings } = hit.object.userData.grassSettings;
+    if (this.grassAssets?.grainTexture && enabled) {
+      grassSettings.shading = grassSettings.shading && {
+        ...grassSettings.shading,
+        elevation: this.sceneSettings!.sun!.elevation,
+        azimuth: this.sceneSettings!.sun!.azimuth,
+      };
+
+      grassSettings.distantDetail = {
+        ...grassSettings.distantDetail,
         noiseTexture: this.grassAssets!.grainTexture,
       };
     }
     if (this.setupData?.puttingEnabled) {
-      grid = new PuttingGridMaterial(hit.object, { surfaceOptions, holeWorldPos: position });
+      grid = new PuttingGridMaterial(hit.object, { surfaceOptions: grassSettings, holeWorldPos: position });
     } else {
-      target = new TargetShaderMaterial(hit.object, position, { surfaceOptions, gimmeDistances: this.setupData?.gimmeDistances || DefaultGimmeDistances });
+      target = new TargetShaderMaterial(hit.object, position, { surfaceOptions: grassSettings, gimmeDistances: this.setupData?.gimmeDistances || DefaultGimmeDistances });
     }
 
     return { object: hit.object, flag, target, grid };
