@@ -93,4 +93,6 @@ button:hover {
   flex-direction: column;
   gap: var(--grid-size);
   max-width: 13vh;
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);  
 }

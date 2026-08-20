@@ -482,11 +482,13 @@
 .scoreCardRoundOver.show {
   display: flex;
 }
-
 .hazardButtons {
   display: flex;
   flex-direction: row;
   gap: var(--base-padding);
+}
+.hazardButtons.hazardButtonsColumn {
+  flex-direction: column;
 }
 .hazardButton {
   display: flex;
@@ -516,6 +518,7 @@
   /* height: 5vh; */
   /* min-height: 40px; */
   aspect-ratio: 2.25;
+  justify-self: flex-end;
 }
 .launchMonitorMenu a {
   display: block;

@@ -64,9 +64,13 @@ export class BlendMaterial {
     neighbor?: NeighborSurface,
     blendSettings: SurfaceConfig['blending'] = {}
   ) {
-    const baseMat = baseMesh.material;
-    if (!(baseMat instanceof THREE.MeshStandardMaterial)) {
-      throw new Error('Base material requires a MeshStandardMaterial');
+    const baseMat = baseMesh.material as THREE.MeshStandardMaterial;
+    // A GrassSurface base (MeshStandardNodeMaterial) is accepted too: it
+    // exposes map/color/roughness like a standard material and, crucially,
+    // its final composed color graph via surfaceColor.
+    const grassColor = (baseMat as any).surfaceColor;
+    if (!(baseMat instanceof THREE.MeshStandardMaterial) && !grassColor) {
+      throw new Error('Base material requires a MeshStandardMaterial or GrassSurface');
     }
     const baseTexture = baseMat.map;
     const baseTint = baseMat.color || new THREE.Color(1, 1, 1);
@@ -87,11 +91,13 @@ export class BlendMaterial {
       this.material.normalScale = baseMat.normalScale?.clone() || new THREE.Vector2(1, 1);
     }
 
-    // Base texture tiled by world position
+    // Base color: a GrassSurface base contributes its full composed graph
+    // (slope shading, distant detail, mow lines, fade — tint already
+    // applied inside), so those effects survive under the blend; plain
+    // materials sample their texture tiled by world position.
     const baseTiledUV = positionWorld.xz.div(float(baseTileSize));
-    const baseColorTex = tslTexture(baseTexture, baseTiledUV);
-    const baseColor = baseColorTex.mul(vec3(baseTint.r, baseTint.g, baseTint.b));
-
+    const baseColor = grassColor
+      ?? tslTexture(baseTexture, baseTiledUV).mul(vec3(baseTint.r, baseTint.g, baseTint.b));
     const blendNoiseFreq = float(blendSettings.blendNoiseFreq || 0.15);
     const blendNoiseUV1 = positionWorld.xz.mul(blendNoiseFreq);
     const blendNoise1 = tslTexture(noiseTexture, blendNoiseUV1).r;
