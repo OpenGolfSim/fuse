@@ -534,28 +534,6 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
 
           let renderDistance = this.qualityLevel === QualityMode.VeryHigh ? 100 : 60;
           
-          // if (this.grassAssets!.grainTexture) {
-          //   child.material = new GrassSurface(
-          //     child.material as THREE.MeshStandardMaterial,
-          //     {
-          //       fadeStart: 40,
-          //       fadeEnd: 120,
-          //       shading: {
-          //         elevation: this.sceneSettings?.sun?.elevation ?? 40,
-          //         azimuth: this.sceneSettings?.sun?.azimuth ?? 225,
-          //         contrast: 20.0,
-          //         slopeTint: 1.0
-          //       },
-          //       distantDetail: {
-          //         scale: 40,
-          //         strength: 0.4,
-          //         rampStart: renderDistance,
-          //         rampEnd: 100,
-          //         noiseTexture: this.grassAssets!.grainTexture,
-          //       },
-          //     },
-          //   );
-          // }
           if (this.qualityLevel > QualityMode.Medium) {
 
             const grass = new GrassBlades(child, this.grassAssets!, {
@@ -578,39 +556,6 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
           
           let renderDistance = this.qualityLevel === QualityMode.VeryHigh ? 100 : 60;
 
-          // if (this.grassAssets!.grainTexture) {
-          //   child.material = new GrassSurface(
-          //     child.material as THREE.MeshStandardMaterial,
-          //     {
-          //       fadeStart: 40,
-          //       fadeEnd: 120,
-          //       mowLines: {
-          //         direction: 22,
-          //         width: 3,
-          //         strength: 0.04,
-          //         wobble: 0.8,
-          //         fadeVariation: 0.9,
-          //       },
-          //       discolor: {
-          //         patchScale: 50,
-          //         coverage: 0.45,
-          //         strength: 0.35,
-          //       },
-          //       shading: {
-          //         elevation: this.sceneSettings?.sun?.elevation ?? 40,
-          //         azimuth: this.sceneSettings?.sun?.azimuth ?? 225,
-          //         contrast: 5.0,
-          //         slopeTint: 1.0
-          //       },
-          //       distantDetail: {
-          //         scale: 40,
-          //         strength: 0.6,
-          //         noiseTexture: this.grassAssets!.grainTexture,
-          //       },
-          //     }
-          //   );
-          // }
-
           if (this.qualityLevel > QualityMode.Medium) {
 
             const grass = new GrassBlades(child, this.grassAssets!, {
@@ -629,38 +574,6 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
             this.scene.add(grass.mesh);
             this.grasses.set(child.uuid, grass);
           }
-
-
-        // } else if (['fairway', 'first_cut'].includes(surfaceType)) {
-        //   // mesh has a MeshStandardMaterial with a .map
-        //   if (this.grassAssets!.grainTexture) {
-
-        //     child.material = new GrassSurface(
-        //       child.material as THREE.MeshStandardMaterial,
-        //       {
-        //         fadeStart: 40,
-        //         fadeEnd: 80,
-        //         mowLines: {
-        //           direction: 45,
-        //           width: 3,
-        //           strength: 0.04
-        //         },
-        //         shading: {
-        //           elevation: this.sceneSettings?.sun?.elevation ?? 40,
-        //           azimuth: this.sceneSettings?.sun?.azimuth ?? 225,
-        //           contrast: 10.0,
-        //           slopeTint: 0.15
-        //         },
-        //         distantDetail: {
-        //           scale: 10,
-        //           strength: 0.4,
-        //           rampStart: 10,
-        //           rampEnd: 100,
-        //           noiseTexture: this.grassAssets!.grainTexture,
-        //         },
-        //       }
-        //     );
-        //   }
         }
 
         this.surfaces.set(child.uuid, { ...surfaceOptions, mesh: child });

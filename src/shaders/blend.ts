@@ -91,10 +91,6 @@ export class BlendMaterial {
       this.material.normalScale = baseMat.normalScale?.clone() || new THREE.Vector2(1, 1);
     }
 
-    // Base texture tiled by world position
-    // const baseTiledUV = positionWorld.xz.div(float(baseTileSize));
-    // const baseColorTex = tslTexture(baseTexture, baseTiledUV);
-    // const baseColor = baseColorTex.mul(vec3(baseTint.r, baseTint.g, baseTint.b));
     // Base color: a GrassSurface base contributes its full composed graph
     // (slope shading, distant detail, mow lines, fade — tint already
     // applied inside), so those effects survive under the blend; plain
