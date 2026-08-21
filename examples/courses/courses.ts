@@ -405,7 +405,10 @@ async function setupCourse() {
   gameContext.rangeFinder = new UIRangeFinder('#top-center', { units: gameContext.setupData?.units });
   gameContext.mainMenu = new UIMainMenu('#top-left');
   gameContext.mainMenu.on('stats', () => gameContext.stats?.toggle());
-  gameContext.launchMonitor = new UILaunchMonitor('#lm-status');
+  
+  if (gameContext.setupData?.showLaunchStatus) {
+    gameContext.launchMonitor = new UILaunchMonitor('#lm-status');
+  }
 
   gameContext.dialogs.scorecard = new UIScorecard('#scorecard', {
     players: gameContext.game?.players || [],

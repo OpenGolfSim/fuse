@@ -80,6 +80,7 @@ namespace OpenGolfSim {
     stimpLevel?: number;
     gimmeDistances?: number[];
     backend: 'webgl' | 'webgpu';
+    showLaunchStatus?: boolean;
   }
 
   type GameData = {

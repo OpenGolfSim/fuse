@@ -9,6 +9,10 @@ body {
   background-color: var(--bg-color-solid);
   color: #fff;
 }
+h1, h2, h3, h4, h5 {
+  margin: var(--base-padding) 0;
+  padding: 0;
+}
 a {
   color: var(--primary-color);
   text-decoration: none;
@@ -27,7 +31,7 @@ ul li {
 }
 canvas {
   display: block;
-  background-color: #111;
+  /* background-color: #111; */
 }
 
 button {
