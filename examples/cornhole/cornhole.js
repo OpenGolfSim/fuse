@@ -689,6 +689,7 @@ function loadGame() {
       updateDistance();
       requestAnimationFrame(animate);
       gameContext.renderer?.startAdaptiveResolution();
+      app.setLoaded();
     });
     gameContext.loadingScreen.load(setupGame);
 
