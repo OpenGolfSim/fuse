@@ -386,6 +386,17 @@
   color: var(--text-disabled);
 }
 
+.button {
+  padding: calc(var(--base-padding) / 2) var(--base-padding);
+  font-size: var(--small-font-size);
+  font-weight: 800;
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border-color);
+
+  color: var(--text-color);
+  align-items: center;
+  gap: var(--base-padding);
+}
 
 .dialog {
   position: fixed;

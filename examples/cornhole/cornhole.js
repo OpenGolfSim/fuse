@@ -15,7 +15,8 @@ import {
   WaterSurface,
   UIDialog,
   GRAVITY_VECTOR,
-  UnitConversions
+  UnitConversions,
+  UILaunchMonitor
 } from '@opengolfsim/fuse';
 
 import * as RAPIER from '@dimforge/rapier3d-compat';
@@ -577,7 +578,11 @@ async function setupGame() {
   });
 
   await gameContext.renderer.init();
-  
+
+
+  if (gameContext.setupData?.showLaunchStatus) {
+    gameContext.launchMonitor = new UILaunchMonitor('#lm-status');
+  }  
   gameContext.stats = new UIStats('#render-stats', { hidden: true, renderer: gameContext.renderer?.renderer });
 
   const dialogParent = document.getElementById('game-over');

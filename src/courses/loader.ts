@@ -958,7 +958,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
 
     let target;
     let grid;
-    const { enabled, ...grassSettings } = hit.object.userData.grassSettings;
+    const { enabled, ...grassSettings } = hit.object.userData?.grassSettings || {};
     if (this.grassAssets?.grainTexture && enabled) {
       grassSettings.shading = grassSettings.shading && {
         ...grassSettings.shading,

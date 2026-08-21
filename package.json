@@ -19,6 +19,8 @@
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
     "@floating-ui/dom": "^1.7.6",
+    "@phosphor-icons/core": "^2.1.1",
+    "@phosphor-icons/web": "^2.1.2",
     "eventemitter3": "^5.0.4",
     "makio-meshline": "^1.4.0",
     "meshline": "^3.3.1",

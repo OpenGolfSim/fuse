@@ -295,8 +295,10 @@ async function setupRange() {
   gameContext.controls.on('toggleStats', () => gameContext.stats?.toggle());
   gameContext.controls.on('testShot', shot => launchShot(shot));
   
+  if (gameContext.setupData?.showLaunchStatus) {
+    gameContext.launchMonitor = new UILaunchMonitor('#lm-status');
+  }
   // start hidden (press S to toggle)
-  gameContext.launchMonitor = new UILaunchMonitor('#lm-status');
   gameContext.stats = new UIStats('#render-stats', { hidden: true, renderer: gameContext.renderer?.renderer });
 
   // Sky/Clouds
