@@ -51,12 +51,19 @@ export class UIShotData {
     this.#distanceUnit = this.units === 'imperial' ? 'YD' : 'm';
     this.#heightUnit = this.units === 'imperial' ? 'FT' : 'm';
 
-    const feetConvert = (val: number) => {
-      if (this.units === 'imperial' && val < 30) {
+    const unitConvert = (val: number) => {
+      if (this.units === 'imperial' && val > 0 && val < 5) {
         return 'FT';
       }
       return this.#distanceUnit;
     };
+    const distanceConvert = (val: number) => {
+      if (this.units === 'imperial' && val < 5) {
+        return UnitConversions.metersToFeet(val);
+      }
+      return this.units === 'imperial' ? UnitConversions.metersToYards(val) : val;
+    };
+
     this.gridOptions = [
       {
         id: 'ballSpeed',
@@ -94,27 +101,22 @@ export class UIShotData {
         id: 'total',
         precision: 0,
         label: 'Total',
-        units: feetConvert,
-        conversion: (val) => {
-          if (this.units === 'imperial') { 
-            return val < 30 ? UnitConversions.metersToFeet(val): UnitConversions.metersToYards(val);
-          }
-          return val
-        },
+        units: unitConvert,
+        conversion: distanceConvert,
       },
       {
         id: 'carry',
         precision: 0,
         label: 'Carry',
-        units: feetConvert,
-        conversion: (val) => this.units === 'imperial' ? UnitConversions.metersToYards(val) : val,
+        units: unitConvert,
+        conversion: distanceConvert,
       },
       {
         id: 'roll',
         precision: 0,
         label: 'Roll',
-        units: feetConvert,
-        conversion: (val) => this.units === 'imperial' ? UnitConversions.metersToYards(val) : val,
+        units: unitConvert,
+        conversion: distanceConvert,
       },
 
       {
