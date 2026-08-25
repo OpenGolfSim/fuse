@@ -212,16 +212,11 @@
   user-select: none;
 }
 .mapHeader {
-  /* padding: 0.5vw; */
   display: flex;
   flex-direction: row;
   align-items: center;
-  /* gap: 0.5vw; */
-}
-.mapHoleText,
-.mapParText,
-.mapDistText {
-  padding: var(--base-padding);
+  /* gap: calc(var(--base-padding) / 2); */
+  /* padding: var(--base-padding); */
 }
 
 .mapHoleText {
@@ -229,17 +224,29 @@
   font-size: var(--medium-font-size);
   cursor: pointer;
   font-weight: 700;
+  padding: var(--base-padding) calc(var(--base-padding) / 2) var(--base-padding) var(--base-padding);
+  /* padding: var(--base-padding); */
 }
-.mapDistText,
-.mapParText {
-  font-weight: 700;
-}
-.mapParText {
-  flex: 0 0 auto;
-}
+
+.mapParText,
 .mapDistText {
+  font-size: var(--small-font-size);
+  padding: var(--base-padding) calc(var(--base-padding) / 2);
   flex: 0 0 auto;
 }
+
+.mapIcon {
+  flex: 0 0 auto;
+  align-self: stretch;
+  min-width: calc(var(--base-padding) * 2);
+  padding: 0 var(--base-padding);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
 .canvasContainer {
   position: relative;
 }
@@ -253,6 +260,40 @@
   top: 0;
   left: 0;
   background: transparent;
+}
+
+.mapPlaceBallButton {
+  display: none;
+  position: absolute;
+  top: var(--base-padding);
+  left: var(--base-padding);
+  width: calc(var(--base-padding) * 3);
+  height: calc(var(--base-padding) * 3);
+  padding: calc(var(--base-padding) / 2);
+  background-color: var(--bg-color);
+  border-radius: var(--border-radius);
+  color: #fff;
+}
+.mapPlaceBallButton svg {
+  width: 100%;
+  height: 100%;
+}
+.mapPlaceBallButtonVisible {
+  display: block;
+}
+.mapPlaceBallButton.mapPlaceBallButtonActive,
+.mapPlaceBallButton.mapPlaceBallButtonActive:hover {
+  background-color: var(--primary-color);
+}
+.mapPlaceBallButtonIcon {
+  display: inline-block;
+}
+.mapPlaceBallButtonText {
+  position: relative;
+  display: inline-block;
+  top: calc(var(--base-padding) / 2);
+  font-size: var(--small-font-size);
+  text-align: center;
 }
 
 .loadingScreen {
@@ -378,9 +419,13 @@
 .clickableArea {
   cursor: pointer;
 }
-.clickableArea:hover {
-  background-color: var(--hover-bg-color);
+
+@media (hover: hover) {
+  .clickableArea:hover {
+    background-color: var(--hover-bg-color);
+  }
 }
+
 .clickableArea:active {
   background-color: var(--active-bg-color);
   color: var(--text-disabled);

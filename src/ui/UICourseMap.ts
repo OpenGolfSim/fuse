@@ -6,6 +6,9 @@ import { UnitConversions } from '@/utils/units';
 import { colors } from '@/utils/colors';
 import { UIDropDownMenu } from '@/ui/UIDropDownMenu';
 import { CourseHole, CourseHoleMap, CourseMapSource } from '@/courses/loader';
+import caretUpIcon from "@phosphor-icons/core/assets/regular/caret-up.svg?raw";
+import caretDownIcon from "@phosphor-icons/core/assets/regular/caret-down.svg?raw";
+import handIcon from "@phosphor-icons/core/assets/regular/hand.svg?raw";
 
 type UICourseMapOptions = {
   map: CourseMapSource;
@@ -31,6 +34,8 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
   holeText: HTMLElement;
   parText: HTMLElement;
   distText: HTMLElement;
+  expandIcon: HTMLElement;
+  placeBallButton: HTMLElement;
   units: OpenGolfSim.MeasurementUnits;
   holes: CourseHoleMap;
   canvas: HTMLCanvasElement;
@@ -43,6 +48,12 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
   height: number;
   mapSource: CourseMapSource;
   worldSize: number;
+
+  expanded: boolean;
+  expandedScale = 2;
+  placeBallMode = false;
+  #lastStart?: THREE.Vector3;
+  #lastEnd?: THREE.Vector3;
 
   #crop?: ImageBitmap;
   #cropRect?: { x0: number; z0: number; x1: number; z1: number };
@@ -57,6 +68,7 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
     // this.width = width;
     // this.height = height;
     // this.course = course;
+    this.expanded = false;
     this.worldSize = options.worldSize;
     this.mapSource = options.map;
     this.units = options.units ?? 'metric';
@@ -65,19 +77,15 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
 
     this.aspect = 3 / 2;
     this.width = window.innerHeight * this.mapWidthPercent; // 10%
+    // const scale = this.expanded ? this.expandedScale : 1;
+    // this.width = window.innerHeight * this.mapWidthPercent * scale;
     this.height = this.width * this.aspect; // 10%    
-
-    // const mapSize = 40;
-    // const nearField = 10;
-    // const farField = 1000;
-    // this.camera = new THREE.OrthographicCamera(-mapSize, mapSize, mapSize, -mapSize, nearField, farField);
-    // this.camera.position.set(0, 100, 0);
-    // this.camera.lookAt(0, 0, 0);
 
     this.view = { cx: 0, cz: 0, halfW: 100, halfH: 100, angle: 0 };
 
     this.container = document.createElement('div');
     this.container.className = styles.mapContainer;
+    
     this.header = document.createElement('div');
     this.header.className = styles.mapHeader;
     
@@ -92,8 +100,14 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
     this.distText = document.createElement('div');
     this.distText.className = styles.mapDistText;
     this.distText.textContent = '225 yd';
+    
+    this.expandIcon = document.createElement('a');
+    this.expandIcon.classList.add(styles.mapIcon, styles.clickableArea);
+    this.expandIcon.innerHTML = caretUpIcon;
+    this.expandIcon.addEventListener('click', (e) => this._expandMap());
 
-    this.header.append(this.holeText, this.parText, this.distText);
+
+    this.header.append(this.holeText, this.parText, this.distText, this.expandIcon);
 
     this.canvas = document.createElement('canvas');
     this.canvas.className = styles.mapCanvas;
@@ -105,7 +119,21 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
     // this.canvas.style = 'position: absolute; left: 10px; bottom: 10px;'
     this.overlayCanvas.className = styles.overlayCanvas;
     
-    this.canvasContainer.append(this.canvas, this.overlayCanvas);
+    // this.canvasContainer.append(this.canvas, this.overlayCanvas);
+
+    this.placeBallButton = document.createElement('a');
+    this.placeBallButton.classList.add(styles.mapPlaceBallButton, styles.clickableArea);
+    const placeBallIcon = document.createElement('span');
+    const placeBallText = document.createElement('span');
+    placeBallIcon.innerHTML = handIcon;
+    placeBallIcon.classList.add(styles.mapPlaceBallButtonIcon);
+    placeBallText.textContent = 'Place Ball';
+    placeBallText.classList.add(styles.mapPlaceBallButtonText);
+    this.placeBallButton.append(placeBallIcon, placeBallText);
+    this.placeBallButton.addEventListener('click', () => this._togglePlaceBallMode());
+
+    this.canvasContainer.append(this.canvas, this.overlayCanvas, this.placeBallButton);
+
     this.container.append(this.header, this.canvasContainer);
 
     this.overlayCanvas.addEventListener('click', this._handleCanvasClick.bind(this))
@@ -131,14 +159,18 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
   }
 
   _handleResize() {
-    
-    this.width = window.innerHeight * this.mapWidthPercent; // 10%
+    const scale = this.expanded ? this.expandedScale : 1;
+    this.width = window.innerHeight * this.mapWidthPercent * scale;    
+    // this.width = window.innerHeight * this.mapWidthPercent; // 10%
     this.height = this.width * this.aspect; // 10%    
 
     this.container.style.display = this.width < 120 ? 'none' : 'block';
 
     this.canvas.width = this.width;
     this.canvas.height = this.height;
+    if (this.#lastStart && this.#lastEnd) {
+      this.updatePosition(this.#lastStart, this.#lastEnd);
+    }
   }
 
 
@@ -296,14 +328,17 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
 
   _handleCanvasClick(event: PointerEvent) {
     const pos = this._minimapToWorld(event);
-    if (event.shiftKey) {
+    if (event.shiftKey || this.placeBallMode) {
       this.emit('updateStart', pos);
+      this._setPlaceBallMode(false);
     } else {
       this.emit('updateAim', pos);
     }
   }
 
   updatePosition(startPoint: THREE.Vector3, endPoint: THREE.Vector3) {
+    this.#lastStart = startPoint;
+    this.#lastEnd = endPoint;
     const cx = (startPoint.x + endPoint.x) / 2;
     const cz = (startPoint.z + endPoint.z) / 2;
 
@@ -373,5 +408,23 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
     } finally {
       this.#cropPending = false;
     }
-  }  
+  }
+
+  _expandMap() {
+    this.expanded = !this.expanded;
+    this.expandIcon.innerHTML = this.expanded ? caretDownIcon : caretUpIcon;
+    this.placeBallButton.classList.toggle(styles.mapPlaceBallButtonVisible, this.expanded);
+    if (!this.expanded) this._setPlaceBallMode(false);
+    this._handleResize();
+  }
+
+  _togglePlaceBallMode() {
+    this._setPlaceBallMode(!this.placeBallMode);
+  }
+
+  _setPlaceBallMode(active: boolean) {
+    this.placeBallMode = active;
+    this.placeBallButton.classList.toggle(styles.mapPlaceBallButtonActive, active);
+  }
+
 }
