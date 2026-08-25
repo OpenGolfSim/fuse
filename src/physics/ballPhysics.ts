@@ -17,6 +17,7 @@ const SPEED_BRAKING_SCALE = 0.3;
 
 export type ShotEndEvent = {
   surface?: CourseColliderType,
+  holeNumber?: number,
   isInWater?: boolean,
   isHoled?: boolean
 }
@@ -32,7 +33,8 @@ type TerrainInfo = {
   restitution: number,
   friction: number,
   normal: THREE.Vector3,
-  surface?: CourseSurfaceProperties
+  surface?: CourseSurfaceProperties,
+  holeNumber?: number,
 }
 
 // Membership in low 16 bits, filter in high 16 bits
@@ -65,6 +67,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   hasBeenAirborne = false;
   terrainCollisionsEnabled = false;
   currentSurface?: CourseSurfaceProperties;
+  currentHoleNumber?: number;
 
   // Thresholds
   defaultEndThresholdSpeed = 0.15;   // m/s linear
@@ -93,6 +96,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   #mergedBVH!: MeshBVH;
   #mergedMesh!: THREE.Mesh;
   #surfaceKeys: string[] = [];
+  #surfaceHoleNumbers: (number | undefined)[] = [];
   #dynamicSurfaces: { mesh: THREE.Mesh; bvh: MeshBVH; surfaceKey: string }[] = [];
   #invMat = new THREE.Matrix4();
   #normalMat = new THREE.Matrix3();
@@ -167,7 +171,8 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
         geo.applyMatrix4(tm.matrixWorld);
         
         const surfaceIndex = this.#surfaceKeys.length;
-        this.#surfaceKeys.push(tm.userData.surface ?? 'base');        
+        this.#surfaceKeys.push(tm.userData.surface ?? 'base');
+        this.#surfaceHoleNumbers.push(tm.userData.holeNumber);
 
         // Store surface index per face via groups
         geo.clearGroups();
@@ -448,6 +453,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     this.isShotActive = false;
     this.emit('shotEnded', {
       surface: this.currentSurface?.type,
+      holeNumber: this.currentHoleNumber,
       isInWater: this.isInWater,
       isHoled: this.isHoled
     });
@@ -560,6 +566,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     }
     
     this.currentSurface = terrain?.surface;
+    this.currentHoleNumber = terrain?.holeNumber;
 
     const minY = terrainY + (this.ballRadius * 2);
 
@@ -745,11 +752,13 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     let hit = this.#mergedBVH.raycastFirst(this.#terrainRay, THREE.DoubleSide);
 
     let surfaceKey = 'base';
+    let holeNumber: number | undefined;
     if (hit && hit.faceIndex != null && this.#mergedMesh.geometry.groups.length > 0) {
       const vertIndex = hit.faceIndex * 3;
       for (const group of this.#mergedMesh.geometry.groups) {
         if (vertIndex >= group.start && vertIndex < group.start + group.count) {
           surfaceKey = this.#surfaceKeys[group.materialIndex ?? 0];
+          holeNumber = this.#surfaceHoleNumbers[group.materialIndex ?? 0];
           break;
         }
       }
@@ -768,6 +777,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
       if (!hit || dHit.point.y > hit.point.y) {
         hit = dHit;
         surfaceKey = d.surfaceKey;
+        holeNumber = d.mesh.userData.holeNumber;
         hitNormalWorld = dHit.face
           ? dHit.face.normal.applyNormalMatrix(
               this.#normalMat.getNormalMatrix(d.mesh.matrixWorld)
@@ -807,6 +817,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
       restitution: surfaceSettings.restitution ?? 0.35,
       friction: surfaceSettings.friction ?? 0.6,
       surface: { type: validSurfaceKey, ...surfaceSettings },
+      holeNumber,
       normal
     };
     return this.#lastTerrainInfo;

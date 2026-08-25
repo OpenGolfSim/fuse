@@ -172,7 +172,7 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
   }
 
   _onShotEnded(details: ShotEndEvent) {
-    const { surface, isInWater } = details;
+    const { surface, holeNumber, isInWater } = details;
     if (!this.activePlayer) {
       throw new Error('No player found!');
     }
@@ -203,7 +203,7 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
         this._nextPlayer();
         console.log(`Ball in hole! End hole`);
         this._addStrokes(0, true);
-      } else if (surface === 'green' && !this.puttingEnabled) {
+      } else if (surface === 'green' && !this.puttingEnabled && holeNumber === this.getActiveHoleNumber()) {
         // total score
         // TODO: change to add auto-putt number
         const holePos = this.activeHole.waypoints.get('pin');

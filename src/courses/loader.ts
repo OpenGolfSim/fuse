@@ -232,6 +232,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   #origin: THREE.Vector3;
   #direction: THREE.Vector3;
   #accumulator = 10;
+  #lastActiveHole = -1;
   #blendMaps: Map<string, BlendMapData>;
   gameMode?: OpenGolfSim.SetupData['gameMode'];
 
@@ -343,6 +344,11 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     this.ocean?.update();
     
     const hole = this.holes.get(activeHole);
+
+    if (activeHole !== this.#lastActiveHole) {
+      this.holes.forEach((h, num) => h.green?.target?.setVisible(num === activeHole));
+      this.#lastActiveHole = activeHole;
+    }
 
     // planting / LOD logic only needs to happen every few frames
     if (this.#accumulator >= 4) {
@@ -949,6 +955,8 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   
   _setupGreen(hit: THREE.Intersection, position: THREE.Vector3, holeNumber: string) {
     if (!this.scene) throw new Error('Scene missing');
+
+    hit.object.userData.holeNumber = parseInt(holeNumber);
 
     const worldNormal = hit.face
       ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld)
