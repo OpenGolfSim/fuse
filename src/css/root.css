@@ -16,6 +16,8 @@
   --text-disabled: #7e9a9a;
   --border-color: rgba(255, 255, 255, 0.2);
 
+  --primary-color-light: oklch(from var(--primary-color) calc(l * 1.2) c h);
+  --primary-color-dark: oklch(from var(--primary-color) calc(l * 0.7) c h);
   
   /* spacing */
   --border-radius: 5px;

@@ -87,6 +87,7 @@ namespace OpenGolfSim {
     id: string;
     gameMode: number;
     courseUrl?: string;
+    practiceMode?: string;
   }
 
   
