@@ -21,6 +21,7 @@ export function createImpostorMaterial(
   posScaleAttr: THREE.InstancedBufferAttribute, // xyz = quad center (world), w = scale (0 = hidden)
   yawAttr: THREE.InstancedBufferAttribute,      // baked per-tree Y rotation
   qualityLevel?: QualityMode,
+  colorAttr?: THREE.InstancedBufferAttribute,   // per-tree tint (vec3); multiplies baked albedo
   bendNormals = true,
   occlusion = 0.8, // <1 darkens to compensate for missing canopy self-shadowing
 
@@ -45,6 +46,7 @@ export function createImpostorMaterial(
 
   const inst = instancedDynamicBufferAttribute<'vec4'>(posScaleAttr, 'vec4');
   const yaw = instancedBufferAttribute<'float'>(yawAttr, 'float');
+  const tint = colorAttr ? instancedBufferAttribute<'vec3'>(colorAttr, 'vec3') : null;
 
   const toCam = cameraPosition.sub(inst.xyz);
   const fwd = varying(normalize(toCam));
@@ -79,7 +81,9 @@ export function createImpostorMaterial(
     const frameUV = cell.add(uv()).div(N);
     // return texture(map, frameUV);
     const t = texture(map, frameUV);
-    return vec4(t.rgb.mul(occlusion), t.a);
+    const rgb = tint ? t.rgb.mul(occlusion).mul(tint) : t.rgb.mul(occlusion);
+    return vec4(rgb, t.a);
+    // return vec4(t.rgb.mul(occlusion), t.a);
   })();
 
   // if (bendNormals) {
