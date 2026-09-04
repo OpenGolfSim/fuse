@@ -21,7 +21,7 @@ export function createImpostorMaterial(
   posScaleAttr: THREE.InstancedBufferAttribute, // xyz = quad center (world), w = scale (0 = hidden)
   yawAttr: THREE.InstancedBufferAttribute,      // baked per-tree Y rotation
   qualityLevel?: QualityMode,
-  bendNormals = true,
+  colorAttr?: THREE.InstancedBufferAttribute,   // per-tree tint (vec3); multiplies baked albedo
   occlusion = 0.8, // <1 darkens to compensate for missing canopy self-shadowing
 
 ) {
@@ -37,7 +37,7 @@ export function createImpostorMaterial(
     mat.alphaTest = 0.6;
     mat.alphaToCoverage = false;
   } else {
-    mat.alphaTest = 0.4;
+    mat.alphaTest = 0.5;
     mat.alphaToCoverage = true;
   }
   mat.transparent = false;
@@ -45,6 +45,7 @@ export function createImpostorMaterial(
 
   const inst = instancedDynamicBufferAttribute<'vec4'>(posScaleAttr, 'vec4');
   const yaw = instancedBufferAttribute<'float'>(yawAttr, 'float');
+  const tint = colorAttr ? instancedBufferAttribute<'vec3'>(colorAttr, 'vec3') : null;
 
   const toCam = cameraPosition.sub(inst.xyz);
   const fwd = varying(normalize(toCam));
@@ -60,10 +61,7 @@ export function createImpostorMaterial(
       .add(up.mul(positionGeometry.y.mul(half)));
   })();
 
-  // Frame selection: view dir in tree-local space (undo baked yaw) →
-  // hemi-octahedral encode (exact inverse of the bake's hemiOctaDir) →
-  // snap to nearest baked view (single tap — cheapest; upgrade to 3-tap
-  // blend later if frame snapping is visible).
+  // Frame selection
   mat.colorNode = Fn(() => {
     const c = cos(yaw), s = sin(yaw);
     const lx = fwd.x.mul(c).sub(fwd.z.mul(s));
@@ -77,25 +75,11 @@ export function createImpostorMaterial(
     const cell = round(g.mul(N - 1));
     // If trees render upside-down, replace uv() with vec2(uv().x, uv().y.oneMinus())
     const frameUV = cell.add(uv()).div(N);
-    // return texture(map, frameUV);
     const t = texture(map, frameUV);
-    return vec4(t.rgb.mul(occlusion), t.a);
+    const rgb = tint ? t.rgb.mul(occlusion).mul(tint) : t.rgb.mul(occlusion);
+    return vec4(rgb, t.a);
   })();
 
-  // if (bendNormals) {
-  //   // Fake spherical canopy normal, anchored in WORLD space (not camera space):
-  //   // normal = direction from quad center to the vertex, pulled toward world-up.
-  //   // Camera-relative normals over-brighten whenever the camera is sun-side.
-  //   mat.normalNode = normalize(
-  //     right.mul(positionGeometry.x.mul(0.8))
-  //       .add(up.mul(positionGeometry.y.mul(0.8)))
-  //       .add(vec3(0, 1, 0)),
-  //   );
-  // }
-  // Constant world-up normal: N·L is one fixed value (set by sun elevation),
-  // identical for every tree from every angle — no view-dependent brightness
-  // shifts. Curved fake normals always over-brighten at some sun/camera geometry;
-  // 'occlusion' is the single knob that matches this constant level to the LODs.
   mat.normalNode = vec3(0, 1, 0);
   return mat;
 }

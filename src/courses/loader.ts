@@ -65,6 +65,9 @@ export interface SceneSettings {
   sun?: {
     elevation?: number,
     azimuth?: number,
+    color?: number,
+    ambient?: number,
+    directional?: number,
   },
   ocean?: {
     enabled?: boolean;
@@ -837,9 +840,16 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
 
     let lightOptions = {
       qualityLevel: this.qualityLevel,
-      color: new THREE.Color('#fffcdd'),
-      directional: { enabled: true },
-      ambient: { enabled: true }
+      // color: new THREE.Color('#fffcdd'),
+      color: new THREE.Color(this.sceneSettings?.sun?.color),
+      directional: {
+        enabled: true,
+        intensity: this.sceneSettings?.sun?.directional,
+      },
+      ambient: {
+        enabled: true,
+        intensity: this.sceneSettings?.sun?.ambient,
+      }
     };
     if (skyType === 'clouds') {
       // Sky/Clouds

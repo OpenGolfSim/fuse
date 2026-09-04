@@ -21,7 +21,7 @@ export type TreeGroup = {
   },
   density: number,
   minDistance?: number,
-  colors: number[],
+  colors: (number | string)[],
   collider?: {
     radius: number,
     height: number
@@ -318,7 +318,7 @@ export class TreePlanter {
 
 
       const count = matrices.length;
-      const color = new THREE.Color();
+
       const pickedColors = colors?.length > 0
         ? Array.from({ length: count }, () => colors[Math.floor(random() * colors.length)])
         : [];
@@ -351,7 +351,7 @@ export class TreePlanter {
   #buildLODMeshes(
     treeConfig: TreeGroup,
     matrices: THREE.Matrix4[],
-    pickedColors: number[],
+    pickedColors: (number | string)[],
     count: number
   ) {
     const { meshGroup, lodDistances } = treeConfig;
@@ -446,9 +446,14 @@ export class TreePlanter {
       const firstLevel = lodGeometryIds.findIndex(id => id !== -1);
 
       const instanceIds: number[] = [];
+      const color = new THREE.Color();
+
       for (let i = 0; i < count; i++) {
         const id = batched.addInstance(lodGeometryIds[firstLevel]);
         batched.setMatrixAt(id, matrices[i]);
+        if (pickedColors.length) {
+          batched.setColorAt(id, color.set(pickedColors[i]));
+        }
         // Hide instances whose material has no geometry at the starting level (billboard batch)
         if (firstLevel !== 0) batched.setVisibleAt(id, false);
         instanceIds.push(id);
@@ -463,8 +468,7 @@ export class TreePlanter {
     
     let impostor: ImpostorEntry | undefined;
     if (impostorDef) {
-      // impostor = this.#buildImpostor(impostorDef.material, impostorDef.level, matrices, count);
-      impostor = this.#buildImpostor(impostorDef, matrices, count);
+      impostor = this.#buildImpostor(impostorDef, matrices, count, pickedColors);
 
     }
 
@@ -500,7 +504,8 @@ export class TreePlanter {
   #buildImpostor(
     def: { material: THREE.Material, level: number, bounds: THREE.Box3 },
     matrices: THREE.Matrix4[],
-    count: number
+    count: number,
+    pickedColors: (string | number)[]
   ): ImpostorEntry {
     const { material, level, bounds } = def;
 
@@ -543,7 +548,22 @@ export class TreePlanter {
     geo.setAttribute('iPosScale', posScale);
     geo.setAttribute('iYaw', yaw);
 
-    const mat = createImpostorMaterial(map, resolved, posScale, yaw, this.qualityLevel);
+    let colorAttr: THREE.InstancedBufferAttribute | undefined;
+    if (pickedColors.length) {
+      const c = new THREE.Color();
+      const colorArr = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        c.set(pickedColors[i]);
+        colorArr[i * 3] = c.r;
+        colorArr[i * 3 + 1] = c.g;
+        colorArr[i * 3 + 2] = c.b;
+      }
+      colorAttr = new THREE.InstancedBufferAttribute(colorArr, 3);
+      geo.setAttribute('iColor', colorAttr);
+    }
+
+    const mat = createImpostorMaterial(map, resolved, posScale, yaw, this.qualityLevel, colorAttr);    
+
     const mesh = new THREE.Mesh(geo, mat);
     // In-shader world placement → three.js can't cull this correctly per-mesh
     mesh.frustumCulled = false;
