@@ -468,8 +468,6 @@ export class TreePlanter {
     
     let impostor: ImpostorEntry | undefined;
     if (impostorDef) {
-      // impostor = this.#buildImpostor(impostorDef.material, impostorDef.level, matrices, count);
-      // impostor = this.#buildImpostor(impostorDef, matrices, count);
       impostor = this.#buildImpostor(impostorDef, matrices, count, pickedColors);
 
     }
