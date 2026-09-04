@@ -132,7 +132,10 @@
 .mainMenu a {
   width: calc(var(--base-padding) * 5);
   height: calc(var(--base-padding) * 5);
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   padding: calc(var(--base-padding) / 2);
 }
 .mainMenuIcon {
