@@ -23,12 +23,14 @@ import {
   FuseRenderer,
   UIScorecard,
   AudioPlayer,
-  UILaunchMonitor
+  UILaunchMonitor,
+  UIToast
  } from '@opengolfsim/fuse';
 
 const HoleOutSound = '../sounds/holeout.wav';
 const GroundThudSound = '../sounds/thud.wav';
 const Ktx2Path = '../ktx2/';
+const PostShotDelay = 3000;
 
 const gameContext: {
   isReady: boolean,
@@ -69,6 +71,7 @@ const gameContext: {
   dialogs: {
     scorecard?: UIScorecard,
     hazard?: UIHazardDialog,
+    toast?: UIToast,
   },
   // State
   distanceToAim: number,
@@ -351,7 +354,8 @@ async function setupCourse() {
   // create the golf ball
   gameContext.golfBall = new GolfBall(gameContext.scene, {
     setupData: gameContext.setupData,
-    groundMeshes: gameContext.course.getGroundMeshes()
+    groundMeshes: gameContext.course.getGroundMeshes(),
+    waitTime: PostShotDelay
   });
   // gameContext.golfBall.on('landed', (velocity: number) => {
   //   gameContext.audioPlayer?.play(GroundThudSound, velocity);
@@ -391,6 +395,14 @@ async function setupCourse() {
     console.log(`The round is over!`);
     gameContext.dialogs.scorecard?.open();
   });
+  gameContext.game?.on('playerHoleEnded', (result) => {
+    console.log(`A player has finished the hole`, result);
+    gameContext.dialogs.toast?.show(
+      result.player,
+      `${result.label} (${result.score})`,
+      PostShotDelay
+    );
+  });
   gameContext.game.on('mulligan', () => {
     gameContext.dialogs.hazard?.close();
   });
@@ -409,6 +421,8 @@ async function setupCourse() {
   if (gameContext.setupData?.showLaunchStatus) {
     gameContext.launchMonitor = new UILaunchMonitor('#lm-status');
   }
+  
+  gameContext.dialogs.toast = new UIToast("#toast");
 
   gameContext.dialogs.scorecard = new UIScorecard('#scorecard', {
     players: gameContext.game?.players || [],
