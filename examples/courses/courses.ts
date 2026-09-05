@@ -23,7 +23,8 @@ import {
   FuseRenderer,
   UIScorecard,
   AudioPlayer,
-  UILaunchMonitor
+  UILaunchMonitor,
+  UIToast
  } from '@opengolfsim/fuse';
 
 const HoleOutSound = '../sounds/holeout.wav';
@@ -69,6 +70,7 @@ const gameContext: {
   dialogs: {
     scorecard?: UIScorecard,
     hazard?: UIHazardDialog,
+    toast?: UIToast,
   },
   // State
   distanceToAim: number,
@@ -391,6 +393,10 @@ async function setupCourse() {
     console.log(`The round is over!`);
     gameContext.dialogs.scorecard?.open();
   });
+  gameContext.game?.on('playerHoleEnded', (result) => {
+    console.log(`A player has finished the hole`, result);
+    gameContext.dialogs.toast?.show(`${result.label}`, `${result.player}: ${result.score}`);
+  });
   gameContext.game.on('mulligan', () => {
     gameContext.dialogs.hazard?.close();
   });
@@ -410,6 +416,8 @@ async function setupCourse() {
     gameContext.launchMonitor = new UILaunchMonitor('#lm-status');
   }
 
+  gameContext.dialogs.toast = new UIToast("#toast");
+  
   gameContext.dialogs.scorecard = new UIScorecard('#scorecard', {
     players: gameContext.game?.players || [],
     holes: gameContext.course.holes

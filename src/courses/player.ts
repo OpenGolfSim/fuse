@@ -15,6 +15,8 @@ export class CoursePlayer {
   aim?: THREE.Vector3;
   pin?: THREE.Vector3;
   scorecard: Map<string, number>;
+  finishedHoles: Set<string>;
+
 
   constructor(player: OpenGolfSim.Player) {
     this.player = player;
@@ -25,11 +27,12 @@ export class CoursePlayer {
     
     this.currentClub = player.clubs[0]; // select first
     this.scorecard = new Map();
+    this.finishedHoles = new Set();
     this.start = new THREE.Vector3(0, 0, 0);
   }
 
   hasFinishedHole(holeNumber: string) {
-    return this.scorecard.has(`${holeNumber}`);
+    return this.finishedHoles.has(`${holeNumber}`);
   }
 
   resetPositions(holeStart: THREE.Vector3, holePin: THREE.Vector3, holeAim?: THREE.Vector3) {
@@ -43,4 +46,8 @@ export class CoursePlayer {
     this.originalAim = holeAim?.clone();
     this.aim = holeAim?.clone();
   }
+  
+  finishHole(holeNumber: string) {
+    this.finishedHoles.add(`${holeNumber}`);
+  }  
 }

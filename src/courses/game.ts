@@ -17,8 +17,26 @@ const DROP_RING_SAMPLES = 12;    // angular samples per ring
 const DROP_RAY_HEIGHT = 10;      // cast downward from this height above candidate
 const INVALID_DROP_SURFACES = ['plane_river', 'plane_lake', 'water', 'bunker', 'green'];
 
+const SCORE_LABELS: Record<string, string> = {
+  '-4': 'Condor',
+  '-3': 'Albatross',
+  '-2': 'Eagle',
+  '-1': 'Birdie',
+  '0': 'Par',
+  '1': 'Bogey',
+  '2': 'Double Bogey',
+  '3': 'Triple Bogey',
+  '4': 'Quadruple Bogey',
+};
+type ScoreResult = {
+  score: number;
+  toPar: number;
+  player?: string;
+  label?: string;
+}
 interface CourseGameEvents {
   nextShot: (player: CoursePlayer) => void;
+  playerHoleEnded: (score: ScoreResult) => void;
   roundEnded: () => void;
   drop: () => void;
   mulligan: () => void;
@@ -157,10 +175,24 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     const holeKey = `${this.activeHole.number}`;
     const existingHoleScore = this.activePlayer.scorecard.get(holeKey);
     // finalize player hole score
-    const newHoleScore = existingHoleScore ? existingHoleScore + strokes : strokes;
+    console.log(`[score] (${this.activePlayer.name}) +${strokes} strokes`);
+    console.log(`[score] (${this.activePlayer.name}) existing ${existingHoleScore}`);
+    const newHoleScore = (existingHoleScore ?? 0) + strokes;
+    console.log(`[score] (${this.activePlayer.name}) set new ${newHoleScore}`);
     this.activePlayer.scorecard.set(holeKey, newHoleScore);
     
+    const scoreParDiff = newHoleScore - this.activeHole.par;
+    
     if (endOfHole) {
+      this.activePlayer.finishHole(holeKey);
+
+      console.log(`[score] final ${newHoleScore}`);
+      this.emit('playerHoleEnded', {
+        player: this.activePlayer.name,
+        score: newHoleScore,
+        toPar: scoreParDiff,
+        label: newHoleScore === 1 ? 'Hole in One!' : SCORE_LABELS?.[`${scoreParDiff}`]
+      });
       this.activePlayer.toPar = this.#orderedHoles.reduce((prev, hole) => {
         const finished = this.activePlayer.hasFinishedHole(hole.number);
         if (!finished) { return prev; }
@@ -176,7 +208,7 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     if (!this.activePlayer) {
       throw new Error('No player found!');
     }
-    this._addStrokes();
+    this._addStrokes(1);
 
     // store for mulligans
     if (!this.activePlayer.previousStart) {
@@ -200,9 +232,9 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
       // hack greens as done
       if (this.golfBall.physics?.isHoled) {
         this.activePlayer.disabled = true;
-        this._nextPlayer();
-        console.log(`Ball in hole! End hole`);
         this._addStrokes(0, true);
+        this._nextPlayer();
+        console.log(`[score] Ball in hole! End hole`);
       } else if (surface === 'green' && !this.puttingEnabled && holeNumber === this.getActiveHoleNumber()) {
         // total score
         // TODO: change to add auto-putt number
