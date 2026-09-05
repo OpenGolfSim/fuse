@@ -17,8 +17,27 @@ const DROP_RING_SAMPLES = 12;    // angular samples per ring
 const DROP_RAY_HEIGHT = 10;      // cast downward from this height above candidate
 const INVALID_DROP_SURFACES = ['plane_river', 'plane_lake', 'water', 'bunker', 'green'];
 
+const SCORE_LABELS: Record<string, string> = {
+  '-4': 'Condor',
+  '-3': 'Albatross',
+  '-2': 'Eagle',
+  '-1': 'Birdie',
+  '0': 'Par',
+  '1': 'Bogey',
+  '2': 'Double Bogey',
+  '3': 'Triple Bogey',
+  '4': 'Quadruple Bogey',
+};
+type ScoreResult = {
+  score: number;
+  toPar: number;
+  player: string;
+  label: string;
+}
+
 interface CourseGameEvents {
   nextShot: (player: CoursePlayer) => void;
+  playerHoleEnded: (score: ScoreResult) => void;
   roundEnded: () => void;
   drop: () => void;
   mulligan: () => void;
@@ -45,6 +64,7 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
   gimmeDistances: number[];
   #orderedHoles: Hole[];
   gameMode: OpenGolfSim.SetupData['gameMode'];
+  #timeout?: number;
   // #playerData: Map<string, PlayerState>;
 
   constructor(course: CourseLoader, golfBall: GolfBall, options: CourseGameOptions) {
@@ -69,6 +89,7 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     // this.#playerData = new Map();
 
     this.golfBall.on('shotEnded', (details) => this._onShotEnded(details));
+    this.golfBall.on('beforeShotEnd', (details) => this._onBeforeShotEnded(details));
     
     // setup first hole
     this._setupHole();
@@ -157,10 +178,18 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     const holeKey = `${this.activeHole.number}`;
     const existingHoleScore = this.activePlayer.scorecard.get(holeKey);
     // finalize player hole score
-    const newHoleScore = existingHoleScore ? existingHoleScore + strokes : strokes;
+    const newHoleScore = (existingHoleScore ?? 0) + strokes;
     this.activePlayer.scorecard.set(holeKey, newHoleScore);
+    const scoreParDiff = newHoleScore - this.activeHole.par;
     
     if (endOfHole) {
+      this.activePlayer.finishHole(holeKey);
+      this.emit('playerHoleEnded', {
+        player: this.activePlayer.name,
+        score: newHoleScore,
+        toPar: scoreParDiff,
+        label: newHoleScore === 1 ? 'Hole in One!' : SCORE_LABELS?.[`${scoreParDiff}`]
+      });
       this.activePlayer.toPar = this.#orderedHoles.reduce((prev, hole) => {
         const finished = this.activePlayer.hasFinishedHole(hole.number);
         if (!finished) { return prev; }
@@ -171,14 +200,51 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     }
   }
 
+  _shouldAutoPutt(details: ShotEndEvent) {
+    const { surface, holeNumber } = details;
+    return (surface === 'green' && !this.puttingEnabled && holeNumber === this.getActiveHoleNumber());
+  }
+
+  _onBeforeShotEnded(details: ShotEndEvent) {
+    console.log('[game] Shot is about to end...');
+    const { surface, holeNumber, isInWater } = details;
+    if (!this.activePlayer) {
+      throw new Error('No player found!');
+    }
+    if (!this.golfBall.physics) {
+      throw new Error('GolfBall object not found');
+    }
+    if (this.practiceMode) {
+      console.log('[game] No score keeping in practice mode...');
+      return;
+    }
+    console.log('[game] Adding a stroke (+1)');
+    this._addStrokes(1);
+    if (this.golfBall.physics.isHoled) {
+      this._addStrokes(0, true);
+      console.log('[game] Ball in hole, no more strokes');
+    } else if (this._shouldAutoPutt(details)) {
+      const holePos = this.activeHole.waypoints.get('pin');
+      const distanceToHole = holePos?.distanceTo(this.golfBall.object.position) || Infinity;
+      let autoPutt = 3;
+      if (distanceToHole <= this.gimmeDistances[0]) {
+        autoPutt = 1;
+      } else if (distanceToHole <= this.gimmeDistances[1]) {
+        autoPutt = 2;
+      }
+      console.log(`[game] Auto-putting (Distance to hole: ${distanceToHole}m, auto-putt score: ${autoPutt})`);
+      this._addStrokes(autoPutt, true);
+    }
+
+  }
+
   _onShotEnded(details: ShotEndEvent) {
     const { surface, holeNumber, isInWater } = details;
     if (!this.activePlayer) {
       throw new Error('No player found!');
     }
-    this._addStrokes();
 
-    // store for mulligans
+    // store for mulligans?
     if (!this.activePlayer.previousStart) {
       this.activePlayer.previousStart = new THREE.Vector3();
     }
@@ -186,38 +252,12 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
   
 
     if (!this.practiceMode) {
-      // if (isInWater) {
-      //   console.log('ball in water hazard!!');
-      //   this.golfBall.object.visible = false;
-      //   this.updateAimPoint(this.activePlayer.start);
-      //   this.emit('nextShot', this.activePlayer);
-      //   return;
-      // }    
       if (!this.golfBall.object) {
         throw new Error('GolfBall object not found');
       }
       this.activePlayer.start.copy(this.golfBall.object.position);
-      // hack greens as done
-      if (this.golfBall.physics?.isHoled) {
-        this.activePlayer.disabled = true;
-        this._nextPlayer();
-        console.log(`Ball in hole! End hole`);
-        this._addStrokes(0, true);
-      } else if (surface === 'green' && !this.puttingEnabled && holeNumber === this.getActiveHoleNumber()) {
-        // total score
-        // TODO: change to add auto-putt number
-        const holePos = this.activeHole.waypoints.get('pin');
-        const distanceToHole = holePos?.distanceTo(this.golfBall.object.position) || Infinity;
-        let autoPutt = 3;
-        if (distanceToHole <= this.gimmeDistances[0]) {
-          autoPutt = 1;
-        } else if (distanceToHole <= this.gimmeDistances[1]) {
-          autoPutt = 2;
-        }
-        console.log(`Distance to hole: ${distanceToHole}m, auto-putt score: ${autoPutt}`);
-        this._addStrokes(autoPutt, true);
-        
-        // disable player when they finish a hole (so they are not selectable in UI)
+      
+      if (this.golfBall.physics?.isHoled || this._shouldAutoPutt(details)) {
         this.activePlayer.disabled = true;
         this._nextPlayer();
       }
@@ -227,10 +267,8 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
       }
     }
 
-
     this.updateAimPoint(this.activePlayer.start);
     this.emit('nextShot', this.activePlayer);
-  
   }
 
   switchHole(hole: Hole) {

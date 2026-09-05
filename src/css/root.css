@@ -28,6 +28,7 @@
   --small-font-size: 8px;
   --medium-font-size: 12px;
   --large-font-size: 14px;
+  --xl-font-size: 18px;
   --unit-font-size: 7px;
 
   --shot-data-grid: repeat(2, 1fr);
@@ -47,6 +48,7 @@
     --small-font-size: 1.2vh;
     --medium-font-size: 1.7vh;
     --large-font-size: 2.1vh;
+    --xl-font-size: 2.8vh;
     --unit-font-size: 0.9vh;
     --shot-data-grid: repeat(1, 1fr);
   }

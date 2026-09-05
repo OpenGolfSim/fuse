@@ -615,3 +615,33 @@
   text-align: center;
   text-transform: uppercase;
 }
+
+.toastMain {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translateX(-50%) translateY(-50%);
+  background-color: var(--bg-color);
+  padding: calc(var(--base-padding) * 4);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  display: flex;
+  opacity: 0;
+  transition: opacity 300ms linear;
+  gap: var(--base-padding);
+  border-radius: var(--border-radius);
+}
+.toastMainShow {
+  opacity: 1;
+}
+.toastTitle {
+  font-size: var(--large-font-size);
+}
+.toastText {
+  font-weight: 800;
+  font-size: var(--xl-font-size);
+}
+.toastMainHidden {
+  visibility: hidden;
+}

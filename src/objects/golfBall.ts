@@ -9,6 +9,7 @@ import { QualityMode } from '@/utils/quality';
 const FIXED_DT = 1 / 60;
 
 export interface GolfBallEvents {
+  beforeShotEnd: (event: ShotEndEvent) => void,
   shotEnded: (event: ShotEndEvent) => void,
   holedOut: () => void,
   landed: (velocity: number) => void
@@ -82,7 +83,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     this.groundMeshes = options.groundMeshes;
     this.clearTrail = options.clearTrail ?? 'end';
     this.#setupData = options.setupData;
-    this.#waitTime = options.waitTime ?? 2000;
+    this.#waitTime = options.waitTime ?? 3000;
     this.qualityLevel = options.qualityLevel ?? QualityMode.Low;
     this.#scene = scene;
     // this.#world = world;
@@ -167,6 +168,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     //   return;
     // }
     // let waitTime = event.isInWater ? 500 : this.#waitTime;
+    this.emit('beforeShotEnd', event);
     clearTimeout(this.#timeout);
     this.#timeout = setTimeout(() => {
       this.isShotActive = !this.#setupData.practiceMode && !!event.isInWater;
