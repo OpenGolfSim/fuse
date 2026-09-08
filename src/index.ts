@@ -1,5 +1,7 @@
 export * as THREE from 'three';
 
+export * from './globals/globals';
+
 import { AppBridge } from '@/app';
 
 export * from '@/camera';
