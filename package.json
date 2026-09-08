@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/module/fuse.js",
   "module": "dist/module/fuse.js",
-  "types": "dist/module/fuse.d.ts",
+  "types": "dist/module/index.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepare": "npm run build:lib && npm run build:examples",
