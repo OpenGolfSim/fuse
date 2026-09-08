@@ -1,0 +1,154 @@
+declare global {
+
+  interface Window {
+    ReactNativeWebView?: {
+      postMessage: (payload: string) => {}
+    }
+    ogsElectron?: {
+      onMessage: (callback: (data: any) => void) => {},
+      postMessage: (payload: any) => {}
+    }
+  }
+
+  interface WindowEventMap {
+    "reactNativeMessage": CustomEvent<string>;
+  }
+
+  namespace OpenGolfSim {
+
+    type MeasurementUnits = 'imperial' | 'metric';
+
+    interface Club {
+      name: string;
+      id: string;
+      distance: number;
+    }
+
+    interface Player {
+      name: string;
+      id: string;
+      clubs: Club[];
+    }
+    
+    /** The data used to simulate a golf shot */
+    type Shot = {
+      /** Ball speed in MPH */
+      ballSpeed: number;
+      /** Vertical launch angle of shot (degrees) */
+      verticalLaunchAngle: number;
+      /** Horizontal launch angle of shot (degrees) */
+      horizontalLaunchAngle: number;
+      /** Spin speed in RPM */
+      spinSpeed: number;
+      /** Spin axis in degrees */
+      spinAxis: number;
+    }
+    
+    /** The result of the simulated golf shot */
+    type ShotResult = {
+      apex: number;
+      carry: number;
+      total: number;
+      roll: number;
+      lateral: number;
+    }
+    
+
+    type SetupData = {
+      players: OpenGolfSim.Player[],
+      gameMode: 'course' | 'minigolf' | 'range';
+      practiceMode: boolean;
+      puttingEnabled?: boolean;
+      elevation?: number;
+      units?: MeasurementUnits;
+      cameraOffset?: number;
+      qualityLevel?: number;
+      stimpLevel?: number;
+      gimmeDistances?: number[];
+      backend: 'webgl' | 'webgpu';
+      showLaunchStatus?: boolean;
+    }
+
+    type GameData = {
+      id: string;
+      gameMode: number;
+      courseUrl?: string;
+    }
+
+    
+    interface ShotResultEvent {
+      type: 'result';
+      data?: Partial<ShotResult>;
+      shot?: Shot;
+      club?: Club;
+      surface?: string;
+      player?: Player;
+      startPosition?: [number, number, number];
+      landPosition?: [number, number, number];
+      endPosition?: [number, number, number];
+      ballTrail?: [number, number, number][];
+      heightSamples?: number[];
+      distanceSamples?: number[];
+      lateralSamples?: number[];
+    }
+    
+    interface PlayerUpdateEvent {
+      type: 'player';
+      player: OpenGolfSim.Player;
+      currentPosition: [number, number, number];
+      club: Club;
+    }
+
+  }
+
+
+  interface GLTFImage {
+    bufferView: number;
+    name?: string,
+    mimeType?: string,
+    extras?: Record<string, any>
+  }
+
+  interface FlowMapImage extends GLTFImage {
+    extras?: {
+      type?: 'flow_map',
+      id?: string,
+      riverId?: string,
+    }
+  }
+
+  interface BlendMapImage extends GLTFImage {
+    extras?: {
+      type: 'blend_map',
+      id?: string,
+      width?: number,
+      height?: number,
+      bounds?: { w: number, h: number, x: number, y: number},
+    }
+  }
+
+  type BlendMapData = {
+    data: ImageDataArray,
+    width: number,
+    height: number,
+    bounds: { w: number, h: number, x: number, y: number },
+  };
+
+  interface TreeImage extends GLTFImage {
+    extras?: {
+      type?: 'tree_mask' | 'tree_billboard',
+      id?: string,
+      treeLayerId?: string,
+      configId?: string,
+      size?: {
+        depth?: number,
+        height?: number,
+        maxDim?: number,
+        width?: number
+      }
+    }
+  }
+}
+
+/** Marker export so consumers' TS always loads this module's global augmentations. */
+export type OGSGlobals = true;
