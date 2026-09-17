@@ -22,6 +22,10 @@ declare global {
       name: string;
       id: string;
       distance: number;
+      /** Long-form display name, eg. 'Pitching Wedge'. Not sent by every host. */
+      fullName?: string;
+      /** Loft in degrees. Not sent by every host. */
+      angle?: number;
     }
 
     interface Player {
