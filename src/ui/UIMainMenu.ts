@@ -3,6 +3,13 @@ import { UIElementBase } from './UIElementBase';
 import iconImage from '@/images/opengolfsim.svg';
 import { UIDropDownMenu, type UIDropDownMenuItem } from './UIDropDownMenu';
 import { app } from '..';
+import {
+  getPlayerRotation,
+  setPlayerRotation,
+  PLAYER_ROTATIONS,
+  ROTATION_LABELS,
+  type PlayerRotation
+} from '@/utils/preferences';
 
 type UIMainMenuOptions = {
   iconUrl?: string;
@@ -13,6 +20,7 @@ interface UIMainMenuEvents {
   settings: () => void;
   stats: () => void;
   exit: () => void;
+  playerRotation: (mode: PlayerRotation) => void;
 }
 
 export class UIMainMenu extends UIElementBase<UIMainMenuEvents> {
@@ -35,8 +43,30 @@ export class UIMainMenu extends UIElementBase<UIMainMenuEvents> {
     
     this.element.className = styles.mainMenu;
     // this.parent.append(this.element);
- 
+
+    this.dropdown = new UIDropDownMenu({
+      anchor: this.link,
+      placement: 'bottom-start',
+      menuItems: this.#buildMenuItems()
+    });
+  }
+
+  #buildMenuItems(): UIDropDownMenuItem[] {
+    const currentRotation = getPlayerRotation();
+
     const menuItems: UIDropDownMenuItem[] = [
+      {
+        label: 'Player Rotation',
+        id: 'player-rotation',
+        secondary: ROTATION_LABELS[currentRotation],
+        action: () => {
+          const next = PLAYER_ROTATIONS[(PLAYER_ROTATIONS.indexOf(currentRotation) + 1) % PLAYER_ROTATIONS.length];
+          setPlayerRotation(next);
+          // re-render so the item shows the new value next time it's opened
+          this.dropdown.setMenuItems(this.#buildMenuItems());
+          this.emit('playerRotation', next);
+        }
+      },
       {
         label: 'Debug Stats',
         id: 'stats',
@@ -60,12 +90,6 @@ export class UIMainMenu extends UIElementBase<UIMainMenuEvents> {
         action: () => app.settings()
       });
     }
-
-    this.dropdown = new UIDropDownMenu({
-      anchor: this.link, 
-      placement: 'bottom-start',
-      menuItems
-    });
-
+    return menuItems;
   }
 }

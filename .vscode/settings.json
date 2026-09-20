@@ -1,0 +1,10 @@
+{
+  // Only reformat the lines you actually changed, not the whole file. Much of
+  // this repo predates Prettier (aligned trailing comments, wider lines), and a
+  // full-file pass would bury real changes in style churn.
+  "editor.formatOnSaveMode": "modifications",
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "[typescript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[javascript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[json]": { "editor.defaultFormatter": "esbenp.prettier-vscode" }
+}
