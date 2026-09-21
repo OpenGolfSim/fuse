@@ -4,6 +4,7 @@
   --vhu: 40px;
   /* colors */
   --font-family: 'Rubik', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'Hack', 'Courier', monospace;
   --primary-color: #21d48d;
   --danger-color: #d43f21;
   --blue-color: #0a78c2;
@@ -11,12 +12,15 @@
   --hover-bg-color: rgb(255, 255, 255, 0.06);
   --active-bg-color: rgb(0, 0, 0, 0.3);
   --text-color: #ffffff;
+  --text-color-secondary: #cacaca;
   --bg-color-solid: #111c1c;
   --bg-color: rgba(17, 28, 28, 0.9);
   --text-disabled: #7e9a9a;
   --border-color: rgba(255, 255, 255, 0.2);
 
-  
+  --primary-color-light: oklch(from var(--primary-color) calc(l * 1.2) c h);
+  --primary-color-dark: oklch(from var(--primary-color) calc(l * 0.7) c h);
+
   /* spacing */
   --border-radius: 5px;
   --grid-size: 8px;

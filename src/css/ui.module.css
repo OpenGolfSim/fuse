@@ -423,17 +423,6 @@
   cursor: pointer;
 }
 
-@media (hover: hover) {
-  .clickableArea:hover {
-    background-color: var(--hover-bg-color);
-  }
-}
-
-.clickableArea:active {
-  background-color: var(--active-bg-color);
-  color: var(--text-disabled);
-}
-
 .button {
   padding: calc(var(--base-padding) / 2) var(--base-padding);
   font-size: var(--small-font-size);
@@ -443,7 +432,40 @@
 
   color: var(--text-color);
   align-items: center;
+  text-align: center;
   gap: var(--base-padding);
+}
+
+.largeButton {
+  font-size: var(--large-font-size);
+  padding: var(--base-padding) calc(var(--base-padding) * 2);
+}
+.primaryButton {
+  border-color: var(--primary-color);
+  background-color: var(--primary-color);
+  color: var(--bg-color-solid);
+}
+
+
+.button:active,
+.clickableArea:active {
+  background-color: var(--active-bg-color);
+  color: var(--text-disabled);
+}
+.button.primaryButton:active {
+  background-color: var(--primary-color-dark);
+  color: var(--bg-color-solid);
+}
+
+@media (hover: hover) {
+  .button:hover,
+  .clickableArea:hover {
+    background-color: var(--hover-bg-color);
+  }
+  .button.primaryButton:hover {
+    background-color: var(--primary-color-light);
+    color: var(--bg-color-solid);
+  }
 }
 
 .dialog {
@@ -458,6 +480,12 @@
   align-items: center;
   justify-content: center;
   z-index: 999;
+}
+
+.dialogActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--base-padding);
 }
 
 .dialogOpen {
