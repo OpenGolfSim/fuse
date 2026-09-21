@@ -100,7 +100,7 @@ export class UIPlayerMenu extends UIElementBase<UIPlayerMenuEvents> {
 
     this.clubDropdown = new UIDropDownMenu({
       anchor: this.playerClub,
-        menuItems: firstPlayer.clubs
+        menuItems: (firstPlayer.clubs ?? [])
           .filter(club => this.disablePutting ? club.id !== 'PT' : true)
           .map(club => ({
             label: club.name,
@@ -130,7 +130,7 @@ export class UIPlayerMenu extends UIElementBase<UIPlayerMenuEvents> {
     );
 
     this.clubDropdown?.setMenuItems(
-      player.clubs
+      (player.clubs ?? [])
       .filter(club => this.disablePutting ? club.id !== 'PT' : true)
       .map(club => ({
         label: club.name,
