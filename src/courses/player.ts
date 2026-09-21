@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { DefaultClubs } from '@/utils/data';
 
 export interface CoursePlayer extends OpenGolfSim.Player {}
 
@@ -21,10 +22,10 @@ export class CoursePlayer {
     this.player = player;
     this.name = player.name;
     this.id = player.id;
-    this.clubs = player.clubs;
+    this.clubs = player.clubs?.length ? player.clubs : [...DefaultClubs];
     this.disabled = false;
-    
-    this.currentClub = player.clubs[0]; // select first
+
+    this.currentClub = this.clubs[0]; // select first
     this.scorecard = new Map();
     this.finishedHoles = new Set();
     this.start = new THREE.Vector3(0, 0, 0);

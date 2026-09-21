@@ -2,6 +2,19 @@ import { QualityMode } from "./quality";
 
 export const DefaultGimmeDistances = [2, 4, 80];
 
+/**
+ * A standard bag, used as a fallback for players that arrive without clubs of
+ * their own. Hosts can hand us ad-hoc 'guest' players that were never given a
+ * bag, and a player with no clubs has nothing to hit with, so we lend them these.
+ */
+export const DefaultClubs: OpenGolfSim.Club[] = [
+  { fullName: 'Driver', name: 'DR', id: 'DR', distance: 228 },
+  { fullName: '5 Iron', name: '5i', id: '5I', distance: 150 },
+  { fullName: 'Pitching Wedge', name: 'PW', id: 'PW', distance: 100 },
+  { fullName: 'Sand Wedge', name: 'SW', id: 'SW', distance: 50 },
+  { fullName: 'Putter', name: 'P', id: 'PT', distance: 0 }
+];
+
 function getDeviceType() {
   const ua = navigator.userAgent;
 
@@ -32,13 +45,7 @@ function getDeviceType() {
  * Generates setup data for testing
  */
 export function generateSetupData(playerCount: number = 1, override: Partial<OpenGolfSim.SetupData> = {}): OpenGolfSim.SetupData {
-  const clubs = [
-    { fullName: 'Driver', name: 'DR', id: 'DR', distance: 228 },
-    { fullName: '5 Iron', name: '5i', id: '5I', distance: 150 },
-    { fullName: 'Pitching Wedge', name: 'PW', id: 'PW', distance: 100 },
-    { fullName: 'Sand Wedge', name: 'SW', id: 'SW', distance: 50 },
-    { fullName: 'Putter', name: 'P', id: 'PT', distance: 0 }
-  ];
+  const clubs = DefaultClubs;
   const players = [];
   for (let i=0; i < playerCount; i++) {
     players.push({
