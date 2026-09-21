@@ -274,15 +274,14 @@ export class AimPoint {
     let heightDisplay = height;
     let unitsDisplay = 'm';
     if (this.units === 'imperial') {
-      if (distance <= 30) {
-        distanceDisplay = UnitConversions.metersToFeet(distanceDisplay);
-        heightDisplay = UnitConversions.metersToYards(heightDisplay);
-        unitsDisplay = '\'';
-      } else {
+      // TODO: base it on putting mode, not distance
+      // if (distance <= 30) {
+      //   distanceDisplay = UnitConversions.metersToFeet(distanceDisplay);
+      //   heightDisplay = UnitConversions.metersToYards(heightDisplay);
+      //   unitsDisplay = '\'';
         distanceDisplay = UnitConversions.metersToYards(distanceDisplay);
         heightDisplay = UnitConversions.metersToYards(heightDisplay);
         unitsDisplay = '';
-      }
       
     }
 
