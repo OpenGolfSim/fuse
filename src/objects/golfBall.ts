@@ -219,8 +219,9 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
 
     if (this.physics) {
       if (player?.boost && player.boost > 1) {
-        shot.ballSpeed = shot.ballSpeed * player.boost;
-        console.log(`BOOST SHOT: ${player.boost}, speed: ${shot.ballSpeed}`);
+        const originalSpeed = shot.ballSpeed;
+        shot.ballSpeed = originalSpeed * player.boost;
+        console.log(`Boosting shot ${player.boost}x (${originalSpeed} -> ${shot.ballSpeed})`);
       }
       this.physics.launchShot(shot, isPutt);
     }
