@@ -196,7 +196,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     return this.trail?.points.map(point => point.toArray())
   }
 
-  launchShot(shot: OpenGolfSim.Shot) {
+  launchShot(shot: OpenGolfSim.Shot, player?: OpenGolfSim.Player) {
     if (this.isShotActive) {
       return;
     }
@@ -218,6 +218,11 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     this.stats.startPosition = this.object?.position.clone();
 
     if (this.physics) {
+      if (player?.boost && player.boost > 1) {
+        const originalSpeed = shot.ballSpeed;
+        shot.ballSpeed = originalSpeed * player.boost;
+        console.log(`Boosting shot ${player.boost}x (${originalSpeed} -> ${shot.ballSpeed})`);
+      }
       this.physics.launchShot(shot, isPutt);
     }
   }

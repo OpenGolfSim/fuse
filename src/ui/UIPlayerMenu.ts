@@ -22,6 +22,7 @@ export class UIPlayerMenu extends UIElementBase<UIPlayerMenuEvents> {
   wrapper?: HTMLElement;
   playerNameAvatar?: HTMLElement;
   playerNameText?: HTMLElement;
+  playerBoostText?: HTMLElement;
   playerClub?: HTMLElement;
   playerScore?: HTMLElement;
   disablePutting: boolean;
@@ -52,7 +53,6 @@ export class UIPlayerMenu extends UIElementBase<UIPlayerMenuEvents> {
       this.wrapper.remove();
     }
     const firstPlayer = this.allPlayers?.[0];
-
     this.wrapper = document.createElement('div');
     this.wrapper.setAttribute('id', 'ui-player-menu');
     this.wrapper.className = styles.playerMenuContainer;
@@ -62,11 +62,16 @@ export class UIPlayerMenu extends UIElementBase<UIPlayerMenuEvents> {
     // playerName.append(this.playerNameAvatar);
     this.playerNameText = document.createElement('div');
     this.playerNameText.className = styles.playerMenuNameText;
+    this.playerNameText.textContent = firstPlayer.name || '(No Player)';
+    
+    this.playerBoostText = document.createElement('div');
+    this.playerBoostText.classList.add(styles.playerMenuBoostText);
+    this.playerBoostText.textContent = `${firstPlayer.boost}x`;
 
     const playerName = document.createElement('a');
     playerName.className = styles.playerMenuName;
-    this.playerNameText.textContent = firstPlayer.name || '(No Player)';
-    playerName.append(this.playerNameText);
+    
+    playerName.append(this.playerNameText, this.playerBoostText);
     
     this.playerClub = document.createElement('div');
     this.playerClub.className = styles.playerMenuClub;
@@ -111,8 +116,21 @@ export class UIPlayerMenu extends UIElementBase<UIPlayerMenuEvents> {
   }
 
   update(player: CoursePlayer) {
-    if (this.playerNameText) this.playerNameText.textContent = player.name;
-    if (this.playerClub) this.playerClub.textContent = player.currentClub?.name || 'NA';
+    if (this.playerNameText) {
+      this.playerNameText.textContent = player.name;
+    }
+    if (this.playerBoostText) {
+      if (player.boost && player.boost > 1) {
+        this.playerBoostText.textContent = `${player.boost}x`;
+        this.playerBoostText.classList.remove(styles.playerBoostTextHidden);
+      } else {
+        this.playerBoostText.textContent = '';
+        this.playerBoostText.classList.add(styles.playerBoostTextHidden);
+      }
+    }
+    if (this.playerClub) {
+      this.playerClub.textContent = player.currentClub?.name || 'NA';
+    }
     if (this.playerScore) {
       const val = !player.toPar ? 'E' : `${player.toPar > 0 ? '+' + player.toPar : player.toPar}`;
       this.playerScore.textContent = val;

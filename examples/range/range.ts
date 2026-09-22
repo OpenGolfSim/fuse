@@ -88,7 +88,7 @@ const gameContext: {
 
 function launchShot(shot: OpenGolfSim.Shot) {
   if (shot.ballSpeed && !gameContext.golfBall?.isShotActive) {
-    gameContext.golfBall?.launchShot(shot);
+    gameContext.golfBall?.launchShot(shot, gameContext.currentPlayer);
     gameContext.shotData?.updateShotData(shot);
     // start tracking after a delay based on ball speed
     // the default is 3 seconds

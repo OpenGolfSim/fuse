@@ -734,7 +734,10 @@ function launchShot(shot) {
   gameContext.isShotActive = true;
 
 
-  const speed = shot.ballSpeed * 0.44704;  // m/s
+  let speed = shot.ballSpeed * 0.44704;  // MPH to m/s
+  if (gameContext.setupData?.players?.[0]?.boost && gameContext.setupData.players[0].boost > 1) {
+    speed = speed * gameContext.setupData.players[0].boost;
+  }
   const hla = shot.horizontalLaunchAngle * Math.PI / 180;
   const vla = shot.verticalLaunchAngle * Math.PI / 180;
 
