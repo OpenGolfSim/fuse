@@ -98,7 +98,7 @@ function launchShot(shot: OpenGolfSim.Shot) {
 
   if (shot.ballSpeed && !gameContext.golfBall.isShotActive) {
     gameContext.shotData?.updateShotData(shot);
-    gameContext.golfBall.launchShot(shot);
+    gameContext.golfBall.launchShot(shot, gameContext.game?.activePlayer);
     
     // tracking scale controls how long we wait before tracking a shot between (0-150 MPH)
     const trackingScale = Math.min(shot.ballSpeed / 150, 1);

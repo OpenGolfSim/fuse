@@ -6,6 +6,7 @@ export class CoursePlayer {
   strokes = 0;
   toPar = 0;
   disabled: boolean;
+  boost: number;
   player: OpenGolfSim.Player;
   currentClub: OpenGolfSim.Club;
   previousStart?: THREE.Vector3;
@@ -22,6 +23,7 @@ export class CoursePlayer {
     this.name = player.name;
     this.id = player.id;
     this.clubs = player.clubs;
+    this.boost = player.boost ?? 1;
     this.disabled = false;
     
     this.currentClub = player.clubs[0]; // select first

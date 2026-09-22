@@ -190,6 +190,15 @@
   padding: var(--base-padding);
   flex: 1;
 }
+.playerMenuBoostText {
+  padding: var(--base-padding);
+  font-size: var(--small-font-size);
+  color: var(--text-color-secondary);
+  flex: 0;
+}
+.playerMenuBoostText.playerBoostTextHidden {
+  display: none;
+}
 .playerMenuClub,
 .playerMenuScore {
   flex: 0;

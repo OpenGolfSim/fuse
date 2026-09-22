@@ -28,6 +28,7 @@ declare global {
       name: string;
       id: string;
       clubs: Club[];
+      boost?: number;
     }
     
     /** The data used to simulate a golf shot */
