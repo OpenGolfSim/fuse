@@ -29,7 +29,8 @@ export class AudioPlayer {
     if (this.buffers.has(clipUri)) return;
 
     const res = await fetch(clipUri);
-    if (!res.ok) {
+    // file:// and other non-HTTP schemes report status 0 on success
+    if (!res.ok && res.status !== 0) {
       throw new Error(`Failed to fetch audio clip: ${clipUri} (${res.status})`);
     }
     const data = await res.arrayBuffer();
