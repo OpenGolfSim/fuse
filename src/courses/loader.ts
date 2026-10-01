@@ -138,7 +138,8 @@ export class MeshLoader extends EventEmitter<CourseLoaderEvents> {
     // Fallback: single plain request (local files, no range support)
     if (!total || !supportsRanges) {
       const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // status 0 = file:// / custom scheme
+      if (!res.ok && res.status !== 0) throw new Error(`HTTP ${res.status}`);
       return res.arrayBuffer();
     }
 
@@ -151,7 +152,8 @@ export class MeshLoader extends EventEmitter<CourseLoaderEvents> {
       for (;;) {
         try {
           const res = await fetch(url, { headers: { Range: `bytes=${offset}-${end}` } });
-          if (res.status === 200) return res.arrayBuffer(); // server ignored Range
+          // server ignored Range, or non-HTTP scheme
+          if (res.status === 200 || res.status === 0) return res.arrayBuffer();
           if (res.status !== 206 && !res.ok) throw new Error(`HTTP ${res.status}`);
           buffer.set(new Uint8Array(await res.arrayBuffer()), offset);
           break;
