@@ -533,51 +533,120 @@
   font-size: 3vh;
   user-select: none;
 }
-.holesRow {
-  /* display: flex;
-  flex-direction: row; */
+
+
+.scorecardContainer {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.holesRow,
+.parRow,
+.playerRow {
   display: grid;
-  /* margin-left: 200px; */
-  grid-template-columns: 200px repeat(21, minmax(0, 1fr));  
-  padding: var(--base-padding) 0;
-  /* display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));    */
+  grid-template-columns: 180px repeat(21, minmax(0, 1fr));  
+  align-items: center;
+  gap: calc(var(--base-padding) / 4);
+}
+.holesRow {
+  padding-top: var(--base-padding);
+  padding-bottom: var(--base-padding);
+  padding-right: var(--base-padding);
 }
 .parRow {
   color: var(--text-disabled);
-}
-.playerRow {
-  display: grid;
-  grid-template-columns: 200px repeat(21, minmax(0, 1fr));
-  padding: var(--base-padding) 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: var(--base-padding);
+  padding-right: var(--base-padding);
+}
+
+.playerRow {
+  /* display: grid;
+  grid-template-columns: 180px repeat(21, minmax(0, 1fr)); */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-top: var(--base-padding);
+  padding-bottom: var(--base-padding);
+  padding-right: var(--base-padding);
+}
+.playerRow:last-child {
+  border-bottom: none;
 }
 .playerSpace {
-  width: 200px;
+  width: 180px;
 }
 
 .holesRow > div,
-.playerRow > div {
-  text-align: center;
-  font-size: var(--small-font-size);
+.parRow > div {
+  font-size: calc(var(--small-font-size) * 1.2);
   font-weight: 700;
-  padding: 0 calc(var(--base-padding) / 2);
+  text-align: center;
 }
-.holesRow > div:first-child {
-  text-align: right;
-  font-size: var(--small-font-size);
+.playerRow > div {
+  font-size: var(--medium-font-size);
+  text-align: center;
 }
 
+.parRow > div:first-child,
+.holesRow > div:first-child,
 .playerRow > div:first-child {
   text-align: left;
   font-size: var(--base-font-size);
+  padding-left: var(--base-padding);
 }
+/* .parRow > div:last-child,
+.holesRow > div:last-child,
+.playerRow > div:last-child {
+} */
+
+.playerRow > div:first-child {
+  font-size: var(--large-font-size);
+}
+
+.holesRow > div.smallHeader {
+  font-size: var(--small-font-size);
+}
+
 .scoreCardRoundOver {
   display: none;
+  padding-top: var(--base-padding);
+  justify-content: flex-end;
 }
-.scoreCardRoundOver.show {
+.scoreCardRoundOverShow {
   display: flex;
 }
+.scorecardPlayer {
+  
+}
+.scorecardHoleNumber {
+  font-size: var(--small-font-size);
+  text-align: center;
+}
+.scorecardPar {
+  font-size: var(--small-font-size);
+  text-align: center;
+}
+.scorecardHole {
+  font-weight: 700;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-size: contain;
+  background-position: center center;
+  background-repeat: no-repeat;
+}
+.scorecardBirdie {
+  background-image: url('/images/birdie.svg');
+}
+.scorecardEagle {
+  background-image: url('/images/eagle.svg');
+}
+.scorecardBogey {
+  background-image: url('/images/bogey.svg');
+}
+.scorecardDoubleBogey {
+  background-image: url('/images/double-bogey.svg');
+}
+
 .hazardButtons {
   display: flex;
   flex-direction: row;
@@ -658,11 +727,12 @@
   left: 50%;
   top: 50%;
   transform: translateX(-50%) translateY(-50%);
+  min-width: 150px;
   background-color: var(--bg-color);
-  padding: calc(var(--base-padding) * 4);
+  padding: calc(var(--base-padding) * 2);
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  /* align-items: center; */
+  /* justify-content: center; */
   display: flex;
   opacity: 0;
   transition: opacity 300ms linear;
@@ -679,6 +749,47 @@
   font-weight: 800;
   font-size: var(--xl-font-size);
 }
+.toastSubtitle {
+  font-size: var(--medium-font-size);
+  text-transform: uppercase;
+  color: var(--text-color-secondary);
+}
 .toastMainHidden {
   visibility: hidden;
+}
+
+.toastHole {
+  display: flex;
+  flex-direction: row;
+  gap: var(--base-padding);
+  align-items: center;
+  padding-bottom: var(--base-padding);
+}
+.toastHoleNumber {
+  font-size: var(--large-font-size);
+  font-weight: 700;
+  flex: 1;
+}
+.toastHolePar {
+  color: var(--text-color-secondary);
+}
+.toastScoreContainer {
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: var(--base-padding);
+}
+.toastPlayerName {
+  font-weight: 700;
+  text-align: center;
+}
+.toastPlayerScore {
+  font-weight: 700;
+  font-size: var(--xl-font-size);
+  text-align: center;
+}
+.toastPlayerScoreLabel {
+  font-size: var(--medium-font-size);
+  color: var(--text-color-secondary);
+  text-align: center;
+  text-transform: uppercase;
 }

@@ -9,3 +9,4 @@ export * from '@/ui/UIScorecard';
 export * from '@/ui/UIShotData';
 export * from '@/ui/UIStats';
 export * from '@/ui/UIToast';
+export * from '@/ui/UIHoleScoreToast';
