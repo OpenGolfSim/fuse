@@ -427,13 +427,6 @@ async function setupCourse() {
   }
   
   gameContext.dialogs.toast = new UIHoleScoreToast("#toast");
-  // gameContext.dialogs.toast.update({
-  //   hole: { number: '5', par: 4 },
-  //   player: 'Player 1',
-  //   label: 'Birdie',
-  //   score: 4
-  // });
-  // gameContext.dialogs.toast.show(0);
 
   gameContext.dialogs.scorecard = new UIScorecard('#scorecard', {
     players: gameContext.game?.players || [],
