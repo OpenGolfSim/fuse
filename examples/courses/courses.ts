@@ -24,7 +24,7 @@ import {
   UIScorecard,
   AudioPlayer,
   UILaunchMonitor,
-  UIToast
+  UIHoleScoreToast
  } from '@opengolfsim/fuse';
 
 const HoleOutSound = '../sounds/holeout.wav';
@@ -71,7 +71,7 @@ const gameContext: {
   dialogs: {
     scorecard?: UIScorecard,
     hazard?: UIHazardDialog,
-    toast?: UIToast,
+    toast?: UIHoleScoreToast,
   },
   // State
   distanceToAim: number,
@@ -393,15 +393,19 @@ async function setupCourse() {
   });
   gameContext.game?.on('roundEnded', () => {
     console.log(`The round is over!`);
-    gameContext.dialogs.scorecard?.open();
+    gameContext.dialogs.scorecard?.open(true);
   });
   gameContext.game?.on('playerHoleEnded', (result) => {
     console.log(`A player has finished the hole`, result);
-    gameContext.dialogs.toast?.show(
-      result.player,
-      `${result.label} (${result.score})`,
-      PostShotDelay
-    );
+    setTimeout(() => {
+      gameContext.dialogs.toast?.update({
+        hole: { number: result.hole.number, par: result.hole.par },
+        player: result.player,
+        label: result.label,
+        score: result.score,
+      });
+      gameContext.dialogs.toast?.show(PostShotDelay - 500);
+    }, 500);
   });
   gameContext.game.on('mulligan', () => {
     gameContext.dialogs.hazard?.close();
@@ -422,7 +426,7 @@ async function setupCourse() {
     gameContext.launchMonitor = new UILaunchMonitor('#lm-status');
   }
   
-  gameContext.dialogs.toast = new UIToast("#toast");
+  gameContext.dialogs.toast = new UIHoleScoreToast("#toast");
 
   gameContext.dialogs.scorecard = new UIScorecard('#scorecard', {
     players: gameContext.game?.players || [],

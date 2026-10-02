@@ -1,4 +1,5 @@
 import { CourseHole, CourseHoleMap } from '@/courses/loader';
+import { app } from '@/index';
 import { CoursePlayer } from '@/courses/player';
 import styles from '@/css/ui.module.css';
 import { UIDialog } from '@/ui/UIDialog';
@@ -10,6 +11,7 @@ type UIScorecardOptions = {
 };
 
 export class UIScorecard extends UIDialog {
+  scorecard?: Element;
   holes?: Element;
   pars?: Element;
   holeData?: CourseHoleMap;
@@ -18,6 +20,7 @@ export class UIScorecard extends UIDialog {
   roundOverContainer?: Element;
   frontNine?: Element;
   backNine?: Element;
+  roundOver = false;
 
   constructor(parent: string | Element, options: UIScorecardOptions) {
     super(parent, { title: 'Scorecard' });
@@ -44,8 +47,21 @@ export class UIScorecard extends UIDialog {
       let totalCount = 0;
       for (let i = 1; i < 10; i++) {
         const hole = document.createElement('div');
+        hole.classList.add(styles.scorecardHole);
         const score = player.scorecard.get(`${i}`);
+        const parNumber = this.holeData?.get(i)?.par || 0;
         hole.textContent = score?.toString() || '-';
+        
+        if (score === (parNumber - 2)) {
+          hole.classList.add(styles.scorecardEagle);
+        } else if (score === (parNumber - 1)) {
+          hole.classList.add(styles.scorecardBirdie);
+        } else if (score === (parNumber + 1)) {
+          hole.classList.add(styles.scorecardBogey);
+        } else if ((score || 0) >= (parNumber + 2)) {
+          hole.classList.add(styles.scorecardDoubleBogey);
+        }
+        
         playerRow.append(hole);
         playerRow.classList.add(styles.playerRow);
         if (score) {
@@ -86,30 +102,40 @@ export class UIScorecard extends UIDialog {
   }
 
   toggle() {
-    if (this.isOpen) {
+    if (this.isOpen && !this.preventClose) {
       this.close();
-    } else {
+    } else if (!this.isOpen) {
       this.open();
     }
   }
 
   open(roundOver = false) {
     this.updateScores();
+    this.roundOver = roundOver;
+    this.preventClose = roundOver;
     if (roundOver) {
-
+      this.disableClose();
+      this.roundOverContainer?.classList.add(styles.scoreCardRoundOverShow);
+    } else {
+      this.enableClose();
+      this.roundOverContainer?.classList.remove(styles.scoreCardRoundOverShow);
     }
     super.open();
   }
 
   #build() {
+    this.scorecard = document.createElement('div');
+    this.scorecard.classList.add(styles.scorecardContainer)
+    this.content.append(this.scorecard);
+
     this.holes = document.createElement('div');
     this.holes.classList.add(styles.holesRow);
-    this.content.append(this.holes);
+    this.scorecard.append(this.holes);
 
     // list par for each hole
     this.pars = document.createElement('div');
-    this.pars.classList.add(styles.holesRow, styles.parRow);
-    this.content.append(this.pars);
+    this.pars.classList.add(styles.parRow);
+    this.scorecard.append(this.pars);
     
     
     const nameSpace = document.createElement('div');
@@ -129,6 +155,7 @@ export class UIScorecard extends UIDialog {
       const holeNum = `${i}`;
       const hole = document.createElement('div');
       hole.textContent = holeNum;
+      hole.classList.add(styles.scorecardHoleNumber);
       this.holes.append(hole);
       
       const par = document.createElement('div');
@@ -136,12 +163,14 @@ export class UIScorecard extends UIDialog {
       parCount += parNumber;
       parTotal += parNumber;
       par.textContent = parNumber?.toString() ?? '-';
+      par.classList.add(styles.scorecardPar);
       this.pars.append(par);
     }
     // this.holes.append(this.frontNine)
 
     const outScore = document.createElement('div');
     outScore.textContent = 'OUT';
+    outScore.classList.add(styles.smallHeader);
     this.holes.append(outScore);
     
     const outPar = document.createElement('div');
@@ -156,10 +185,12 @@ export class UIScorecard extends UIDialog {
     for (let i = 10; i < 19; i++) {
       const holeNum = `${i}`;
       const hole = document.createElement('div');
+      hole.classList.add(styles.scorecardHoleNumber);
       hole.textContent = holeNum;
       this.holes.append(hole);
 
       const par = document.createElement('div');
+      par.classList.add(styles.scorecardPar);
       const parNumber = this.holeData?.get(i)?.par || 0;
       parCount += parNumber;
       parTotal += parNumber;
@@ -168,6 +199,7 @@ export class UIScorecard extends UIDialog {
     }
     const inScore = document.createElement('div');
     inScore.textContent = 'IN';
+    inScore.classList.add(styles.smallHeader);
     this.holes.append(inScore);
     
     const inPar = document.createElement('div');
@@ -176,6 +208,7 @@ export class UIScorecard extends UIDialog {
 
     const totalScore = document.createElement('div');
     totalScore.textContent = 'TOT';
+    totalScore.classList.add(styles.smallHeader);
     this.holes.append(totalScore);
     
     
@@ -187,11 +220,16 @@ export class UIScorecard extends UIDialog {
 
 
     this.playerContainer = document.createElement('div');
-    this.playerContainer.classList.add(styles.playerContainer)
-    this.content.append(this.playerContainer);
+    this.playerContainer.classList.add(styles.scorecardPlayer)
+    this.scorecard.append(this.playerContainer);
     
     
     this.roundOverContainer = document.createElement('div');
+    const exitButton = document.createElement('a');
+    exitButton.classList.add(styles.button, styles.largeButton);
+    exitButton.textContent = 'Exit';
+    exitButton.addEventListener('click', () => app.exit());
+    this.roundOverContainer.append(exitButton);
     this.roundOverContainer.classList.add(styles.scoreCardRoundOver);
     this.content.append(this.roundOverContainer);
 
