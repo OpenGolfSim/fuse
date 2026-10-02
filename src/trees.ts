@@ -511,6 +511,10 @@ export class TreePlanter {
 
     const meta = (material.userData as any).impostor as ImpostorMeta;
     const map = (material as THREE.MeshStandardMaterial).map!;
+    const normalAtlas = (meta as any).normals
+      ? (material as THREE.MeshStandardMaterial).normalMap ?? undefined
+      : undefined;
+
     // const center = new THREE.Vector3(...meta.center);
     // Derive size/placement from the quad geometry itself — it went through the
     // same export-scale pipeline as the mesh LODs, unlike the baked metadata.
@@ -562,7 +566,7 @@ export class TreePlanter {
       geo.setAttribute('iColor', colorAttr);
     }
 
-    const mat = createImpostorMaterial(map, resolved, posScale, yaw, this.qualityLevel, colorAttr);    
+    const mat = createImpostorMaterial(map, resolved, posScale, yaw, this.qualityLevel, colorAttr, undefined, normalAtlas);
 
     const mesh = new THREE.Mesh(geo, mat);
     // In-shader world placement → three.js can't cull this correctly per-mesh
