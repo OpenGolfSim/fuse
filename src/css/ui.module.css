@@ -559,8 +559,6 @@
 }
 
 .playerRow {
-  /* display: grid;
-  grid-template-columns: 180px repeat(21, minmax(0, 1fr)); */
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   padding-top: var(--base-padding);
   padding-bottom: var(--base-padding);
@@ -591,10 +589,6 @@
   font-size: var(--base-font-size);
   padding-left: var(--base-padding);
 }
-/* .parRow > div:last-child,
-.holesRow > div:last-child,
-.playerRow > div:last-child {
-} */
 
 .playerRow > div:first-child {
   font-size: var(--large-font-size);
