@@ -420,6 +420,11 @@ export class TreePlanter {
 
         material.transparent = false;
         material.depthWrite = true;
+      } else if ((material.userData as any)?.batch === 'foliage' && material.transparent) {
+        // Blended foliage: keep soft edges, but write depth and drop near-empty
+        // pixels so overlapping instances in a batch don't draw in the wrong order
+        material.depthWrite = true;
+        material.alphaTest = Math.max(material.alphaTest, 0.1);
       }
 
       // Billboard-only = this material has geometry at no other level
