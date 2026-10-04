@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeGeometries, deinterleaveGeometry } from 'three/addons/utils/BufferGeometryUtils.js';
 import { type World } from '@dimforge/rapier3d-compat';
 import { seededRandom } from '@/utils/random';
 import { isMeshObject } from '@/utils/mesh';
@@ -372,6 +372,8 @@ export class TreePlanter {
         const childMat = child.material as THREE.Material;
         if ((childMat.userData as any)?.impostor) {
           const geo = child.geometry.clone();
+          // Source models can mix packed (interleaved) and separate vertex data; merge needs one layout
+          deinterleaveGeometry(geo);
           child.updateWorldMatrix(true, false);
           const localMatrix = new THREE.Matrix4();
           localMatrix.copy(sourceGroup.matrixWorld).invert().multiply(child.matrixWorld);
