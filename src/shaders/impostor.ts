@@ -22,7 +22,6 @@ export function createImpostorMaterial(
   yawAttr: THREE.InstancedBufferAttribute,      // baked per-tree Y rotation
   qualityLevel?: QualityMode,
   colorAttr?: THREE.InstancedBufferAttribute,   // per-tree tint (vec3); multiplies baked albedo
-  // occlusion = 0.8, // <1 darkens to compensate for missing canopy self-shadowing
   occlusion?: number, // override; default 1 with normal atlas, 0.8 legacy fudge without
   normalAtlas?: THREE.Texture, // tree-local normals packed 0..1, same layout as map
 
@@ -79,7 +78,6 @@ export function createImpostorMaterial(
 
     const cell = round(g.mul(N - 1));
     // If trees render upside-down, replace uv() with vec2(uv().x, uv().y.oneMinus())
-    // const frameUV = cell.add(uv()).div(N);
     return cell.add(uv()).div(N);
   })();
 
