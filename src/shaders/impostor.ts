@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import {
-  Fn, vec2, vec3, float, abs, max, round, cos, sin,
+  Fn, vec2, vec3, float, abs, max, round, cos, sin, cameraViewMatrix,
   normalize, cross, texture, cameraPosition, positionGeometry, uv,
   instancedBufferAttribute, varying,
   instancedDynamicBufferAttribute,
@@ -22,9 +22,12 @@ export function createImpostorMaterial(
   yawAttr: THREE.InstancedBufferAttribute,      // baked per-tree Y rotation
   qualityLevel?: QualityMode,
   colorAttr?: THREE.InstancedBufferAttribute,   // per-tree tint (vec3); multiplies baked albedo
-  occlusion = 0.8, // <1 darkens to compensate for missing canopy self-shadowing
+  occlusion?: number, // override; default 1 with normal atlas, 0.8 legacy fudge without
+  normalAtlas?: THREE.Texture, // tree-local normals packed 0..1, same layout as map
 
 ) {
+  // LODs get no shadows/AO at runtime, so with real normals no darkening is needed
+  const occ = occlusion ?? (normalAtlas ? 1 : 0.8);
   const N = meta.grid;
   const mat = new THREE.MeshStandardNodeMaterial({
     roughness: 1,
@@ -61,9 +64,10 @@ export function createImpostorMaterial(
       .add(up.mul(positionGeometry.y.mul(half)));
   })();
 
-  // Frame selection
-  mat.colorNode = Fn(() => {
-    const c = cos(yaw), s = sin(yaw);
+  // Frame selection (shared by albedo + normal atlases)
+  const c = cos(yaw), s = sin(yaw);
+  const frameUV = Fn(() => {
+
     const lx = fwd.x.mul(c).sub(fwd.z.mul(s));
     const lz = fwd.x.mul(s).add(fwd.z.mul(c));
     const ly = max(fwd.y, float(0.02)); // clamp to hemisphere
@@ -74,12 +78,25 @@ export function createImpostorMaterial(
 
     const cell = round(g.mul(N - 1));
     // If trees render upside-down, replace uv() with vec2(uv().x, uv().y.oneMinus())
-    const frameUV = cell.add(uv()).div(N);
+    return cell.add(uv()).div(N);
+  })();
+
+  mat.colorNode = Fn(() => {
     const t = texture(map, frameUV);
-    const rgb = tint ? t.rgb.mul(occlusion).mul(tint) : t.rgb.mul(occlusion);
+    const rgb = tint ? t.rgb.mul(occ).mul(tint) : t.rgb.mul(occ);
     return vec4(rgb, t.a);
   })();
 
-  mat.normalNode = vec3(0, 1, 0);
+  if (normalAtlas) {
+    mat.normalNode = Fn(() => {
+      const n = texture(normalAtlas, frameUV).rgb.mul(2).sub(1); // tree-local
+      // local → world: inverse of the world→local yaw rotation used above
+      const nw = vec3(n.x.mul(c).add(n.z.mul(s)), n.y, n.z.mul(c).sub(n.x.mul(s)));
+      return normalize(cameraViewMatrix.mul(vec4(nw, 0)).xyz); // normalNode is view space
+    })();
+  } else {
+    mat.normalNode = vec3(0, 1, 0); // legacy impostors without a normal atlas
+  }
+
   return mat;
 }
