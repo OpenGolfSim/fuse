@@ -94,10 +94,6 @@
   border-radius: var(--border-radius);
   /* width: 10vw; */
   /* height: 5vh; */
-  position: fixed;
-  top: var(--grid-size);
-  left: 50%;
-  transform: translateX(-50%);
   padding: var(--base-padding) calc(var(--base-padding) * 2);
 }
 .rangeFinderContainer {

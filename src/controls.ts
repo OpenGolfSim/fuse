@@ -33,7 +33,7 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
     lastX: number; lastY: number;
   } | null = null;
   #swipeShots: boolean;
-
+  #enabled = true;
   constructor(options: { testShots?: boolean; swipeShots?: boolean } = {}) {
     super();
     this.#testShots = options.testShots ?? false;
@@ -63,6 +63,7 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
     }, { passive: false });
 
     app.on('command', (key, state) => {
+      if (!this.#enabled) return;
       console.log('COMMAND', key, state);
 
       if (key.ogs_code === OGSKeyCommands.AimLeft) {
@@ -82,25 +83,24 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
     });
   }
 
-  // #touchEnd(event: TouchEvent) {
-  //   const currentTime = new Date().getTime();
-  //   const tapLength = currentTime - this.#lastTap;
-  //   // Check if the delay between taps matches a double tap (e.g., under 300ms)
-  //   if (tapLength < 300 && tapLength > 0) {
-  //     event.preventDefault(); // Prevents the default browser zoom behavior
-  //     const range = (min: number, max: number) => (Math.floor(Math.random() * (max - min + 1)) + min);
-  //     this.emit('testShot', {
-  //       ballSpeed: range(90, 120),
-  //       verticalLaunchAngle: range(14, 20),
-  //       horizontalLaunchAngle: range(-2, 2),
-  //       spinSpeed: range(2000, 6000),
-  //       spinAxis: range(2, 2),
-  //     });
-  //   }
-  //   this.#lastTap = currentTime;
-  // }
+  /** When false, all keyboard, pointer and app-command input is ignored. */
+  get enabled() {
+    return this.#enabled;
+  }
+
+  set enabled(value: boolean) {
+    if (this.#enabled === value) return;
+    this.#enabled = value;
+    if (!value) {
+      // release anything held so aim doesn't stick
+      this.#gestureCancel();
+      this.#resetAimKeys();
+    }
+  }
   
   #keyHandler(event: KeyboardEvent) {
+    // return before preventDefault so dialog inputs receive keys
+    if (!this.#enabled) return;
     const pressed = event.type === 'keydown';
     let handled = false;
     // const isCommand = event.metaKey || event.ctrlKey;
@@ -251,6 +251,7 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
   }
 
   #pointerDown(event: PointerEvent) {
+    if (!this.#enabled) return;
     if (!event.isPrimary) { this.#gestureCancel(); return; } // ignore multi-touch
     if (event.pointerType === 'mouse' && event.button !== 0) return; // left button only
     this.#gesture = {
