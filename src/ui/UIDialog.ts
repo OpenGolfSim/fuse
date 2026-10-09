@@ -1,9 +1,9 @@
+import EventEmitter from 'eventemitter3';
 import styles from '@/css/ui.module.css';
 import { UIElementBase } from './UIElementBase';
-import iconImage from '@/images/opengolfsim.svg';
-import { UIDropDownMenu } from './UIDropDownMenu';
 
 export interface UIDialogEvents {
+  open: () => void;
   close: () => void;
 }
 
@@ -70,9 +70,15 @@ export class UIDialog<Events extends UIDialogEvents = UIDialogEvents> extends UI
   open() {
     this.isOpen = true;
     this.parent.classList.add(styles.dialogOpen);
+    this.#emitBase('open');
   }
   close() {
     this.isOpen = false;
     this.parent.classList.remove(styles.dialogOpen);
+    this.#emitBase('close');
   }
+  // TS can't resolve base event names against the generic Events type
+  #emitBase(event: keyof UIDialogEvents) {
+    (this as unknown as EventEmitter<UIDialogEvents>).emit(event);
+   }  
 }

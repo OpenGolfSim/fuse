@@ -66,6 +66,12 @@ button:hover {
   left: 50%;
   transform: translateX(-50%);
 }
+#top-center {
+  position: fixed;
+  top: var(--grid-size);
+  left: 50%;
+  transform: translateX(-50%);  
+}
 
 #top-left {
   position: absolute;
