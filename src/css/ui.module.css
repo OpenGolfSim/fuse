@@ -498,11 +498,8 @@
 }
 
 .dialogContent {
-  /* width: 100%; */
-  /* height: 100%; */
   min-width: 500px;
   max-width: 1000px;
-  max-height: 600px;
   background-color: var(--bg-color-solid);
   border-radius: var(--border-radius);
 }
