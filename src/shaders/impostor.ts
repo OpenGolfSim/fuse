@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import {
-  Fn, vec2, vec3, float, abs, max, round, cos, sin, cameraViewMatrix,
+  Fn, vec2, vec3, float, abs, max, round, cos, sin, cameraViewMatrix, length, clamp,
   normalize, cross, texture, cameraPosition, positionGeometry, uv,
   instancedBufferAttribute, varying,
   instancedDynamicBufferAttribute,
@@ -81,16 +81,24 @@ export function createImpostorMaterial(
     return cell.add(uv()).div(N);
   })();
 
+  // Tree-local normal, unnormalized: its length shrinks where blurred (mipped)
+  // leaf normals disagree, i.e. where the LOD would have light/dark variation
+  const nRaw = normalAtlas ? texture(normalAtlas, frameUV).rgb.mul(2).sub(1) : null;
+  // 1 = no variation lost; lower = darken to match the LOD's mix of lit/unlit leaves
+  const variation = nRaw ? clamp(length(nRaw), 0.5, 1) : float(1);
+
   mat.colorNode = Fn(() => {
     const t = texture(map, frameUV);
-    const rgb = tint ? t.rgb.mul(occ).mul(tint) : t.rgb.mul(occ);
+    const shade = variation.mul(occ);
+    const rgb = tint ? t.rgb.mul(shade).mul(tint) : t.rgb.mul(shade);
+
     return vec4(rgb, t.a);
   })();
 
-  if (normalAtlas) {
+  if (nRaw) {
     mat.normalNode = Fn(() => {
-      const n = texture(normalAtlas, frameUV).rgb.mul(2).sub(1); // tree-local
-      // local → world: inverse of the world→local yaw rotation used above
+      const n = nRaw; // tree-local
+      // local -> world: inverse of the world -> local yaw rotation used above
       const nw = vec3(n.x.mul(c).add(n.z.mul(s)), n.y, n.z.mul(c).sub(n.x.mul(s)));
       return normalize(cameraViewMatrix.mul(vec4(nw, 0)).xyz); // normalNode is view space
     })();
