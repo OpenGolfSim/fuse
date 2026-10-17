@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { vec2, vec3, positionLocal, positionWorld, cameraPosition } from 'three/tsl';
 import { WaterSurface, type WaterSurfaceOptions } from './';
+import { CourseSurfaceType } from '@/courses/surfaces';
 
 export type OceanSurfaceOptions = WaterSurfaceOptions & {
   size?: number;      // plane extent, should exceed far/fog distance
@@ -30,6 +31,7 @@ export class OceanSurface extends WaterSurface {
       ...options,
     });
 
+    this.water.userData.surface = CourseSurfaceType.PlaneOcean;
     // Vertex shader: recenter the plane on the camera every frame.
     // Y stays at the mesh's own height (sea level / yOffset).
     this.material.positionNode = positionLocal.add(

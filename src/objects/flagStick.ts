@@ -2,10 +2,16 @@ import * as THREE from 'three';
 import { MeshStandardNodeMaterial } from 'three/webgpu';
 // import { positionLocal, vec3, float, smoothstep, mix } from 'three/tsl';
 import {
-  positionWorld, uniform as tslUniform,
-  vec3, vec4, float, smoothstep, mix, Fn, Discard,
-  cameraPosition
+  positionWorld, positionLocal, uniform as tslUniform,
+  vec3, vec4, float, smoothstep, mix, Fn, Discard, max, select, clamp, sqrt, saturate,
+  cameraPosition, cameraProjectionMatrix, modelPosition, screenSize,
+  normalView, positionView
 } from 'three/tsl';
+
+// Minimum on-screen pole width (physical px). Outer ~1px is faded for edge AA.
+const MIN_STICK_PX = 2;
+// Floor for distance fade of the widened pole (1 = never fade)
+const MIN_STICK_OPACITY = 0.5;
 
 
 // Simple Verlet particle
@@ -166,7 +172,26 @@ export class FlagStick {
 
     // Pole mesh
     const stickGeometry = new THREE.CylinderGeometry(stickWidth, stickWidth, stickHeight, 32);
-    const stickMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    const stickMaterial = new MeshStandardNodeMaterial({ color: 0xffffff, transparent: true });
+
+    // Widen the pole radially so it never drops below MIN_STICK_PX on screen
+    const p11 = cameraProjectionMatrix.mul(vec4(0, 1, 0, 0)).y;              // 1 / tan(fov/2)
+    const isPerspective = cameraProjectionMatrix.mul(vec4(0, 0, 0, 1)).w.lessThan(0.5);
+    const worldPerPx = modelPosition.distance(cameraPosition).mul(2).div(p11.mul(screenSize.y));
+    const widen = max(float(1), worldPerPx.mul(MIN_STICK_PX * 0.5).div(stickWidth));
+    const radialScale = select(isPerspective, widen, float(1));              // leave ortho shadow cams alone
+    stickMaterial.positionNode = positionLocal.mul(vec3(radialScale, 1, radialScale));
+
+    // Analytic edge AA (Low has no MSAA): fade pixels near the silhouette by coverage
+    const radiusPx = float(stickWidth).mul(radialScale).div(worldPerPx);     // on-screen radius (px)
+    const facing = clamp(normalView.dot(positionView.normalize().negate()), 0, 1);
+    const axisFrac = sqrt(float(1).sub(facing.mul(facing)));                 // 0 = center, 1 = silhouette
+    const edgePx = float(1).sub(axisFrac).mul(radiusPx);                     // px inside the silhouette
+    const edgeAlpha = saturate(edgePx.add(0.5));                             // 1px box-filter coverage
+    // Widened pole covers more px than the real one → thin it out to match apparent weight
+    const coverage = clamp(float(1).div(radialScale), MIN_STICK_OPACITY, 1);
+    stickMaterial.opacityNode = edgeAlpha.mul(coverage);
+
     this.stick = new THREE.Mesh(stickGeometry, stickMaterial);
     this.stick.position.set(0, (stickHeight / 2) - 0.07, 0);
     this.stick.castShadow = true;

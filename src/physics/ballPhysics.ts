@@ -461,8 +461,9 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
 
   _checkWaterCollision() {
     if (
-      this.currentSurface?.type === 'plane_lake' ||
-      this.currentSurface?.type === 'plane_river'
+      this.currentSurface?.type === CourseSurfaceType.PlaneLake ||
+      this.currentSurface?.type === CourseSurfaceType.PlaneRiver ||
+      this.currentSurface?.type === CourseSurfaceType.PlaneOcean
     ) {
       return true;
     }
@@ -750,7 +751,6 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     // const hit = this.#mergedBVH.raycastFirst(this.#terrainRay, THREE.DoubleSide);
     // if (!hit) {
     let hit = this.#mergedBVH.raycastFirst(this.#terrainRay, THREE.DoubleSide);
-
     let surfaceKey = 'base';
     let holeNumber: number | undefined;
     if (hit && hit.faceIndex != null && this.#mergedMesh.geometry.groups.length > 0) {

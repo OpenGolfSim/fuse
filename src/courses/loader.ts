@@ -69,6 +69,12 @@ export interface SceneSettings {
     ambient?: number,
     directional?: number,
   },
+  outer: {
+    type: 'ocean' | 'terrain',
+    yOffset: number,
+    color: string,
+    satellite?: string
+  },
   ocean?: {
     enabled?: boolean;
     yOffset?: number;
@@ -740,9 +746,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       if (configs?.length && treeMask.bufferView) {
         const buffer = await this.gltf.parser.getDependency('bufferView', treeMask.bufferView);
         const maskData = await getTextureImageData(buffer);
-        console.log(`[plant] Planting from mask... (w:${maskData.width},h:${maskData.height},len:${maskData.data.byteLength})`);
         this.planter.plantFromMask(configs, maskData);
-        // this.planter.treeGroup.visible = false;
       }
     }
 
@@ -806,22 +810,22 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       }
     });
     
-    if (this.sceneSettings?.ocean?.enabled) {
+    if (this.sceneSettings?.outer?.type === 'ocean') {
       this.ocean = new OceanSurface({
         size: 4000,
         speed: 0.5,
-        uvTiling: [1, 1],
+        uvTiling: [2, 2],
         tileSize: 100,
         normalStrength: 1,
         roughness: 0.2,
-        yOffset: this.sceneSettings?.ocean?.yOffset,
+        yOffset: this.sceneSettings?.outer?.yOffset,
         depthRange: 10,
         envMapIntensity: 0.25,
         specularColor: new THREE.Color('#c8ced1'),
-        opacity: 0.9,
+        opacity: 1,
         // opacity: 0.95,
-        shallowColor: new THREE.Color('#185f57'),
-        deepColor: new THREE.Color('#042a34'),
+        shallowColor: new THREE.Color('#154c43'),
+        deepColor: new THREE.Color('#002b36'),
       });
       this.scene?.add(this.ocean.water);
       console.log('added ocean!');
@@ -1005,5 +1009,12 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     if (hole?.green?.grid) {
       hole.green.grid.updateGrid(camera);
     }  
+  }
+
+  afterSetup(golfBall: GolfBall) {
+    // Ocean as a water hazard: raycast against the live mesh, so yOffset is respected
+    if (this.ocean) {
+      golfBall.physics.addDynamicSurface(this.ocean.water, 'plane_ocean');
+    }
   }
 }

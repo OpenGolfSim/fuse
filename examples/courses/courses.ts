@@ -379,6 +379,7 @@ async function setupCourse() {
   });
 
   await setupControls();
+  await gameContext.course.afterSetup(gameContext.golfBall);
   
   if (gameContext.renderer.environment) {
     gameContext.course.updateEnvironment(gameContext.renderer.environment);
