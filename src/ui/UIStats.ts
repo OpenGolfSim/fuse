@@ -163,8 +163,6 @@ export class UIStats {
     this.title = document.createElement('div');
     
     // @ts-expect-error
-    console.log('this.renderer?.backend', this.renderer?.backend);
-    // @ts-expect-error
     this.title.textContent = `${this.renderer?.backend?.isWebGPUBackend ? 'WebGPU' : 'WebGL'}`;
     this.title.className = styles.statsTitle;
     this.container.append(this.title);

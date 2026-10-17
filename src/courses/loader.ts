@@ -746,9 +746,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       if (configs?.length && treeMask.bufferView) {
         const buffer = await this.gltf.parser.getDependency('bufferView', treeMask.bufferView);
         const maskData = await getTextureImageData(buffer);
-        console.log(`[plant] Planting from mask... (w:${maskData.width},h:${maskData.height},len:${maskData.data.byteLength})`);
         this.planter.plantFromMask(configs, maskData);
-        // this.planter.treeGroup.visible = false;
       }
     }
 

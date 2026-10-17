@@ -222,7 +222,10 @@ export class PuttingGridMaterial {
   // Build / rebuild the dot grid at a given angle + compression
   // -----------------------------------------------------------------
   buildGrid(angle: number, compression = 1.0) {
-    if (!this.mesh) return;
+    if (!this.mesh) {
+      console.warn('No mesh for grid');
+      return;
+    }
 
     if (this.dotsMesh) {
       this.dotsMesh.parent?.remove(this.dotsMesh);
