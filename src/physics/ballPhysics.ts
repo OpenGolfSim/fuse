@@ -460,9 +460,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
       const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
 
       const endThresholdSpeed = this.currentSurface?.stopSpeed ?? this.defaultEndThresholdSpeed;
-      // if (speed < endThresholdSpeed) {
-      //   this._endShot();
-      // }
+
       if (speed < endThresholdSpeed) {
         this.#slowFrames++;
 
