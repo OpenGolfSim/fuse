@@ -8,6 +8,7 @@ import { DefaultGimmeDistances } from '@/utils/data';
 import { ShotEndEvent } from '@/physics/ballPhysics';
 import { app } from '@/index';
 import { OGSKeyCommands } from '@/app';
+import { clubUpDown } from '@/utils/clubs';
 
 // how far away from the tee box position to auto-aim at the pin instead of aim point
 const AIMPOINT_THRESHOLD = 25;
@@ -372,17 +373,20 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
   selectClub(club: OpenGolfSim.Club) {
     this.activePlayer.currentClub = club;
   }
+  
+  clubUpDown(direction: number) {
+    const newClub = clubUpDown(this.activePlayer.clubs, this.activePlayer.currentClub, direction);
+    if (newClub) {
+      this.activePlayer.currentClub = newClub;
+    }
+  }
 
   getActiveHoleNumber() {
     return parseInt(this.activeHole.number) || 0;
   }
   
   update(dt: number) {
-    // const hole = this.course.holes.get(parseInt(this.activeHole.number));
-    // if (hole?.green?.target) {
-    //   hole.green.target.update(this.golfBall, dt);
-    //   hole.green.flag.update(dt);
-    // }
+    // no longer needed?
   }
 
   rehit() {

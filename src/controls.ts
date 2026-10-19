@@ -7,6 +7,7 @@ interface CourseKeyboardControlEvents {
   testShot: (shot: OpenGolfSim.Shot) => void;
   toggleStats: () => void;
   scorecard: () => void;
+  club: (direction: number) => void;
   mulligan: () => void;
   rehit: () => void;
   fullscreen: () => void;
@@ -113,6 +114,14 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
         case 'KeyS':
         case 'KeyV':
           this.emit('toggleStats');
+          handled = true;
+          break;
+        case 'KeyW':
+          this.emit('club', 1);
+          handled = true;
+          break;
+        case 'KeyQ':
+          this.emit('club', -1);
           handled = true;
           break;
         case 'KeyC':
