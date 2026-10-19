@@ -465,15 +465,6 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
       // }
       if (speed < endThresholdSpeed) {
         this.#slowFrames++;
-        const n = this.#groundNormal;
-        console.log('[stop-check]', JSON.stringify({
-          surface: this.currentSurface?.type,
-          slopePct: +(100 * Math.sqrt(Math.max(0, 1 - n.y * n.y)) / n.y).toFixed(2),
-          canRest: this.#canRest,
-          slowFrames: this.#slowFrames,
-          speed: +speed.toFixed(3),
-          isPutt: this.isPutt,
-        }));
 
         // Only end if the ball can actually stay at rest on this slope
         if (this.#canRest || this.#slowFrames > MAX_SLOPE_RESTART_FRAMES) {
