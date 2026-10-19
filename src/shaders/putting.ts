@@ -14,6 +14,10 @@ import { GrassSurface, GrassSurfaceOptions } from './grassSurface';
 type FloatNode = Node<'float'>;
 type Vec2Node = Node<'vec2'>;
 
+// Max front/back cell stretch. Higher = squarer-looking cells from a low
+// camera, but more distortion if the camera moves after the grid is built.
+const MAX_GRID_COMPRESSION = 2;
+
 export type PuttingGridMaterialOptions = {
   /** Hole world position (required for cup cutout) */
   holeWorldPos?: THREE.Vector3,
@@ -89,6 +93,7 @@ export class PuttingGridMaterial {
   private lineWidth: number;
   private lineColor: THREE.Color;
   private lineOpacity: number;
+  private lineFadeDistance: [number, number];
   private dotRadius: number;
   private dotColor: THREE.Color;
   private dotOpacity: number;
@@ -96,15 +101,16 @@ export class PuttingGridMaterial {
   private minSpeed: number;
 
   constructor(object: THREE.Object3D, options: PuttingGridMaterialOptions = {}) {
-    this.gridSize    = options.gridSize    ?? 0.7;
-    this.lineWidth   = options.lineWidth   ?? 0.005;
+    this.gridSize    = options.gridSize    ?? 1.5;
+    this.lineWidth   = options.lineWidth   ?? 0.008;
     this.lineColor   = options.lineColor   ?? new THREE.Color(1.0, 0.5, 0.02);
-    this.lineOpacity = options.lineOpacity ?? 0.2;
-    this.dotRadius   = options.dotRadius   ?? 0.008;
+    this.lineOpacity = options.lineOpacity ?? 0.3;
+    this.dotRadius   = options.dotRadius   ?? 0.015;
     this.dotColor    = options.dotColor    ?? new THREE.Color(1.0, 1.0, 1.0);
-    this.dotOpacity  = options.dotOpacity  ?? 0.1;
+    this.dotOpacity  = options.dotOpacity  ?? 0.0;
     this.baseSpeed   = options.baseSpeed   ?? 5;
     this.minSpeed    = options.minSpeed    ?? 0.05;
+    this.lineFadeDistance = [60, 80];
 
     if (options.holeWorldPos) {
       this.holePosUniform.value.set(options.holeWorldPos.x, 0, options.holeWorldPos.z);
@@ -180,7 +186,7 @@ export class PuttingGridMaterial {
 
     // Distance fade: grid lines fade out between 50m and 60m
     const fragDist = positionWorld.sub(this.cameraPosUniform).length();
-    const distFade = tslSmoothstep(float(40.0), float(20.0), fragDist);
+    const distFade = tslSmoothstep(float(this.lineFadeDistance[1]), float(this.lineFadeDistance[0]), fragDist);
     const fadedColor = mix(baseColor, color, distFade);
 
     // mat.colorNode = vec4(color, 1.0);
@@ -281,7 +287,11 @@ export class PuttingGridMaterial {
       }
     }
 
-    const addEdge = (a: THREE.Vector3 | null, b: THREE.Vector3 | null) => {
+    // const addEdge = (a: THREE.Vector3 | null, b: THREE.Vector3 | null) => {
+    // speedScale: V edges are stretched by `compression` so cells look square
+    // on screen; their dots must move `compression`× faster in world space to
+    // match the screen speed of H dots on the same slope.
+    const addEdge = (a: THREE.Vector3 | null, b: THREE.Vector3 | null, speedScale = 1) => {
       if (!a || !b) {
         this.edges.push({ start: new THREE.Vector3(), end: new THREE.Vector3(), slope: 0, duration: 1, valid: false });
         return;
@@ -291,7 +301,8 @@ export class PuttingGridMaterial {
       const end   = dy >= 0 ? b : a;
       const dist  = start.distanceTo(end);
       const slope = Math.abs(dy) / Math.max(dist, 0.001);
-      const speed = Math.max(this.minSpeed, this.baseSpeed * slope);
+      // const speed = Math.max(this.minSpeed, this.baseSpeed * slope);
+      const speed = Math.max(this.minSpeed, this.baseSpeed * slope) * speedScale;
       this.edges.push({
         start: start.clone(),
         end: end.clone(),
@@ -307,7 +318,7 @@ export class PuttingGridMaterial {
 
     for (let r = 0; r < rows - 1; r++)
       for (let c = 0; c < cols; c++)
-        addEdge(pts[r][c], pts[r + 1][c]);
+        addEdge(pts[r][c], pts[r + 1][c], compression);
 
     if (this.edges.length === 0) return;
 
@@ -365,7 +376,7 @@ export class PuttingGridMaterial {
     const screenH = Math.sqrt((pH.x - pA.x) ** 2 + (pH.y - pA.y) ** 2);
     const screenV = Math.sqrt((pV.x - pA.x) ** 2 + (pV.y - pA.y) ** 2);
     const newCompression = screenV > 0.001
-      ? Math.min(Math.max(screenH / screenV, 1.0), 5.0)
+      ? Math.min(Math.max(screenH / screenV, 1.0), MAX_GRID_COMPRESSION)
       : this.compression;
 
     if (Math.abs(newAngle - this.currentAngle) > 0.035 ||
@@ -435,7 +446,7 @@ export class PuttingGridMaterial {
           ((e.start.y + e.end.y) * 0.5 - camera.position.y) ** 2 +
           ((e.start.z + e.end.z) * 0.5 - camera.position.z) ** 2,
         );
-        const dotFade = Math.max(0, Math.min(1, (60 - dotDist) / 10));
+        const dotFade = Math.max(0, Math.min(1, (this.lineFadeDistance[1] - dotDist) / 10));
         if (dotFade <= 0) {
           mat4.makeTranslation(0, -1000, 0);
           this.dotsMesh.setMatrixAt(i, mat4);

@@ -351,7 +351,9 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     }
     // console.error('Current surface', this.golfBall);
 
+    console.log('[club] AUTO_SELECT', this.golfBall);
     if (this.golfBall.isOnGreen(true)) {
+      console.log('[club] SELECT_PUTTER!');
       this.activePlayer.currentClub = this.activePlayer.clubs[this.activePlayer.clubs.length - 1];
       return;
     }
