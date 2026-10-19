@@ -18,11 +18,15 @@ export class CoursePlayer {
   scorecard: Map<string, number>;
   finishedHoles: Set<string>;
 
-  constructor(player: OpenGolfSim.Player) {
+  constructor(player: OpenGolfSim.Player, disablePutting = false) {
     this.player = player;
     this.name = player.name;
     this.id = player.id;
-    this.clubs = player.clubs;
+    if (disablePutting) {
+      this.clubs = player.clubs.filter(club => club.distance > 0);
+    } else {
+      this.clubs = player.clubs;
+    }
     this.boost = player.boost ?? 1;
     this.disabled = false;
     

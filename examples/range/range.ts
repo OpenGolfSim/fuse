@@ -29,6 +29,7 @@ import bagStandModel from './models/bagstand.glb?url';
 import fairwayTexture from './textures/gen_fairway_tex.png?url';
 import fairwayMap from './textures/gen_fairway_map.png?url';
 import { PlayerState } from '@/courses/types';
+import { clubUpDown } from '@/utils/clubs';
 
 const sunColor = new THREE.Color('#fcfae9');
 const skyColor = new THREE.Color('#abd0db');
@@ -247,7 +248,7 @@ async function setupRange() {
   if (!player) throw new Error('No player found in setup data');
   if (!player.clubs?.length) throw new Error('No clubs found for player');
   // setup range player
-  gameContext.currentPlayer = new CoursePlayer(player);
+  gameContext.currentPlayer = new CoursePlayer(player, true);
   console.log('gameContext.currentPlayer', gameContext.currentPlayer)
 
   if (!gameContext.renderer) {
@@ -294,6 +295,12 @@ async function setupRange() {
   });
   gameContext.controls.on('toggleStats', () => gameContext.stats?.toggle());
   gameContext.controls.on('testShot', shot => launchShot(shot));
+  gameContext.controls.on('club', (direction) => {
+    if (gameContext.currentPlayer) {
+      const newClub = clubUpDown(gameContext.currentPlayer.clubs, gameContext.currentPlayer.currentClub, direction);
+      if (newClub) clubChange(newClub);
+    }
+  });
   
   if (gameContext.setupData?.showLaunchStatus) {
     gameContext.launchMonitor = new UILaunchMonitor('#lm-status');

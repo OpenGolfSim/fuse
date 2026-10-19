@@ -234,6 +234,13 @@ async function setupControls() {
   gameContext.controls.on('testShot', launchShot);
   gameContext.controls.on('toggleStats', () => gameContext.stats?.toggle());
   gameContext.controls.on('mulligan', () => gameContext.game?.mulligan());
+  gameContext.controls.on('club', (direction) => {
+    if (gameContext.game) {
+      gameContext.game.clubUpDown(direction);
+      gameContext.playerMenu?.update(gameContext.game.activePlayer);
+      app.sendPlayerUpdate(gameContext.game.activePlayer, gameContext.startPoint.toArray());
+    }
+  });
   gameContext.controls.on('rehit', () => gameContext.game?.rehit());
   gameContext.controls.on('scorecard', () => gameContext.dialogs.scorecard?.toggle());
 }
