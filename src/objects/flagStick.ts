@@ -5,7 +5,7 @@ import {
   positionWorld, positionLocal, uniform as tslUniform,
   vec3, vec4, float, smoothstep, mix, Fn, Discard, max, select, clamp, sqrt, saturate,
   cameraPosition, cameraProjectionMatrix, modelPosition, screenSize,
-  normalView, positionView
+  normalWorld, modelWorldMatrix
 } from 'three/tsl';
 
 // Minimum on-screen pole width (physical px). Outer ~1px is faded for edge AA.
@@ -172,7 +172,10 @@ export class FlagStick {
 
     // Pole mesh
     const stickGeometry = new THREE.CylinderGeometry(stickWidth, stickWidth, stickHeight, 32);
-    const stickMaterial = new MeshStandardNodeMaterial({ color: 0xffffff, transparent: true });
+    // const stickMaterial = new MeshStandardNodeMaterial({ color: 0xffffff, transparent: false });
+    // Opaque + alpha-to-coverage: opacityNode becomes MSAA coverage (Medium/High),
+    // so the pole stays in the opaque pass. On Low (no MSAA) it renders fully opaque.
+    const stickMaterial = new MeshStandardNodeMaterial({ color: 0xffffff, transparent: false, alphaToCoverage: true });
 
     // Widen the pole radially so it never drops below MIN_STICK_PX on screen
     const p11 = cameraProjectionMatrix.mul(vec4(0, 1, 0, 0)).y;              // 1 / tan(fov/2)
@@ -182,9 +185,14 @@ export class FlagStick {
     const radialScale = select(isPerspective, widen, float(1));              // leave ortho shadow cams alone
     stickMaterial.positionNode = positionLocal.mul(vec3(radialScale, 1, radialScale));
 
-    // Analytic edge AA (Low has no MSAA): fade pixels near the silhouette by coverage
+    // Edge AA via alpha-to-coverage: fade pixels near the silhouette by coverage
     const radiusPx = float(stickWidth).mul(radialScale).div(worldPerPx);     // on-screen radius (px)
-    const facing = clamp(normalView.dot(positionView.normalize().negate()), 0, 1);
+    // Facing must ignore the view's pitch along the pole axis, or the pole fades
+    // when seen from above (worst at the base, where the view is steepest)
+    const poleAxis = modelWorldMatrix.mul(vec4(0, 1, 0, 0)).xyz.normalize();
+    const toCam = cameraPosition.sub(positionWorld);
+    const toCamPerp = toCam.sub(poleAxis.mul(toCam.dot(poleAxis))).normalize();
+    const facing = clamp(normalWorld.dot(toCamPerp), 0, 1);
     const axisFrac = sqrt(float(1).sub(facing.mul(facing)));                 // 0 = center, 1 = silhouette
     const edgePx = float(1).sub(axisFrac).mul(radiusPx);                     // px inside the silhouette
     const edgeAlpha = saturate(edgePx.add(0.5));                             // 1px box-filter coverage
