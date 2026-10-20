@@ -47,9 +47,9 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   ballRadius: number;
   ballArea: number;
   ballMass = 0.04593;
-  airDensity = 1.225;
-  airDensityMin = 1.225;
-  airDensityMax = 1.0;
+  airDensity = 1.177332;
+  airDensityMin = 1.177332;
+  airDensityMax = 0.95;
   magnusCoeff = 0.00015;
   dragCoeff = 0.25;
   spinDecayRate = 0.987;
@@ -163,6 +163,8 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   
   buildTerrainMap(terrainMeshes: THREE.Mesh[]) {
     if (terrainMeshes.length > 0) {
+      this.#surfaceKeys = [];
+      this.#surfaceHoleNumbers = [];
       const geometries: THREE.BufferGeometry[] = [];
 
       for (const tm of terrainMeshes) {
@@ -248,16 +250,21 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   launchShot(shot: OpenGolfSim.Shot, isPutt = false) {
     const ballSpeed = UnitConversions.milesPerHourToMetersPerSecond(shot.ballSpeed);
     
-    // clamp spin between 0 and 13,000 RPM
-    const spinSpeed = THREE.MathUtils.clamp(shot.spinSpeed, 0, 13_000);
+    // safely parse and clamp spin between 0 and 13,000 RPM
+    // @ts-expect-error fallback aliases
+    const rawSpin = shot.spinSpeed ?? shot.totalSpin ?? shot.spinRate ?? 2500;
+    const spinSpeed = THREE.MathUtils.clamp(Number(rawSpin) || 2500, 0, 13_000);
     // clamp spin axis between -45 and +45
-    const spinAxis = THREE.MathUtils.clamp(shot.spinAxis, -45, 45);
+    const rawAxis = shot.spinAxis ?? 0;
+    const spinAxis = THREE.MathUtils.clamp(Number(rawAxis) || 0, -45, 45);
     // clamp HLA between -45 and +45
-    const hla = THREE.MathUtils.clamp(shot.horizontalLaunchAngle, -45, 45);
+    const rawHla = shot.horizontalLaunchAngle ?? 0;
+    const hla = THREE.MathUtils.clamp(Number(rawHla) || 0, -45, 45);
 
     // clamp VLA between 0/1 and +50
     const vlaMin = isPutt ? 0 : 1;
-    const vla = THREE.MathUtils.clamp(shot.verticalLaunchAngle, vlaMin, 50);
+    const rawVla = shot.verticalLaunchAngle ?? 15;
+    const vla = THREE.MathUtils.clamp(Number(rawVla) || 15, vlaMin, 50);
 
     // Reset state
     this.hasBeenAirborne = false;
@@ -307,37 +314,51 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     this.sideSpinDecayRate = coeffs.sideSpinDecayRate;
   }
 
+  /** Interpolate lift coefficient CL(S) from spin ratio S = (omega * R) / V */
+  #interpolateCL(spinRatio: number): number {
+    const S_KNOTS  = [0.00, 0.01, 0.02, 0.04, 0.10, 0.20, 0.40, 0.60, 0.80];
+    const CL_KNOTS = [0.00, 0.005, 0.02, 0.09027, 0.192095, 0.273569, 0.347295, 0.374493, 0.415774];
+    if (spinRatio <= S_KNOTS[0]) return CL_KNOTS[0];
+    if (spinRatio >= S_KNOTS[S_KNOTS.length - 1]) return CL_KNOTS[CL_KNOTS.length - 1];
+    for (let i = 0; i < S_KNOTS.length - 1; i++) {
+      if (spinRatio >= S_KNOTS[i] && spinRatio <= S_KNOTS[i + 1]) {
+        const t = (spinRatio - S_KNOTS[i]) / (S_KNOTS[i + 1] - S_KNOTS[i]);
+        return CL_KNOTS[i] + t * (CL_KNOTS[i + 1] - CL_KNOTS[i]);
+      }
+    }
+    return CL_KNOTS[CL_KNOTS.length - 1];
+  }
+
   _launchFull(speed: number, vla: number, hla: number = 0, spinRPM: number = 0, spinAxisDeg: number = 0) {
-    // Velocity
+    // 1. Velocity: Rotate horizontal frame by -HLA around Up first, then pitch by -VLA around the HLA-rotated Right axis.
+    // This preserves true spherical launch coordinates so tan(HLA_actual) == tan(HLA) at all vertical launch angles.
     const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.mesh.quaternion);
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.mesh.quaternion);
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.mesh.quaternion);
 
-    const dir = forward.clone();
-    dir.applyQuaternion(
-      new THREE.Quaternion().setFromAxisAngle(up, THREE.MathUtils.degToRad(-hla))
-    );
-    dir.applyQuaternion(
-      new THREE.Quaternion().setFromAxisAngle(right, THREE.MathUtils.degToRad(-vla))
-    );
-    dir.normalize().multiplyScalar(speed);
+    const qHla = new THREE.Quaternion().setFromAxisAngle(up, THREE.MathUtils.degToRad(-hla));
+    const forwardHla = forward.clone().applyQuaternion(qHla).normalize();
+    const rightHla = right.clone().applyQuaternion(qHla).normalize();
 
-    this.#velocity.copy(dir);
+    const qVla = new THREE.Quaternion().setFromAxisAngle(rightHla, THREE.MathUtils.degToRad(-vla));
+    const dir = forwardHla.clone().applyQuaternion(qVla).normalize();
 
-    // Spin
+    this.#velocity.copy(dir).multiplyScalar(speed);
+
+    // 2. Spin: Construct spin vector strictly orthogonal to the 3D launch direction `dir`
     const spinRad = spinRPM * 2 * Math.PI / 60;
-    const axisRad = THREE.MathUtils.degToRad(spinAxisDeg * -1);
-    const localLeft = right.clone().multiplyScalar(-1);
+    const axisRad = THREE.MathUtils.degToRad(-spinAxisDeg);
+    const localLeft = rightHla.clone().multiplyScalar(-1);
+    const localUp = new THREE.Vector3().crossVectors(localLeft, dir).normalize();
 
     const spinVec = new THREE.Vector3()
       .addScaledVector(localLeft, Math.cos(axisRad))
-      .addScaledVector(up, Math.sin(axisRad))
+      .addScaledVector(localUp, Math.sin(axisRad))
       .multiplyScalar(spinRad);
 
     this.#angularVel.copy(spinVec);
     this.#surfaceSpin.copy(spinVec);
     this.#position.copy(this.mesh.position);
-
 
     // Set coefficients
     const coeffs = this.interpolateBySpeed(speed);
@@ -358,37 +379,73 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     const vel = this.#velocity;
     const spin = this.#angularVel;
 
-    const vMag = vel.length();
+    // Reynolds + Spin-Ratio Aerodynamic Constants
+    const CD0 = 0.143017;
+    const CD0_HIGH = 0.181738;
+    const CD_SPIN = 0.049058;
+    const CD_SPIN_EXP = 2.5;
+    const CL_SCALE = 0.994079;
+    const MAX_CL = 0.40;
+    const K_INDUCED = 1.88756;
+    const V_LOW = 70.0 * 0.44704;   // 31.2928 m/s
+    const V_HIGH = 150.0 * 0.44704; // 67.056 m/s
+    const kAero = 0.5 * this.airDensity * this.ballArea / this.ballMass;
 
-    // Drag
-    if (vMag > 1e-6) {
-      const dragFactor = -0.5 * this.dragCoeff * this.airDensity * this.ballArea * vMag / this.ballMass;
-      vel.addScaledVector(vel, dragFactor * dt);
+    // 4 substeps per 60Hz frame = 240Hz ballistic integration
+    const subSteps = 4;
+    const subDt = dt / subSteps;
+    const spinDecay = Math.exp(-1.88756 * 0.0174524 * subDt);
 
-      // Magnus
-      const magnus = this.#gravity.crossVectors(spin, vel)
-        .multiplyScalar(this.magnusCoeff / this.ballMass);
-      const maxLift = GRAVITY * 0.83;
-      if (magnus.length() > maxLift) magnus.setLength(maxLift);
-      vel.addScaledVector(magnus, dt);
+    for (let step = 0; step < subSteps; step++) {
+      const vMag = vel.length();
+      const omega = spin.length();
+
+      if (vMag > 1e-4) {
+        const spinRatio = (omega * this.ballRadius) / vMag;
+        const cl = Math.min(MAX_CL, this.#interpolateCL(spinRatio) * CL_SCALE);
+
+        let cdBase = CD0;
+        if (vMag >= V_HIGH) {
+          cdBase = CD0_HIGH;
+        } else if (vMag > V_LOW) {
+          const t = (vMag - V_LOW) / (V_HIGH - V_LOW);
+          cdBase = CD0 + t * (CD0_HIGH - CD0);
+        }
+
+        let cd = cdBase + CD_SPIN * Math.pow(spinRatio, CD_SPIN_EXP) + K_INDUCED * (cl * cl);
+        const rpmNow = omega * 9.5492965855;
+        if (rpmNow > 10690.54) {
+          cd += (rpmNow - 10690.54) * 0.02 * 0.001;
+        }
+
+        // 1. Aerodynamic Drag Force: -0.5 * rho * A * CD * |V| * V / m
+        const aDrag = -kAero * cd * vMag;
+        vel.addScaledVector(vel, aDrag * subDt);
+
+        // 2. Normalized Magnus Lift Force: 0.5 * rho * A * CL(S) * |V|^2 * unit(spin x vel) / m
+        const magnusDir = this.#gravity.crossVectors(spin, vel);
+        const crossMag = magnusDir.length();
+        if (crossMag > 1e-8) {
+          const aLift = (kAero * cl * vMag * vMag) / crossMag;
+          vel.addScaledVector(magnusDir, aLift * subDt);
+        }
+      }
+
+      // 3. Gravity
+      vel.y -= GRAVITY * subDt;
+
+      // 4. Exponential Spin Decay (~3.3%/s uniform across the spin vector)
+      spin.multiplyScalar(spinDecay);
+
+      // 5. Integrate Position
+      pos.x += vel.x * subDt;
+      pos.y += vel.y * subDt;
+      pos.z += vel.z * subDt;
     }
 
-    // Gravity
-    vel.y -= GRAVITY * dt;
-
-    // Spin decay
-    const decayBack = Math.pow(this.spinDecayRate, dt / 0.02);
-    const decaySide = Math.pow(this.sideSpinDecayRate, dt / 0.02);
-    spin.x *= decayBack;
-    spin.z *= decayBack;
-    spin.y *= decaySide;
-
-    // Integrate position
-    const newX = pos.x + vel.x * dt;
-    const newY = pos.y + vel.y * dt;
-    const newZ = pos.z + vel.z * dt;
-
-    pos.set(newX, newY, newZ);
+    const newX = pos.x;
+    const newY = pos.y;
+    const newZ = pos.z;
 
     // Track airborne frames
     this.shotFrames++;
