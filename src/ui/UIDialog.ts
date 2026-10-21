@@ -19,6 +19,7 @@ export class UIDialog<Events extends UIDialogEvents = UIDialogEvents> extends UI
   title?: Element;
   closeButton?: Element;
   content: Element;
+  actions: Element;
   preventClose: boolean;
   isOpen: boolean;
 
@@ -42,7 +43,6 @@ export class UIDialog<Events extends UIDialogEvents = UIDialogEvents> extends UI
       this.enableClose();
     }
 
-    this.element.append(this.header);
 
     const existingContent = this.parent.querySelector('.content');
     if (existingContent) {
@@ -51,15 +51,20 @@ export class UIDialog<Events extends UIDialogEvents = UIDialogEvents> extends UI
       this.content = document.createElement('div');
     }
     
-    this.element.append(this.content);
+    this.actions = document.createElement('div');
+    this.actions.classList.add(styles.dialogActions);
+
+    this.element.append(this.header, this.content, this.actions);
     this.content.classList.add(styles.dialogContentBody);
   }
 
   disableClose() {
+    console.log('disable');
     this.closeButton?.remove();
   }
 
   enableClose() {
+    this.closeButton?.remove();
     this.closeButton = document.createElement('a');
     this.closeButton.classList.add(styles.dialogCloseButton, styles.clickableArea);
     this.closeButton.innerHTML = '&times;';
