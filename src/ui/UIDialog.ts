@@ -59,7 +59,6 @@ export class UIDialog<Events extends UIDialogEvents = UIDialogEvents> extends UI
   }
 
   disableClose() {
-    console.log('disable');
     this.closeButton?.remove();
   }
 
