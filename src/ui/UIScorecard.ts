@@ -231,7 +231,7 @@ export class UIScorecard extends UIDialog {
     exitButton.addEventListener('click', () => app.exit());
     this.roundOverContainer.append(exitButton);
     this.roundOverContainer.classList.add(styles.scoreCardRoundOver);
-    this.content.append(this.roundOverContainer);
+    this.actions.append(this.roundOverContainer);
 
   }
 }

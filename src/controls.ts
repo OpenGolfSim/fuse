@@ -41,18 +41,19 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
     this.#swipeShots = options.swipeShots ?? false;
     this.aimKeys = { left: false, right: false, forward: false, backward: false };    
 
+    // Stop the browser from claiming touches for pan/zoom. Without this,
+    // Chrome fires pointercancel after a few px of movement.
+    document.documentElement.style.touchAction = 'none';
+
     window.addEventListener('keydown', this.#keyHandler.bind(this), true); // true = capture phase
     window.addEventListener('keyup',   this.#keyHandler.bind(this), true);
-    // // Reset aim state when the window loses focus (Cmd+Tab, etc.)
-    // window.addEventListener('blur', this.#resetAimKeys.bind(this));
-    // Reset aim/gesture state when the window loses focus (Cmd+Tab, etc.)
-    window.addEventListener('blur', () => { this.#gestureCancel(); this.#resetAimKeys(); });
 
-    // document.addEventListener('touchend', this.#touchEnd.bind(this));
-    // document.addEventListener('touchstart', this.#touchStart.bind(this), { passive: false });
-    // document.addEventListener('touchmove', this.#touchMove.bind(this), { passive: false });
-    // document.addEventListener('touchend', this.#touchEnd.bind(this));
-    // document.addEventListener('touchcancel', this.#touchCancel.bind(this));
+    // Reset aim/gesture state when the window loses focus (Cmd+Tab, etc.)
+    window.addEventListener('blur', () => {
+      this.#gestureCancel();
+      this.#resetAimKeys();
+    });
+
     // Pointer events unify mouse + touch
     document.addEventListener('pointerdown', this.#pointerDown.bind(this));
     document.addEventListener('pointermove', this.#pointerMove.bind(this));
@@ -65,7 +66,6 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
 
     app.on('command', (key, state) => {
       if (!this.#enabled) return;
-      console.log('COMMAND', key, state);
 
       if (key.ogs_code === OGSKeyCommands.AimLeft) {
         this.aimKeys.left = state === 'down';
@@ -104,7 +104,6 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
     if (!this.#enabled) return;
     const pressed = event.type === 'keydown';
     let handled = false;
-    // const isCommand = event.metaKey || event.ctrlKey;
     const isCommand = event.metaKey || event.ctrlKey || event.altKey
     if (isCommand) {
       return;
@@ -260,9 +259,17 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
   }
 
   #pointerDown(event: PointerEvent) {
-    if (!this.#enabled) return;
-    if (!event.isPrimary) { this.#gestureCancel(); return; } // ignore multi-touch
-    if (event.pointerType === 'mouse' && event.button !== 0) return; // left button only
+    if (!this.#enabled) {
+      return;
+    }
+    if (!event.isPrimary) {
+      // ignore multi-touch
+      this.#gestureCancel();
+      return;
+    }
+    if (event.pointerType === 'mouse' && event.button !== 0) {
+      return; // left button only
+    }
     this.#gesture = {
       id: event.pointerId,
       startX: event.clientX, startY: event.clientY,
@@ -275,16 +282,11 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
     };
   }
 
-  // #touchMove(event: TouchEvent) {
-  //   const g = this.#touch;
-  //   if (!g) return;
-  //   const t = Array.from(event.touches).find(t => t.identifier === g.id);
-  //   if (!t) return;
-  //   const dx = t.clientX - g.startX;
-  //   const dy = t.clientY - g.startY; // screen y grows downward
   #pointerMove(event: PointerEvent) {
     const g = this.#gesture;
-    if (!g || event.pointerId !== g.id) return;
+    if (!g || event.pointerId !== g.id) {
+      return;
+    }
     const dx = event.clientX - g.startX;
     const dy = event.clientY - g.startY; // screen y grows downward
 
@@ -329,7 +331,6 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
       const upDx = g.lastX - g.apexX;
       const upDy = g.apexY - g.lastY; // positive = upward
       if (upDy > SWIPE_UP_MIN_PX) {
-        // event.preventDefault();
         // Angle of up-phase off vertical: right of vertical = positive HLA
         const hla = Math.max(-MAX_HLA_DEG, Math.min(MAX_HLA_DEG,
           Math.atan2(upDx, upDy) * (180 / Math.PI)));
@@ -346,7 +347,6 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
           spinAxis: 0,
         });
       }
-      // return;
     }
 
 
