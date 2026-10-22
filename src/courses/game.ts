@@ -349,7 +349,6 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
       console.error('No golf ball object!');
       return;
     }
-    // console.error('Current surface', this.golfBall);
 
     if (this.golfBall.isOnGreen(true)) {
       this.activePlayer.currentClub = this.activePlayer.clubs[this.activePlayer.clubs.length - 1];

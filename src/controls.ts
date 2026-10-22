@@ -205,9 +205,12 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
           spinAxis: range(-12, 12),
         });
         break;
+      case 'Digit0':
+      case 'Numpad0':
+        this.emit('testShot', { ballSpeed: 4.1 * 3, verticalLaunchAngle: 0, horizontalLaunchAngle: 0, spinSpeed: -500, spinAxis: 0 });
+        break;
       case 'Digit1':
       case 'Numpad1':
-        // this.emit('testShot', { ballSpeed: 150, verticalLaunchAngle: 11, horizontalLaunchAngle: 0, spinSpeed: 2000, spinAxis: 0 });
         this.emit('testShot', { ballSpeed: 150, verticalLaunchAngle: 13, horizontalLaunchAngle: 0, spinSpeed: 2500, spinAxis: 0 });
         break;
       case 'Digit2':

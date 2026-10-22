@@ -58,7 +58,7 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
     restitution: 0.35,
     divot: 0.01,
     rollResistance: 0.09,
-    stopSpeed: 0.18,
+    stopSpeed: 0.10,
   },
   [CourseSurfaceType.Fringe]: {
     hasCollider: true,

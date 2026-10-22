@@ -14,6 +14,10 @@ const STIMP_RELEASE_SPEED = 1.83 // m/s
           // release speed, braking matches the stimp rating, so putts stay correct.
           // Tuning knob: bigger = long shots brake harder, smaller = chips run out more.
 const SPEED_BRAKING_SCALE = 0.3;
+// On a green slope too steep to rest on, how long a slow ball gets for
+// gravity to restart it before the shot ends anyway (guards against creep
+// and against oscillating in a valley between steep faces)
+const MAX_SLOPE_RESTART_FRAMES = 90; // 1.5 s at 60 Hz
 
 export type ShotEndEvent = {
   surface?: CourseColliderType,
@@ -103,7 +107,8 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   #localRay = new THREE.Ray();
   #terrainRay = new THREE.Ray();
   #surfaceSpin = new THREE.Vector3();
-
+  #canRest = true;
+  #slowFrames = 0;
   #gravity = new THREE.Vector3();
   #slopeForce = new THREE.Vector3();
   #normalClone = new THREE.Vector3();
@@ -143,6 +148,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     this.#position.copy(position);
     this.#velocity.set(0, 0, 0);
     this.#angularVel.set(0, 0, 0);
+    this.#surfaceSpin.set(0, 0, 0);
     this.mesh.position.copy(position);
 
     this.isShotActive = false;
@@ -154,11 +160,20 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     this.isHoled = false;
     this.hasBeenAirborne = false;
     this.terrainCollisionsEnabled = false;
-    this.currentSurface = undefined;
+    // this.currentSurface = undefined;
     this.holeState = 'none';
     this.shotFrames = 0;
+    this.#canRest = true;
+    this.#slowFrames = 0;
+
     this.groundedFrames = 0;
     if (holePosition) this.setPin(holePosition);
+
+    // Resolve the surface under the ball now, so pre-shot checks
+    // (e.g. GolfBall.isOnGreen(true)) work before any shot fires
+    const terrain = this.getTerrainInfo(position.x, position.z);
+    this.currentSurface = terrain.surface;
+    this.currentHoleNumber = terrain.holeNumber;
   }
   
   buildTerrainMap(terrainMeshes: THREE.Mesh[]) {
@@ -299,6 +314,9 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     // Putts skip air phase — initialize ground physics vectors directly
     this.#velocity.copy(dir);
     this.#angularVel.set(0, 0, 0);
+    // Start putts in pure roll so slopes act at 5/7 g, same as chips
+    this.#surfaceSpin.crossVectors(new THREE.Vector3(0, 1, 0), dir).divideScalar(this.ballRadius);
+
     this.#position.copy(this.mesh.position);
 
     const coeffs = this.interpolateBySpeed(speed);
@@ -442,9 +460,18 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
       const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
 
       const endThresholdSpeed = this.currentSurface?.stopSpeed ?? this.defaultEndThresholdSpeed;
+
       if (speed < endThresholdSpeed) {
-        this._endShot();
+        this.#slowFrames++;
+
+        // Only end if the ball can actually stay at rest on this slope
+        if (this.#canRest || this.#slowFrames > MAX_SLOPE_RESTART_FRAMES) {
+          this._endShot();
+        }
+      } else {
+        this.#slowFrames = 0;
       }
+
     }
   }
 
@@ -671,10 +698,20 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
         //   ? 5.49 / this.stimpLevel
         //   : resistance * GRAVITY;
         let decel;
+        // Can a ball at rest stay put here? A rolling ball feels 5/7 of the
+        // slope pull; if that beats the green's braking, it has to roll on.
+        let canRest = true;
+
         if (useStimpLevel) {
           const stimpDecel = (STIMP_RELEASE_SPEED * STIMP_RELEASE_SPEED) / (2 * UnitConversions.feetToMeters(this.stimpLevel));
-          decel = stimpDecel *
-            (1 + SPEED_BRAKING_SCALE * (horizontalSpeed - STIMP_RELEASE_SPEED));
+          // decel = stimpDecel *
+          //   (1 + SPEED_BRAKING_SCALE * (horizontalSpeed - STIMP_RELEASE_SPEED));
+          const speedBraking = this.isPutt
+            ? 0
+            : SPEED_BRAKING_SCALE * Math.max(0, horizontalSpeed - STIMP_RELEASE_SPEED);
+          decel = stimpDecel * (1 + speedBraking);
+          const sinTheta = Math.sqrt(Math.max(0, 1 - normal.y * normal.y));
+          canRest = (5 / 7) * GRAVITY * sinTheta <= stimpDecel * normal.y;
         } else {
           decel = resistance * GRAVITY;
         }
@@ -682,14 +719,21 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
         const friction = Math.min(decel * normalForce * dt, horizontalSpeed);
 
 
-        vel.addScaledVector(this.#normalClone.copy(vel).normalize(), -friction);
+        // vel.addScaledVector(this.#normalClone.copy(vel).normalize(), -friction);
+        const rollDir = this.#normalClone.copy(vel).normalize();
+        vel.addScaledVector(rollDir, -friction);
+        // Rolling resistance slows the spin along with the ball, so the slip
+        // correction below doesn't hand 2/7 of the braking back
+        if (spin.lengthSq() > 1.0) {
+          spin.addScaledVector(this.#slopeForce.crossVectors(normal, rollDir), -friction / this.ballRadius);
+        }
 
         if (!useStimpLevel) {
           const dampingFactor = Math.exp(-resistance * 8.0 * normalForce * dt);
           vel.multiplyScalar(dampingFactor);
         }          
         // Hard cutoff — anything below this is just numerical noise
-        if (vel.length() < 0.02) {
+        if (vel.length() < 0.02 && canRest) {
           vel.set(0, 0, 0);
         }
 
@@ -717,7 +761,9 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
         }
 
         pos.set(newX, terrainY + this.ballRadius, newZ);
-        vel.y = 0;
+        // if (!this.isPutt) {
+        //   vel.y = 0;
+        // }
       }
     } else {
       // Airborne between bounces
