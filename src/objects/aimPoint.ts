@@ -31,6 +31,7 @@ export class AimPoint {
   #panelTexture: THREE.CanvasTexture;
 
   #cachedTextureKey?: string;
+  #lastIsPutting?: boolean;
   #fontsReady = false;
 
   constructor(camera: THREE.Camera, options: AimPointOptions = {}) {
@@ -40,7 +41,7 @@ export class AimPoint {
     
     this.scaleFactor = 0.003;
     this.opacity = 0.98;
-    this.fadeDistance = [21, 20];
+    this.fadeDistance = [2, 1];
     this.color = new THREE.Color(colors.background);
     this.#pointHeight = 5;
     this.#pointOffsetY = 0.25;
@@ -230,13 +231,15 @@ export class AimPoint {
     // }
   }
 
-  update(aimPoint: THREE.Vector3, distance: number, height: number, isShotActive: boolean) {
+  update(aimPoint: THREE.Vector3, distance: number, height: number, isShotActive: boolean, isPutting = false) {
     this.object.visible = !isShotActive;
     if (isShotActive) {
       return;
     }
-    
-    if (this.#lastAimPoint) {
+
+    const puttingChanged = this.#lastIsPutting !== isPutting;
+    this.#lastIsPutting = isPutting;
+    if (this.#lastAimPoint && !puttingChanged) {
       const diff = this.#lastAimPoint.distanceTo(aimPoint);
       if (diff < 0.001) {
         return;
@@ -274,22 +277,20 @@ export class AimPoint {
     let heightDisplay = height;
     let unitsDisplay = 'm';
     if (this.units === 'imperial') {
-      // TODO: base it on putting mode, not distance
-      // if (distance <= 30) {
-      //   distanceDisplay = UnitConversions.metersToFeet(distanceDisplay);
-      //   heightDisplay = UnitConversions.metersToYards(heightDisplay);
-      //   unitsDisplay = '\'';
-        distanceDisplay = UnitConversions.metersToYards(distanceDisplay);
-        heightDisplay = UnitConversions.metersToYards(heightDisplay);
+      if (isPutting) {
+        distanceDisplay = UnitConversions.metersToFeet(distance);
+        heightDisplay = UnitConversions.metersToFeet(height);
+        unitsDisplay = 'ft';
+      } else {
+        distanceDisplay = UnitConversions.metersToYards(distance);
+        heightDisplay = UnitConversions.metersToYards(height);
         unitsDisplay = '';
-      
+      }
     }
 
-    const texKey = `${distanceDisplay}-${heightDisplay}`;
+    const texKey = `${distanceDisplay}-${heightDisplay}-${unitsDisplay}`;
     if (this.#cachedTextureKey !== texKey) {
       this.#updateDistanceMaterial(distanceDisplay, heightDisplay, unitsDisplay);
-      // const tex = this.#updateDistanceMaterial(distanceDisplay, heightDisplay, unitsDisplay);
-      // this.panel.material.map = tex;
       this.#cachedTextureKey = texKey;
     }
     //@ts-expect-error

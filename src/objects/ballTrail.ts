@@ -11,34 +11,14 @@ import type { UniformNode } from 'three/webgpu';
 import { QualityMode } from '@/utils/quality';
 
 const MAX_POINTS = 4000;
+const EPS_SQ = 1e-6;
 
-function resampleByArcLength(points: THREE.Vector3[], spacing: number) {
-  if (points.length < 2) return points.slice();
+/** Uniform Catmull-Rom on one axis. Samples are uniform in time, which suits a ballistic path. */
+const cr = (p0: number, p1: number, p2: number, p3: number, t: number, t2: number, t3: number) =>
+  0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (3 * p1 - p0 - 3 * p2 + p3) * t3);
 
-  const out = [points[0].clone()];
-  let traveled = 0;
-  let nextTarget = spacing;
-
-  for (let i = 1; i < points.length; i++) {
-    const a = points[i - 1];
-    const b = points[i];
-    const segLen = a.distanceTo(b);
-    if (segLen === 0) continue;
-
-    while (traveled + segLen >= nextTarget) {
-      const t = (nextTarget - traveled) / segLen;
-      out.push(a.clone().lerp(b, t));
-      nextTarget += spacing;
-    }
-    traveled += segLen;
-  }
-
-  const last = points[points.length - 1];
-  if (out[out.length - 1].distanceToSquared(last) > 1e-6) {
-    out.push(last.clone());
-  }
-  return out;
-}
+/** Resampler position. Mutated in place, never reallocated. */
+type Cursor = { seg: number; traveled: number; nextTarget: number; count: number };
 
 type BallTrailOptions = {
   maxPoints?: number;
@@ -51,6 +31,17 @@ type BallTrailOptions = {
   qualityLevel?: QualityMode;
 };
 
+/**
+ * Ball trail rendered as a MeshLine.
+ *
+ * - Raw samples are taken per fixed physics step (`onPhysicsStep`), so density is FPS-independent.
+ * - Raw samples are resampled at a fixed arc-length spacing along a Catmull-Rom spline.
+ * - Resampling is incremental: segments whose spline is final are written once ("committed");
+ *   only the last two segments (which depend on the live ball position) are rewritten each frame.
+ * - Geometry attributes are written directly for the changed range only, uploaded with
+ *   `updateRanges`, and `drawRange` limits rendering to the active part of the buffer.
+ * - No per-frame allocations, no geometry/material rebuilds after construction.
+ */
 export class BallTrail {
   scene: THREE.Scene;
   golfBall: THREE.Object3D;
@@ -61,35 +52,54 @@ export class BallTrail {
   color: THREE.Color;
   qualityLevel: QualityMode;
 
-  points: THREE.Vector3[];
-  frameNum: number;
+  /** Raw samples (also exported via GolfBall.getTrailPoints). */
+  points: THREE.Vector3[] = [];
   line: MeshLine;
   fadeFracUniform: UniformNode<"float", number>;
   camFadeNear: UniformNode<"float", number>;
   camFadeFar: UniformNode<"float", number>;
   activeRatioUniform: UniformNode<"float", number>;
   renderOrder = 1;
+
+  /** Resampled output points (x,y,z), one slot per MeshLine point. */
   #positions: Float32Array;
+  #geometry: MeshLineGeometry;
+  #posAttr: THREE.BufferAttribute;
+  #prevAttr: THREE.BufferAttribute;
+  #nextAttr: THREE.BufferAttribute;
+
+  #stepMod: number;
+  #stepNum = 0;
+
+  #live = new THREE.Vector3();
+  #lastLive = new THREE.Vector3(Infinity, Infinity, Infinity);
+  #lastRawCount = -1;
+
+  /** Final part of the resampled trail. */
+  #commit: Cursor = { seg: 0, traveled: 0, nextTarget: 0, count: 0 };
+  /** Scratch cursor for the provisional tail. */
+  #tail: Cursor = { seg: 0, traveled: 0, nextTarget: 0, count: 0 };
+  /** commit.count at the last upload; points before (that index - 1) are unchanged on the GPU. */
+  #uploadedCommitted = 0;
   #activePoints = 0;
-  #needsFullFill = true;
-  #built = false;
 
   constructor(scene: THREE.Scene, golfBall: THREE.Object3D, options: BallTrailOptions = {}) {
     this.scene = scene;
     this.golfBall = golfBall;
+    this.qualityLevel = options.qualityLevel ?? QualityMode.Medium;
+    const isLow = this.qualityLevel === QualityMode.Low;
+
     this.maxPoints = options.maxPoints ?? MAX_POINTS;
     this.lineWidth = options.lineWidth ?? 0.03;
     this.fadeLength = options.fadeLength ?? 2.0;
-    this.resampleSpacing = options.resampleSpacing ?? 0.15;
-    this.qualityLevel = options.qualityLevel ?? QualityMode.Medium;
+    // Output points sit on the spline, so wider spacing stays smooth; fewer points = less CPU + GPU.
+    this.resampleSpacing = options.resampleSpacing ?? (isLow ? 0.3 : 0.15);
+    // Raw sample every N physics steps (FIXED_DT = 1/60): Low 6 Hz, otherwise 15 Hz.
+    this.#stepMod = isLow ? 10 : 4;
     this.color = options.color instanceof THREE.Color
       ? options.color
       : new THREE.Color(options.color ?? '#fc4723');
 
-    this.points = [];
-    this.frameNum = 0;
-
-    // Uniforms for dynamic fade control
     this.fadeFracUniform = tslUniform(0.01);
     this.camFadeNear = tslUniform(options.cameraFadeNear ?? 15);
     this.camFadeFar = tslUniform(options.cameraFadeFar ?? 20);
@@ -97,40 +107,28 @@ export class BallTrail {
 
     // Low quality (no AA): clamp world-space width so the projected width
     // never drops below ~1.25px — sub-pixel lines miss sample centers and
-    // stipple/vanish. Self-contained: projMatrix[1][1] = 1/tan(fov/2) and
-    // screenSize tracks the drawing buffer, so no camera/renderer plumbing
-    // and adaptive pixel-ratio changes are handled automatically.
+    // stipple/vanish. P·(0,1,0,0).y = P[1][1] = 1/tan(fov/2); screenSize
+    // tracks the drawing buffer, so adaptive pixel-ratio changes are handled.
     // @ts-expect-error - makio-meshline Fn hook typing
     const trailWidthFn = Fn(([width, progress, side]) => {
       const dist = distance(positionGeometry, cameraPosition);
-      // const minWorldWidth = dist.mul(2.0 * 1.25)
-      //   .div(cameraProjectionMatrix.element(1).y.mul(screenSize.y));
-      // .element() exists at runtime (TSL proxy) but isn't in the mat4 uniform typings
-      // const projScaleY = (cameraProjectionMatrix as any).element(1).y; // = 1/tan(fov/2)
-      // P·(0,1,0,0) selects column 1; .y = P[1][1] = 1/tan(fov/2)
       const projScaleY = cameraProjectionMatrix.mul(vec4(0, 1, 0, 0)).y;
       const minWorldWidth = dist.mul(2.0 * 1.25)
-        .div(projScaleY.mul(screenSize.y));      
+        .div(projScaleY.mul(screenSize.y));
       return tslMax(width, minWorldWidth);
     });
 
-    // TSL hook: fade opacity at both ends of the trail.
-    // Receives (alpha, progress, side) where progress is 0→1 along the line.
-    // Returns modified alpha with smoothstep fade at both ends.
+    // Fade opacity at both ends. progress (0→1 over the full buffer) is remapped
+    // to the active portion via activeRatio.
     // @ts-expect-error - makio-meshline Fn hook typing
     const trailOpacityFn = Fn(([alpha, progress, side]) => {
-      // const fadeIn = smoothstep(float(0), this.fadeFracUniform, progress);
-      // const fadeOut = smoothstep(float(0), this.fadeFracUniform, float(1).sub(progress));
-      // Remap progress from [0, activeRatio] to [0, 1]
       const remapped = progress.div(this.activeRatioUniform).clamp(0, 1);
       const fadeIn = smoothstep(float(0), this.fadeFracUniform, remapped);
       const fadeOut = smoothstep(float(0), this.fadeFracUniform, float(1).sub(remapped));
       return alpha.mul(fadeIn).mul(fadeOut);
     });
 
-    // TSL hook: fade based on camera distance.
-    // Receives (alpha, uv, progress, side). Fully transparent when close
-    // to the camera (< cameraFadeNear), fully opaque past cameraFadeFar.
+    // Transparent near the camera (< cameraFadeNear), opaque past cameraFadeFar.
     // @ts-expect-error - makio-meshline Fn hook typing
     const trailAlphaFn = Fn(([alpha, uv, progress, side]) => {
       const dist = distance(positionWorld, cameraPosition);
@@ -138,12 +136,9 @@ export class BallTrail {
       return alpha.mul(camFade);
     });
 
-    // Pre-allocate fixed-size positions buffer
     this.#positions = new Float32Array(this.maxPoints * 3);
 
-    // Create the line with dummy points — updated in _rebuild
     this.line = new MeshLine({
-      // lines: new Float32Array([0, 0, 0, 0.001, 0, 0]),
       lines: this.#positions,
       color: this.color,
       lineWidth: this.lineWidth,
@@ -152,13 +147,17 @@ export class BallTrail {
       opacity: 1.0,
       opacityFn: trailOpacityFn,
       fragmentAlphaFn: trailAlphaFn,
-      ...(this.qualityLevel === QualityMode.Low ? { widthFn: trailWidthFn } : {}),
-      // widthFn: trailWidthFn,
+      ...(isLow ? { widthFn: trailWidthFn } : {}),
     });
 
-    // Build immediately to pre-allocate GPU buffers and compile shaders
+    // Build once: allocates GPU buffers and compiles shaders. Never rebuilt afterwards.
     this.line.lines(this.#positions).build();
-    this.#built = true;
+
+    this.#geometry = this.line.geometry as MeshLineGeometry;
+    this.#posAttr = this.#geometry.getAttribute('position') as THREE.BufferAttribute;
+    this.#prevAttr = this.#geometry.getAttribute('previous') as THREE.BufferAttribute;
+    this.#nextAttr = this.#geometry.getAttribute('next') as THREE.BufferAttribute;
+    this.#geometry.setDrawRange(0, 0);
 
     this.line.layers.set(2);
     this.line.frustumCulled = false;
@@ -169,174 +168,222 @@ export class BallTrail {
   }
 
   clear() {
-    this.points = [];
-    this.#activePoints = 0;
-    this.line.visible = false;
-  }
-
-  addPoint() {
-    const p = this.golfBall.position;
-    const last = this.points[this.points.length - 1];
-    if (!last || last.distanceToSquared(p) > 1e-6) {
-      this.points.push(p.clone());
-    }
-  }
-
-  update(collectPoints = false) {
-    // let dirty = false;
-
-    const frameMod = this.qualityLevel === QualityMode.Low ? 10 : 4;
-    // if (collectPoints && this.frameNum % 4 === 0 && this.points.length < this.maxPoints) {
-    if (collectPoints && this.frameNum % frameMod === 0 && this.points.length < this.maxPoints) {
-      this.addPoint();
-      // dirty = true;
-    }
-
-    // if (collectPoints && this.frameNum % 2 === 0) {
-    //   dirty = true;
-    // }
-
-    this.frameNum++;
-
-    // if (dirty) {
-    //   this._rebuild();
-    // }
-    if (collectPoints && this.frameNum % 2 === 0) {
-      this._updatePositions();
-    }
-
-  }
-
-  _rebuild() {
-    const live = this.golfBall.position;
-    const last = this.points[this.points.length - 1];
-    const raw = (!last || last.distanceToSquared(live) > 1e-6)
-      ? [...this.points, live.clone()]
-      : this.points;
-
-    if (raw.length < 2) {
-      this.line.visible = false;
-      return;
-    }
-
-    const head = resampleByArcLength(raw, this.resampleSpacing);
-    if (head.length < 2) {
-      this.line.visible = false;
-      return;
-    }
-
-    // Compute total arc length for fade fraction
-    let total = 0;
-    for (let i = 1; i < head.length; i++) {
-      total += head[i].distanceTo(head[i - 1]);
-    }
-
-    // Update the fade fraction: fadeLength / totalLength
-    // Capped at 0.49 so both ends don't overlap
-    this.fadeFracUniform.value = Math.min(0.49, this.fadeLength / Math.max(total, 0.0001));
-
-    // Build flat positions array
-    const positions = new Float32Array(head.length * 3);
-    for (let i = 0; i < head.length; i++) {
-      positions[i * 3]     = head[i].x;
-      positions[i * 3 + 1] = head[i].y;
-      positions[i * 3 + 2] = head[i].z;
-    }
-
-    // Update the line geometry and rebuild
-    this.line.lines(positions).build();
-    this.line.visible = true;
-    this.line.frustumCulled = false;
-    this.line.layers.set(2);
-    this.line.renderOrder = this.renderOrder;
-  }
-
-  dispose() {
-    // @ts-expect-error makio-meshline raycast signature doesn't match Object3D
-    this.scene.remove(this.line);
-    this.line.geometry.dispose();
-    // this.line.material.dispose();
-    const mat = this.line.material;
-    if (Array.isArray(mat)) {
-      mat.forEach(m => m.dispose());
-    } else {
-      mat.dispose();
-    }
-
+    this.#resetState();
   }
 
   reset(updatedTarget?: THREE.Object3D) {
     if (updatedTarget) {
       this.golfBall = updatedTarget;
     }
+    this.#resetState();
+  }
+
+  addPoint() {
+    const p = this.golfBall.position;
+    const last = this.points[this.points.length - 1];
+    if (!last || last.distanceToSquared(p) > EPS_SQ) {
+      this.points.push(p.clone());
+    }
+  }
+
+  /** Call once per fixed physics step. Sampling is independent of render FPS. */
+  onPhysicsStep(collectPoints: boolean) {
+    if (!collectPoints) return;
+    if (this.#stepNum++ % this.#stepMod === 0 && this.points.length < this.maxPoints) {
+      this.addPoint();
+    }
+  }
+
+  /** Call once per rendered frame. Cheap: only the tail is recomputed and uploaded. */
+  update(collectPoints = false) {
+    if (!collectPoints) return;
+
+    const n = this.points.length;
+    if (n === 0) return;
+
+    const ball = this.golfBall.position;
+    if (n === this.#lastRawCount && ball.distanceToSquared(this.#lastLive) <= EPS_SQ) {
+      return; // nothing moved, nothing to upload
+    }
+    this.#lastRawCount = n;
+    this.#lastLive.copy(ball);
+    this.#live.copy(ball);
+
+    const hasLive = this.points[n - 1].distanceToSquared(this.#live) > EPS_SQ;
+    const m = n + (hasLive ? 1 : 0); // control point count
+
+    const pos = this.#positions;
+    const commit = this.#commit;
+
+    // First point
+    if (commit.count === 0) {
+      const p = this.points[0];
+      pos[0] = p.x; pos[1] = p.y; pos[2] = p.z;
+      commit.count = 1;
+      commit.nextTarget = this.resampleSpacing;
+    }
+
+    // Commit segments whose spline is final: segment k needs control k+2 to be a raw sample.
+    this.#runSegments(commit, n - 2, m);
+
+    // Provisional tail: remaining segments up to the live position, from a scratch copy.
+    const tail = this.#tail;
+    tail.seg = commit.seg;
+    tail.traveled = commit.traveled;
+    tail.nextTarget = commit.nextTarget;
+    tail.count = commit.count;
+    this.#runSegments(tail, m - 1, m);
+
+    // Pin the head exactly to the last control point (the ball).
+    const end = this.#ctrl(m - 1);
+    const lo = (tail.count - 1) * 3;
+    const dx = pos[lo] - end.x, dy = pos[lo + 1] - end.y, dz = pos[lo + 2] - end.z;
+    if (dx * dx + dy * dy + dz * dz > EPS_SQ && tail.count < this.maxPoints) {
+      const o = tail.count * 3;
+      pos[o] = end.x; pos[o + 1] = end.y; pos[o + 2] = end.z;
+      tail.count++;
+    }
+
+    const active = tail.count;
+    this.#activePoints = active;
+
+    if (active < 2) {
+      this.line.visible = false;
+      return;
+    }
+
+    // Upload only what changed: from the point before the previous commit boundary
+    // (its `next` neighbour may have changed) to the current head.
+    const start = Math.max(0, this.#uploadedCommitted - 1);
+    this.#writeAttributes(start, active);
+    this.#uploadedCommitted = commit.count;
+
+    this.#geometry.setDrawRange(0, (active - 1) * 6);
+    this.fadeFracUniform.value = Math.min(0.49, this.fadeLength / Math.max(tail.traveled, 0.0001));
+    // progress of point i is i / (maxPoints - 1); the head maps to remapped progress 1.
+    this.activeRatioUniform.value = (active - 1) / (this.maxPoints - 1);
+    this.line.visible = true;
+  }
+
+  dispose() {
+    // @ts-expect-error makio-meshline raycast signature doesn't match Object3D
+    this.scene.remove(this.line);
+    this.line.geometry.dispose();
+    const mat = this.line.material;
+    if (Array.isArray(mat)) {
+      mat.forEach(m => m.dispose());
+    } else {
+      mat.dispose();
+    }
+  }
+
+  #resetState() {
     this.line.visible = false;
     this.points = [];
-    this.frameNum = 0;
+    this.#stepNum = 0;
+    this.#lastRawCount = -1;
+    this.#lastLive.set(Infinity, Infinity, Infinity);
+    this.#commit.seg = 0;
+    this.#commit.traveled = 0;
+    this.#commit.nextTarget = 0;
+    this.#commit.count = 0;
+    this.#uploadedCommitted = 0;
     this.#activePoints = 0;
-    this.#built = false;
-    this.#needsFullFill = true;
+    this.#geometry.setDrawRange(0, 0);
   }
 
-  _updatePositions() {
-    const live = this.golfBall.position;
-    const last = this.points[this.points.length - 1];
-    const raw = (!last || last.distanceToSquared(live) > 1e-6)
-      ? [...this.points, live.clone()]
-      : this.points;
+  /** Control point k: raw samples, followed by the live ball position (if it has moved). */
+  #ctrl(k: number): THREE.Vector3 {
+    return k < this.points.length ? this.points[k] : this.#live;
+  }
 
-    if (raw.length < 2) {
-      this.line.visible = false;
-      return;
-    }
+  /** Emit arc-length-spaced spline points for segments [cur.seg, segEnd). */
+  #runSegments(cur: Cursor, segEnd: number, m: number) {
+    const pos = this.#positions;
+    const spacing = this.resampleSpacing;
+    const limit = this.maxPoints - 1; // keep one slot for the head
 
-    const head = resampleByArcLength(raw, this.resampleSpacing);
-    if (head.length < 2) {
-      this.line.visible = false;
-      return;
-    }
+    for (; cur.seg < segEnd; cur.seg++) {
+      const k = cur.seg;
+      const a = this.#ctrl(k);
+      const b = this.#ctrl(k + 1);
+      const len = a.distanceTo(b);
+      if (len === 0) continue;
+      const p0 = k > 0 ? this.#ctrl(k - 1) : a;
+      const p3 = k + 2 < m ? this.#ctrl(k + 2) : b;
 
-    let total = 0;
-    for (let i = 1; i < head.length; i++) {
-      total += head[i].distanceTo(head[i - 1]);
-    }
-    this.fadeFracUniform.value = Math.min(0.49, this.fadeLength / Math.max(total, 0.0001));
-    this.activeRatioUniform.value = this.#activePoints / this.maxPoints;
-
-    this.#activePoints = Math.min(head.length, this.maxPoints);
-    for (let i = 0; i < this.#activePoints; i++) {
-      this.#positions[i * 3]     = head[i].x;
-      this.#positions[i * 3 + 1] = head[i].y;
-      this.#positions[i * 3 + 2] = head[i].z;
-    }
-
-    // const lastPt = head[this.#activePoints - 1];
-    // for (let i = this.#activePoints; i < this.maxPoints; i++) {
-    //   this.#positions[i * 3]     = lastPt.x;
-    //   this.#positions[i * 3 + 1] = lastPt.y;
-    //   this.#positions[i * 3 + 2] = lastPt.z;
-    // }
-    if (this.#needsFullFill) {
-      const lastPt = head[this.#activePoints - 1];
-      for (let i = this.#activePoints; i < this.maxPoints; i++) {
-        this.#positions[i * 3]     = lastPt.x;
-        this.#positions[i * 3 + 1] = lastPt.y;
-        this.#positions[i * 3 + 2] = lastPt.z;
+      while (cur.traveled + len >= cur.nextTarget && cur.count < limit) {
+        const t = (cur.nextTarget - cur.traveled) / len;
+        const t2 = t * t, t3 = t2 * t;
+        const o = cur.count * 3;
+        pos[o]     = cr(p0.x, a.x, b.x, p3.x, t, t2, t3);
+        pos[o + 1] = cr(p0.y, a.y, b.y, p3.y, t, t2, t3);
+        pos[o + 2] = cr(p0.z, a.z, b.z, p3.z, t, t2, t3);
+        cur.count++;
+        cur.nextTarget += spacing;
       }
-      this.#needsFullFill = false;
+      cur.traveled += len;
     }
-
-
-    if (!this.#built) {
-      this.line.lines(this.#positions).build();
-      this.#built = true;
-    } else {
-      // this.line.geometry.setPositions(this.#positions, true);
-      (this.line.geometry as MeshLineGeometry).setPositions(this.#positions, true);
-    }
-
-    this.line.visible = true;
-    this.line.frustumCulled = false;
-    this.line.layers.set(2);
-    this.line.renderOrder = this.renderOrder;
   }
+
+  /**
+   * Write position/previous/next for points [start, active) straight into the MeshLine
+   * attributes (2 vertices per point, same layout as MeshLineGeometry.build) and flag
+   * only that range for upload. Endpoints use the same extrapolation as MeshLine.
+   */
+  #writeAttributes(start: number, active: number) {
+    const src = this.#positions;
+    const P = this.#posAttr.array as Float32Array;
+    const V = this.#prevAttr.array as Float32Array;
+    const N = this.#nextAttr.array as Float32Array;
+    const last = active - 1;
+
+    for (let i = start; i < active; i++) {
+      const o = i * 3;
+      const x = src[o], y = src[o + 1], z = src[o + 2];
+
+      let px: number, py: number, pz: number;
+      if (i > 0) {
+        px = src[o - 3]; py = src[o - 2]; pz = src[o - 1];
+      } else {
+        px = 2 * x - src[3]; py = 2 * y - src[4]; pz = 2 * z - src[5];
+      }
+
+      let nx: number, ny: number, nz: number;
+      if (i < last) {
+        nx = src[o + 3]; ny = src[o + 4]; nz = src[o + 5];
+      } else {
+        nx = 2 * x - src[o - 3]; ny = 2 * y - src[o - 2]; nz = 2 * z - src[o - 1];
+      }
+
+      const v = i * 6; // 2 vertices × 3 components
+      P[v] = P[v + 3] = x; P[v + 1] = P[v + 4] = y; P[v + 2] = P[v + 5] = z;
+      V[v] = V[v + 3] = px; V[v + 1] = V[v + 4] = py; V[v + 2] = V[v + 5] = pz;
+      N[v] = N[v + 3] = nx; N[v + 1] = N[v + 4] = ny; N[v + 2] = N[v + 5] = nz;
+    }
+
+    const rStart = start * 6;
+    const rCount = (active - start) * 6;
+    flagRange(this.#posAttr, rStart, rCount);
+    flagRange(this.#prevAttr, rStart, rCount);
+    flagRange(this.#nextAttr, rStart, rCount);
+  }
+}
+
+/**
+ * Flag a range for upload. Keeps at most one pending range per attribute (merged), so
+ * frames where the line isn't rendered (e.g. layer not on the active camera) can't pile
+ * up ranges; the renderer clears the list after uploading.
+ */
+function flagRange(attr: THREE.BufferAttribute, start: number, count: number) {
+  const ranges = attr.updateRanges;
+  if (ranges.length === 0) {
+    attr.addUpdateRange(start, count);
+  } else {
+    const r = ranges[0];
+    const end = Math.max(r.start + r.count, start + count);
+    r.start = Math.min(r.start, start);
+    r.count = end - r.start;
+  }
+  attr.needsUpdate = true;
 }

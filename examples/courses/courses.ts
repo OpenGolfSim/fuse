@@ -602,7 +602,8 @@ function animate(animDelta: number) {
     gameContext.aimPoint,
     gameContext.distanceToAim,
     gameContext.heightToAim,
-    !!gameContext.golfBall?.isShotActive
+    !!gameContext.golfBall?.isShotActive,
+    !!gameContext.golfBall?.isOnGreen(true),
   );
 
   gameContext.stats?.end();
