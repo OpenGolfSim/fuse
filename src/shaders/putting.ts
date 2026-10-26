@@ -101,15 +101,15 @@ export class PuttingGridMaterial {
   private minSpeed: number;
 
   constructor(object: THREE.Object3D, options: PuttingGridMaterialOptions = {}) {
-    this.gridSize    = options.gridSize    ?? 1.5;
+    this.gridSize    = options.gridSize    ?? 1;
     this.lineWidth   = options.lineWidth   ?? 0.008;
     this.lineColor   = options.lineColor   ?? new THREE.Color(1.0, 0.5, 0.02);
     this.lineOpacity = options.lineOpacity ?? 0.3;
     this.dotRadius   = options.dotRadius   ?? 0.015;
     this.dotColor    = options.dotColor    ?? new THREE.Color(1.0, 1.0, 1.0);
     this.dotOpacity  = options.dotOpacity  ?? 0.0;
-    this.baseSpeed   = options.baseSpeed   ?? 5;
-    this.minSpeed    = options.minSpeed    ?? 0.05;
+    this.baseSpeed   = options.baseSpeed   ?? 6;
+    this.minSpeed    = options.minSpeed    ?? 0.025;
     this.lineFadeDistance = [60, 80];
 
     if (options.holeWorldPos) {

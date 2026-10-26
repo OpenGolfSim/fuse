@@ -244,6 +244,7 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
       let steps = 0;
       while (this.#accumulator >= FIXED_DT) {
         this.physics.update(FIXED_DT);
+        this.trail?.onPhysicsStep(this.isShotActive);
         this.#accumulator -= FIXED_DT;
         steps++;
       }
