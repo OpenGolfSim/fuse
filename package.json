@@ -16,7 +16,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
     "@floating-ui/dom": "^1.7.6",
