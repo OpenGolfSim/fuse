@@ -20,7 +20,7 @@ Download and install [OpenGolfSim](https://opengolfsim.com) Desktop or Mobile, t
 - Aim and keyboard controls
 - Practice range mode
 - Full course play (multiplayer support)
-- Custom courses built via CourseStudio
+- Custom courses built via [Course Meshery](https://github.com/OpenGolfSim/course-meshery-tool)
 - SDK for fully custom games
 
 Powered by [Three.js](https://threejs.org/) and [WebGPU](https://threejs.org/docs/pages/WebGPU.html)
@@ -92,10 +92,10 @@ You can build and test games that live on your local filesystem and run inside O
 
 You can checkout this repo to build and run our examples or develop your game against the source code, right in the browser.
 
-1. Checkout this repo:
+1. Clone this repo:
 
     ```bash
-    git checkout https://github.com/OpenGolfSim/fuse.git
+    git clone https://github.com/OpenGolfSim/fuse.git
     cd fuse
     ```
 
