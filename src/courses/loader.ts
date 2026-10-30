@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { type World } from '@dimforge/rapier3d-compat';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import EventEmitter from 'eventemitter3';
@@ -19,7 +18,7 @@ import { QualityMode } from '@/utils/quality';
 import { DefaultGimmeDistances } from '@/utils/data';
 import { Hole } from './types';
 import { LakeSurface, RiverSurface, VolumetricClouds, BlendMaterial, TargetShaderMaterial } from '@/shaders';
-import { LightmapMaterial, applyLightmapShadow, configureLightmapTexture } from '@/shaders/lightmap';
+import { LightmapMaterial, applyLightmapShadow, configureLightmapTexture, setBallShadowSun } from '@/shaders/lightmap';
 import { GrassBlades, GrassAssets } from '@/shaders/grassBlades';
 import { GrassSurface, GrassSurfaceOptions } from '@/shaders/grassSurface';
 import { FuseRenderer } from '@/renderer';
@@ -213,8 +212,6 @@ export type CourseHole = {
 export type CourseHoleMap = Map<number, CourseHole>;
 
 export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
-  // world: World;
-  // rapier: RapierInstance;
   meshLoader: MeshLoader;
   holes: CourseHoleMap;
   waterSurfaces: Map<string, any>;
@@ -248,15 +245,11 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
   gameMode?: OpenGolfSim.SetupData['gameMode'];
 
   constructor(
-    // world: World,
-    // rapier: RapierInstance,
     renderer: FuseRenderer,
     camera: ShotPerspectiveCamera,
     options: CourseLoaderOptions
   ) {
     super();
-    // this.world = world;
-    // this.rapier = rapier;
     this.#renderer = renderer;
     this.#camera = camera;
     this.qualityLevel = options.qualityLevel;
@@ -445,6 +438,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       console.warn('No shadow map found!');
       return; // course exported before baking existed — no-op
     }
+    setBallShadowSun(this.sceneSettings?.sun?.elevation, this.sceneSettings?.sun?.azimuth);
 
     for (const { mesh } of this.surfaces.values()) {
       const applied = applyLightmapShadow(mesh, tex, { worldSize: this.courseSize });
@@ -689,8 +683,6 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
       scene: this.scene,
       worldSize: this.courseSize,
       qualityLevel: this.qualityLevel,
-      // world: this.world,
-      // rapier: this.rapier,
       groundMeshes: this.getGroundMeshes()
     });
 
@@ -951,7 +943,7 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         let position = new THREE.Vector3(mapX, 10, mapY);
         if (hits.length > 0) {
           position.y = hits[0].point.y;
-          if ((!this.gameMode || this.gameMode === 'course') && waypointType === 'pin') {
+          if ((!this.gameMode || ['course', 'minigolf'].includes(this.gameMode)) && waypointType === 'pin') {
             // add flagstick and target material
             if (this.holes.has(holeNum)) {
               const hole = this.holes.get(holeNum);

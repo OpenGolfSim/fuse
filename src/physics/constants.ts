@@ -1,6 +1,4 @@
-import { type CourseSurfaceProperties } from '@/courses/surfaces';
 import { UnitConversions } from '@/utils/units';
-import { type Collider } from '@dimforge/rapier3d-compat';
 
 export type PhysicsLookUpTableRecord = {
   ballSpeed: number;
@@ -89,12 +87,3 @@ export const PhysicsLookupTable: PhysicsLookUpTableRecord[] = [
 
 export const GRAVITY = 9.81;
 export const GRAVITY_VECTOR = { x: 0, y: -GRAVITY, z: 0 };
-
-
-export interface ColliderWithUserData extends Collider {
-  userData?: CourseSurfaceProperties;
-}
-
-export function isColliderWithUserData(collider: Collider & ColliderWithUserData): collider is ColliderWithUserData {
-  return !!collider.userData;
-}

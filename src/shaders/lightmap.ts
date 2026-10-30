@@ -6,12 +6,59 @@ import {
   mix as tslMix,
   positionWorld,
   uniform as tslUniform,
+  dot, length, smoothstep,
 } from 'three/tsl';
+import { sunDirectionFromAngles } from '@/utils/sun';
 
 export type LightmapMaterialOptions = {
   worldSize?: number,
   strength?: number,   // 1 = full bake darkness
 };
+
+/**
+ * Analytic golf-ball shadow: ray–sphere occlusion along the sun direction,
+ * evaluated inside the existing surface shaders. No shadow map, no extra
+ * pass or draw call.
+ */
+export const ballShadowUniforms = {
+  ballPos: tslUniform(new THREE.Vector3(0, -1e4, 0)),
+  toSun: tslUniform(new THREE.Vector3(0, 1, 0)), // unit vector toward the sun
+  radius: tslUniform(0.0213),
+  // scale: tslUniform(1.0),        // >1 exaggerates size for readability
+  scale: tslUniform(2.0),        // shadow size multiplier (1 = real size)
+
+  softness: tslUniform(0.0047),  // sun angular radius (rad): penumbra growth per metre
+  edge: tslUniform(0.5),         // soft edge width as a fraction of shadow radius
+  strength: tslUniform(0.45),    // darkness at shadow centre; match your baked tree shadows
+  // strength: tslUniform(0.85),
+  // strength: tslUniform(1.0),     // DEBUG: revert to 0.85
+};
+
+export function setBallShadowSun(elevationDeg?: number, azimuthDeg?: number) {
+  const [x, y, z] = sunDirectionFromAngles(elevationDeg, azimuthDeg);
+  ballShadowUniforms.toSun.value.set(-x, -y, -z).normalize();
+}
+
+export function ballShadowNode() {
+  const u = ballShadowUniforms;
+  // const toBall = u.ballPos.sub(positionWorld);
+  const r = u.radius.mul(u.scale);
+  // Lift the enlarged sphere so it rests on the ground instead of sinking into it
+  const center = u.ballPos.add(vec3(0, r.sub(u.radius), 0));
+  const toBall = center.sub(positionWorld);
+
+  const t = dot(toBall, u.toSun);                          // distance along sun ray
+  const miss = length(toBall.sub(u.toSun.mul(t)));         // closest approach to ball centre
+  // const r = u.radius.mul(u.scale);
+  // const pen = t.max(0).mul(u.softness).add(0.003);         // penumbra widens with height
+  const blur = t.max(0).mul(u.softness);                   // penumbra widens with height
+  const pen = blur.add(r.mul(u.edge));                     // plus a fixed soft edge
+
+  const cover = float(1).sub(smoothstep(r.sub(pen), r.add(pen), miss));
+  const energy = r.div(r.add(blur)).pow(2);               // fades as the ball rises
+  const inFront = t.greaterThan(0).select(float(1), float(0));
+  return float(1).sub(cover.mul(energy).mul(u.strength).mul(inFront));
+}
 
 export function lightmapShadowNode(
   lightmap: THREE.Texture,
@@ -20,7 +67,7 @@ export function lightmapShadowNode(
 ) {
   const uvNode = positionWorld.xz.div(float(worldSize));
   const texNode = tslTexture(lightmap, uvNode);
-  const node = tslMix(float(1.0), texNode.r, float(strength));
+  const node = tslMix(float(1.0), texNode.r, float(strength)).mul(ballShadowNode());
   return { node, texNode };
 }
 /**
@@ -64,7 +111,7 @@ export class LightmapMaterial {
     // Lightmap sampled by world position over the course extent
     const lightmapUV = positionWorld.xz.div(float(worldSize));
     this.#texNode = tslTexture(lightmap, lightmapUV);
-    const shadowFactor = tslMix(float(1.0), this.#texNode.r, float(strength));
+    const shadowFactor = tslMix(float(1.0), this.#texNode.r, float(strength)).mul(ballShadowNode());
 
     this.material.colorNode = base.mul(shadowFactor);
 

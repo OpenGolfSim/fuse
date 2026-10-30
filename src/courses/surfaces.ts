@@ -13,6 +13,7 @@ export enum CourseSurfaceType {
   PlaneRiver = 'plane_river',
   PlaneOcean = 'plane_ocean',
   PineStraw = 'pine_straw',
+  Wall = 'wall',
   Default = 'default',
   Base = 'base',
 }
@@ -128,6 +129,12 @@ export const CourseSurfaces: Record<CourseSurfaceType, CourseSurfaceProperties> 
     friction: 0.3,
     restitution: 0.80,
     rollResistance: 0.2
+  },
+  [CourseSurfaceType.Wall]: {
+    hasCollider: true,
+    friction: 0.1,
+    restitution: 0.40,
+    rollResistance: 0.5
   },
   [CourseSurfaceType.PlaneLake]: {
     hasCollider: false,

@@ -5,6 +5,7 @@ import { BallPhysics, ShotEndEvent } from '@/physics/ballPhysics';
 import { BallTrail } from '@/objects/ballTrail';
 import { CourseColliderType, CourseSurfaceProperties, CourseSurfaceType } from '@/courses/surfaces';
 import { QualityMode } from '@/utils/quality';
+import { ballShadowUniforms } from '@/shaders/lightmap';
 
 const FIXED_DT = 1 / 60;
 
@@ -251,6 +252,12 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
       // useful for debugging physics on slower devices
       // if (steps !== 1) console.log(`Steps: ${steps}, accum: ${this.#accumulator.toFixed(5)}`);
     }
+    if (this.object.visible) {
+      ballShadowUniforms.ballPos.value.copy(this.object.position);
+    } else {
+      ballShadowUniforms.ballPos.value.set(0, -1e4, 0);
+    }
+
     if (this.trail) {
       this.trail.update(this.isShotActive);
     }

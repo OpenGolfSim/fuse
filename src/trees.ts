@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { mergeGeometries, deinterleaveGeometry } from 'three/addons/utils/BufferGeometryUtils.js';
-import { type World } from '@dimforge/rapier3d-compat';
 import { seededRandom } from '@/utils/random';
 import { isMeshObject } from '@/utils/mesh';
 import { QualityMode } from '@/utils/quality';
@@ -119,9 +118,7 @@ export class TreePlanter {
       ? (Array.isArray(groundMeshes) ? groundMeshes : [groundMeshes])
       : [];
 
-    // Three.js raycaster used when RAPIER isn't available (or always for Y)
     this.#raycaster = new THREE.Raycaster();
-    // this.#raycaster.firstHitOnly = true; // requires three-mesh-bvh or r152+
 
     this.treeGroup = new THREE.Group();
     this.scene.add(this.treeGroup);
@@ -137,19 +134,6 @@ export class TreePlanter {
   #getGroundY(x: number, z: number) {
     const originY = 200;
 
-    // if (this.physicsEnabled) {
-    //   const ray = new this.rapier!.Ray(
-    //     { x, y: originY, z },
-    //     { x: 0, y: -1, z: 0 }
-    //   );
-    //   const hit = this.world!.castRay(ray, 500, true);
-    //   if (hit == null) {
-    //     console.log('No ground hit...');
-    //     return null;
-    //   }
-    //   return originY - hit.timeOfImpact;
-    // }
-
     // Three.js fallback
     if (!this.groundMeshes || Array.isArray(this.groundMeshes) && this.groundMeshes?.length === 0) return 0; // no ground info, plant at y=0
 
@@ -160,37 +144,6 @@ export class TreePlanter {
     const hits = this.#raycaster.intersectObjects(this.groundMeshes as THREE.Object3D[], true);
     if (hits.length === 0) return null;
     return hits[0].point.y;
-  }
-  // #getGroundY(x: number, z: number) {
-  //   if (!this.groundMeshes || (Array.isArray(this.groundMeshes) && this.groundMeshes.length === 0)) {
-  //     return 0;
-  //   }
-
-  //   const result = GroundUtils.getGroundYFromScene(this.groundMeshes, x, z);
-  //   return result?.y ?? null;
-  // }
-
-
-  /**
-   * Optionally create a physics collider for a planted tree.
-   * No-ops when physics aren't available.
-   */
-  _addCollider(pos: THREE.Vector3, scale: number, baseHeight: number, baseRadius: number, userData: any) {
-    // // const RAPIER = this.RAPIER;
-    // const s = scale;
-    // const bodyDesc = this.rapier!.RigidBodyDesc.fixed()
-    //   .setTranslation(pos.x, pos.y + (baseHeight * s) / 2, pos.z);
-    // const body = this.world!.createRigidBody(bodyDesc);
-    // const colliderDesc = this.rapier!.ColliderDesc.cylinder(
-    //   (baseHeight * s) / 2,
-    //   baseRadius * s
-    // );
-    // const collider = this.world!.createCollider(colliderDesc, body);
-    // // @ts-expect-error
-    // collider.userData = userData;
-    // collider.setCollisionGroups(
-    //   (GROUP_OBJECT << 16) | GROUP_BALL
-    // );
   }
 
   #makeBatchMaterial(source: THREE.Material, isBillboardOnly: boolean): THREE.Material {
