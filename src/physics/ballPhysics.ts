@@ -42,14 +42,26 @@ export const GROUP_TERRAIN = 0x0001;
 export const GROUP_BALL    = 0x0002;
 export const GROUP_OBJECT  = 0x0004; // trees, walls, etc.
 
+/** ISO standard sea-level air density (kg/m³). */
+const ISO_AIR_DENSITY = 1.225;
+
+/**
+ * Air density (kg/m³) of the reference flights the CD/CL coefficients in
+ * `_updateAirPhysics` were fitted against (sea level, ~25 °C / 50 % RH).
+ * The coefficients are normalized to ISO density by this ratio, so `airDensity`
+ * stays at the ISO standard while sea-level carries still match the fit data.
+ */
+const AERO_FIT_AIR_DENSITY = 1.177332;
+const AERO_COEFF_SCALE = AERO_FIT_AIR_DENSITY / ISO_AIR_DENSITY;
+
 export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   mesh: THREE.Object3D;
   ballRadius: number;
   ballArea: number;
   ballMass = 0.04593;
-  airDensity = 1.177332;
-  airDensityMin = 1.177332;
-  airDensityMax = 0.95;
+  airDensity = ISO_AIR_DENSITY;
+  airDensityMin = ISO_AIR_DENSITY;
+  airDensityMax = 1.0;
   magnusCoeff = 0.00015;
   dragCoeff = 0.25;
   spinDecayRate = 0.987;
@@ -389,7 +401,8 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     const K_INDUCED = 1.88756;
     const V_LOW = 70.0 * 0.44704;   // 31.2928 m/s
     const V_HIGH = 150.0 * 0.44704; // 67.056 m/s
-    const kAero = 0.5 * this.airDensity * this.ballArea / this.ballMass;
+    // CD/CL above were fitted at AERO_FIT_AIR_DENSITY; AERO_COEFF_SCALE normalizes them to ISO density
+    const kAero = 0.5 * this.airDensity * this.ballArea / this.ballMass * AERO_COEFF_SCALE;
 
     // 4 substeps per 60Hz frame = 240Hz ballistic integration
     const subSteps = 4;
