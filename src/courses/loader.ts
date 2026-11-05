@@ -365,10 +365,10 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
 
     if (hole?.green?.target) {
       hole.green.target.update(golfBall, dt);
-    }    
+    }
     if (hole?.green?.grid) {
-      hole.green.grid.update(dt, camera);
-    }    
+      hole.green.grid.update(dt, camera, golfBall);
+    }
     if (hole?.green?.flag) {
       hole.green.flag.update(dt);
     }
@@ -987,10 +987,18 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
         noiseTexture: this.grassAssets!.grainTexture,
       };
     }
-    if (this.setupData?.puttingEnabled) {
-      grid = new PuttingGridMaterial(hit.object, { surfaceOptions: grassSettings, holeWorldPos: position });
+    let gimmeDistances = this.setupData?.gimmeDistances || DefaultGimmeDistances;
+    if (this.setupData?.puttingEnabled && this.gameMode !== 'minigolf') {
+      grid = new PuttingGridMaterial(hit.object, {
+        surfaceOptions: grassSettings,
+        holeWorldPos: position,
+        gimmeDistance: gimmeDistances[0],
+      });
     } else {
-      target = new TargetShaderMaterial(hit.object, position, { surfaceOptions: grassSettings, gimmeDistances: this.setupData?.gimmeDistances || DefaultGimmeDistances });
+      if (this.gameMode === 'minigolf') {
+        gimmeDistances = [gimmeDistances[0]];
+      }
+      target = new TargetShaderMaterial(hit.object, position, { surfaceOptions: grassSettings, gimmeDistances });
     }
 
     return { object: hit.object, flag, target, grid };

@@ -4,6 +4,7 @@ import { Hole, PlayerState } from './types';
 import { type GolfBallEvents, type GolfBall } from '@/objects/golfBall';
 import EventEmitter from 'eventemitter3';
 import { CoursePlayer } from './player';
+import { CourseColliderType, CourseSurfaceType } from '@/courses/surfaces';
 import { DefaultGimmeDistances } from '@/utils/data';
 import { ShotEndEvent } from '@/physics/ballPhysics';
 import { app } from '@/index';
@@ -17,6 +18,8 @@ const DROP_RING_STEP = 1;        // meters between sampling rings
 const DROP_RING_SAMPLES = 12;    // angular samples per ring
 const DROP_RAY_HEIGHT = 10;      // cast downward from this height above candidate
 const INVALID_DROP_SURFACES = ['plane_river', 'plane_lake', 'water', 'bunker', 'green'];
+// minigolf: ball resting on anything else is returned to the tee
+const MINIGOLF_VALID_SURFACES: readonly CourseColliderType[] = [CourseSurfaceType.Green, CourseSurfaceType.Wall];
 
 const SCORE_LABELS: Record<string, string> = {
   '-4': 'Condor',
@@ -163,7 +166,7 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
       console.warn('No pin location!');
       return;
     }
-    if (this.gameMode === 'minigolf') {
+    if (this.gameMode === 'minigolf' && distFromStart > 3.0) {
       this.activePlayer.aim = this.activePlayer.pin.clone();
     } else if (distFromStart > AIMPOINT_THRESHOLD) {
       // playerState.aim ? playerState.aim.copy(playerState.pin) : playerState.aim = playerState.pin.clone();
@@ -203,9 +206,32 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
     }
   }
 
+  /** Minigolf: ball came to rest off the playable surface */
+  _isMinigolfOutOfBounds(details: ShotEndEvent) {
+    const { surface, isInWater } = details;
+    if (this.gameMode !== 'minigolf') return false;
+    if (this.golfBall.physics?.isHoled || isInWater) return false;
+    return !surface || !MINIGOLF_VALID_SURFACES.includes(surface);
+  }
+
   _shouldAutoPutt(details: ShotEndEvent) {
     const { surface, holeNumber } = details;
-    return (surface === 'green' && !this.puttingEnabled && holeNumber === this.getActiveHoleNumber());
+    return (surface === 'green' && !this.puttingEnabled && this.gameMode !== 'minigolf' && holeNumber === this.getActiveHoleNumber());
+  }
+
+  /** Putting enabled: ball stopped inside the single gimme ring (gimmeDistances[0]) */
+  _isPuttingGimme(details: ShotEndEvent) {
+    const { surface, holeNumber } = details;
+    if (!this.puttingEnabled && this.gameMode !== 'minigolf') return false;
+    const gimme = this.gimmeDistances[0];
+    if (!gimme || gimme <= 0) return false; // gimmes disabled
+    if (surface !== 'green' || holeNumber !== this.getActiveHoleNumber()) return false;
+    const holePos = this.activeHole.waypoints.get('pin');
+    const ballPos = this.golfBall.object?.position;
+    if (!holePos || !ballPos) return false;
+    // XZ distance — matches the ring drawn by the shader
+    const dist = Math.hypot(ballPos.x - holePos.x, ballPos.z - holePos.z);
+    return dist <= gimme;
   }
 
   _onBeforeShotEnded(details: ShotEndEvent) {
@@ -235,8 +261,9 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
       } else if (distanceToHole <= this.gimmeDistances[1]) {
         autoPutt = 2;
       }
-      console.log(`[game] Auto-putting (Distance to hole: ${distanceToHole}m, auto-putt score: ${autoPutt})`);
       this._addStrokes(autoPutt, true);
+    } else if (this._isPuttingGimme(details)) {
+      this._addStrokes(1, true);
     }
 
   }
@@ -259,8 +286,14 @@ export class CourseGame extends EventEmitter<CourseGameEvents> {
         throw new Error('GolfBall object not found');
       }
       this.activePlayer.start.copy(this.golfBall.object.position);
+
+      // Minigolf: off the green/walls → back to the tee, no penalty
+      if (this._isMinigolfOutOfBounds(details)) {
+        const tee = this.activeHole.waypoints.get('tee');
+        if (tee) this.activePlayer.start.copy(tee);
+      }
       
-      if (this.golfBall.physics?.isHoled || this._shouldAutoPutt(details)) {
+      if (this.golfBall.physics?.isHoled || this._shouldAutoPutt(details) || this._isPuttingGimme(details)) {
         this.activePlayer.disabled = true;
         this._nextPlayer();
       }

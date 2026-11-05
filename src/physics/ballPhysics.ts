@@ -11,8 +11,8 @@ import { PhysicsLookupTable, GRAVITY } from './constants';
 //   decel = speed² / (2 × distance)  →  5.49 / stimp  (in m/s²)
 const STIMP_RELEASE_SPEED = 1.83 // m/s
 // Braking scales smoothly with speed — no cutoff. At exactly the
-          // release speed, braking matches the stimp rating, so putts stay correct.
-          // Tuning knob: bigger = long shots brake harder, smaller = chips run out more.
+// release speed, braking matches the stimp rating, so putts stay correct.
+// Tuning knob: bigger = long shots brake harder, smaller = chips run out more.
 const SPEED_BRAKING_SCALE = 0.3;
 // On a green slope too steep to rest on, how long a slow ball gets for
 // gravity to restart it before the shot ends anyway (guards against creep
@@ -21,7 +21,9 @@ const MAX_SLOPE_RESTART_FRAMES = 90; // 1.5 s at 60 Hz
 
 // A rise in ground height bigger than this within one step is a wall, not a slope
 const WALL_STEP_HEIGHT = 0.05; // m
-const WALL_RESTITUTION = 0.6;
+
+// Fall-in speed threshold — linear scaled with centrality
+const HOLE_FALL_THRESHOLD = 5;
 
 export type ShotEndEvent = {
   surface?: CourseColliderType,
@@ -755,11 +757,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
 
         if (useStimpLevel) {
           const stimpDecel = (STIMP_RELEASE_SPEED * STIMP_RELEASE_SPEED) / (2 * UnitConversions.feetToMeters(this.stimpLevel));
-          // decel = stimpDecel *
-          //   (1 + SPEED_BRAKING_SCALE * (horizontalSpeed - STIMP_RELEASE_SPEED));
-          const speedBraking = this.isPutt
-            ? 0
-            : SPEED_BRAKING_SCALE * Math.max(0, horizontalSpeed - STIMP_RELEASE_SPEED);
+          const speedBraking = this.isPutt ? 0 : SPEED_BRAKING_SCALE * Math.max(0, horizontalSpeed - STIMP_RELEASE_SPEED);
           decel = stimpDecel * (1 + speedBraking);
           const sinTheta = Math.sqrt(Math.max(0, 1 - normal.y * normal.y));
           canRest = (5 / 7) * GRAVITY * sinTheta <= stimpDecel * normal.y;
@@ -1016,11 +1014,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     const centrality = Math.max(0, 1 - closestDist / (R + r));
 
 
-    // Fall-in speed threshold — linear scale with centrality
-    // Dead center: up to ~7 mph (3.0 m/s) drops in
-    // Half off-center: up to ~4.5 mph (2.0 m/s)
-    // Rim edge: up to ~2 mph (1.0 m/s)
-    const fallInSpeed = 1.0 + centrality * 2.5;
+    const fallInSpeed = 1.0 + centrality * HOLE_FALL_THRESHOLD;
 
     if (vh < fallInSpeed) {
       this._enterCup(terrainY);
