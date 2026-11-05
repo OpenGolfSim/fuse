@@ -783,8 +783,6 @@ function createBag(team) {
   const angle = getAimAngle();
   const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, angle, 0));
 
-  // boardData.collider = RAPIER.ColliderDesc.roundCuboid(halfW, halfH, cornerRadius);
-
   const bodyDesc = gameContext.rapier.RigidBodyDesc.dynamic()
     .setTranslation(position.x, position.y, position.z)
     .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })   // the key line

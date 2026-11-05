@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { type World } from '@dimforge/rapier3d-compat';
 import { CourseColliderType, CourseSurfaceType } from '@/courses/surfaces';
 
 const _raycaster = new THREE.Raycaster();

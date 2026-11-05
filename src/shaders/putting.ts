@@ -10,6 +10,8 @@ import {
 } from 'three/tsl';
 import { type ShotPerspectiveCamera } from '@/camera';
 import { GrassSurface, GrassSurfaceOptions } from './grassSurface';
+import { GolfBall } from '@/objects/golfBall';
+import { GimmeRings } from './gimmeRings';
 
 type FloatNode = Node<'float'>;
 type Vec2Node = Node<'vec2'>;
@@ -38,6 +40,8 @@ export type PuttingGridMaterialOptions = {
   baseSpeed?: number,
   /** Minimum dot speed in m/s (default 0.02) */
   minSpeed?: number,
+  /** Single gimme ring radius in meters. Omit for no ring. */
+  gimmeDistance?: number,
   surfaceOptions?: GrassSurfaceOptions,
 };
 
@@ -80,6 +84,7 @@ export class PuttingGridMaterial {
 
   material?: MeshStandardNodeMaterial;
   dotsMesh?: THREE.InstancedMesh;
+  rings?: GimmeRings;
 
   private targetIntensity = 1.0;
   private currentIntensity = 0.0;
@@ -114,6 +119,10 @@ export class PuttingGridMaterial {
 
     if (options.holeWorldPos) {
       this.holePosUniform.value.set(options.holeWorldPos.x, 0, options.holeWorldPos.z);
+    }
+
+    if (options.gimmeDistance && options.gimmeDistance > 0) {
+      this.rings = new GimmeRings([options.gimmeDistance]);
     }
 
     if (!(object instanceof THREE.Mesh)) return;
@@ -197,8 +206,14 @@ export class PuttingGridMaterial {
     const g = fwidth(holeDist).clamp(0.0008, 0.02);
     const holeMask = tslSmoothstep(holeRadius.sub(g), holeRadius.add(g), holeDist);
 
-    // const finalColor = color;
-    const finalColor = fadedColor;
+    // Gimme ring composited after the grid distance fade so it never fades
+    let finalColor: any = fadedColor;
+    if (this.rings) {
+      const r = this.rings.build(fadedColor, holeDist);
+      finalColor = r.color;
+      mat.emissiveNode = r.emissive;
+    }
+
     mat.colorNode = Fn(() => {
       Discard(holeMask.lessThan(0.5));
       return vec4(finalColor.rgb, 1.0);
@@ -332,9 +347,6 @@ export class PuttingGridMaterial {
     }
   }
 
-  // -----------------------------------------------------------------
-  // Public API
-  // -----------------------------------------------------------------
   setEnabled(enabled: boolean, immediate = false) {
     this.targetIntensity = enabled ? 1.0 : 0.0;
     if (immediate) {
@@ -343,8 +355,14 @@ export class PuttingGridMaterial {
     }
     if (this.dotsMesh) this.dotsMesh.visible = enabled;
   }
+
   setHolePosition(position: THREE.Vector3) {
     this.holePosUniform.value.set(position.x, 0, position.z);
+  }
+
+  /** Show/hide the gimme ring. Call wherever TargetShaderMaterial.setVisible() is called. */
+  setGimmeVisible(visible: boolean) {
+    this.rings?.setVisible(visible);
   }
 
   updateGrid(camera: ShotPerspectiveCamera) {
@@ -352,17 +370,13 @@ export class PuttingGridMaterial {
     camera.getWorldDirection(dir);
     const newAngle = Math.atan2(dir.x, dir.z);
 
-    // const elevation = Math.asin(Math.abs(dir.y));
-    // const newCompression = Math.min(Math.pow(1 / Math.max(Math.sin(elevation), 0.17), 0.75), 5);
     // Measure the actual perspective compression by projecting a 1m H
     // and 1m V edge at the grid center. This accounts for FOV, distance,
     // and elevation all at once — no formula to get wrong.
     const cosA = Math.cos(newAngle);
     const sinA = Math.sin(newAngle);
     const c = this.gridCenter;
-    // const pA = new THREE.Vector3(c.x, c.y, c.z).project(camera);
-    // const pH = new THREE.Vector3(c.x + cosA, c.y, c.z - sinA).project(camera);
-    // const pV = new THREE.Vector3(c.x + sinA, c.y, c.z + cosA).project(camera);
+
     // Measure compression between camera and grid center (biased toward
     // near cells where foreshortening is most visible). 0.35 = measure
     // point is 35% of the way from camera to center. Lower = more
@@ -384,7 +398,7 @@ export class PuttingGridMaterial {
       this.buildGrid(newAngle, newCompression);
     }
   }
-  update(dt: number, camera: ShotPerspectiveCamera) {
+  update(dt: number, camera: ShotPerspectiveCamera, golfBall: GolfBall) {
     this.elapsed += dt;
 
     // Fade grid lines
@@ -392,9 +406,7 @@ export class PuttingGridMaterial {
     this.currentIntensity += (this.targetIntensity - this.currentIntensity) * t;
     this.intensityUniform.value = this.currentIntensity;
 
-    // Update grid angle + compression from camera
-    // if (!camera.isTracking) {
-    // }
+    this.rings?.update(golfBall, this.holePosUniform.value, dt);
 
     // Animate dots with per-edge perspective compensation.
     //
@@ -435,11 +447,6 @@ export class PuttingGridMaterial {
           continue;
         }
 
-        // const screenDist = Math.sqrt(
-        //   (projB.x - projA.x) ** 2 + (projB.y - projA.y) ** 2,
-        // );
-        // const slopeSpeed = Math.max(this.minSpeed, this.baseSpeed * e.slope);
-        // const duration = Math.max(screenDist / (targetScreenSpeed * slopeSpeed), 0.3);
         // Fade dot size to 0 between 50m and 60m from camera
         const dotDist = Math.sqrt(
           ((e.start.x + e.end.x) * 0.5 - camera.position.x) ** 2 +
@@ -453,14 +460,10 @@ export class PuttingGridMaterial {
           continue;
         }
 
-
-        // const tt = (this.elapsed % duration) / duration;
         const tt = (this.elapsed % e.duration) / e.duration;
-
         const px = e.start.x + (e.end.x - e.start.x) * tt;
         const py = e.start.y + (e.end.y - e.start.y) * tt;
         const pz = e.start.z + (e.end.z - e.start.z) * tt;
-        // mat4.makeScale(sc, sc, sc);
         mat4.makeScale(sc * dotFade, sc * dotFade, sc * dotFade);
         mat4.setPosition(px, py, pz);
       }

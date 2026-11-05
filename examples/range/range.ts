@@ -170,13 +170,6 @@ async function createGroundPlane() {
   
   gameContext.scene.add(gameContext.groundLines);
 
-  
-  // gameContext.groundCollider = new GroundPhysics(gameContext.ground, app.world, app.rapier, {
-  //   type: CourseSurfaceType.Fairway,
-  //   ...CourseSurfaces.fairway
-  // });  
-
-
   const downrange = new THREE.Vector3(0, 0, 1); // looking down -Z
 
   const distances = [...hashMarks].map(val => gameContext.setupData?.units === 'imperial' ? UnitConversions.yardsToMeters(val) : val);

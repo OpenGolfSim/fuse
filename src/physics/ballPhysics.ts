@@ -11,13 +11,19 @@ import { PhysicsLookupTable, GRAVITY } from './constants';
 //   decel = speed² / (2 × distance)  →  5.49 / stimp  (in m/s²)
 const STIMP_RELEASE_SPEED = 1.83 // m/s
 // Braking scales smoothly with speed — no cutoff. At exactly the
-          // release speed, braking matches the stimp rating, so putts stay correct.
-          // Tuning knob: bigger = long shots brake harder, smaller = chips run out more.
+// release speed, braking matches the stimp rating, so putts stay correct.
+// Tuning knob: bigger = long shots brake harder, smaller = chips run out more.
 const SPEED_BRAKING_SCALE = 0.3;
 // On a green slope too steep to rest on, how long a slow ball gets for
 // gravity to restart it before the shot ends anyway (guards against creep
 // and against oscillating in a valley between steep faces)
 const MAX_SLOPE_RESTART_FRAMES = 90; // 1.5 s at 60 Hz
+
+// A rise in ground height bigger than this within one step is a wall, not a slope
+const WALL_STEP_HEIGHT = 0.05; // m
+
+// Fall-in speed threshold — linear scaled with centrality
+const HOLE_FALL_THRESHOLD = 5;
 
 export type ShotEndEvent = {
   surface?: CourseColliderType,
@@ -119,6 +125,8 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
   #velocity = new THREE.Vector3();
   #angularVel = new THREE.Vector3();
   #hitNormal = new THREE.Vector3(0, 1, 0);
+  #wallRay = new THREE.Ray();
+  #wallNormal = new THREE.Vector3();
 
   constructor(
     mesh: THREE.Object3D,
@@ -568,6 +576,51 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     // Note: Make sure ground always faces up to guard against flipped winding
     if (normal.y < 0) normal.negate();
 
+    // Walls: the downward ray can't see vertical faces, so a sudden rise
+    // means the ball hit a wall. Bounce off it instead of stepping on top.
+    if (
+      terrainY - (pos.y - this.ballRadius) > WALL_STEP_HEIGHT &&
+      // Only when entering the raised area, never when already inside it
+      terrainY - this.getTerrainHeight(pos.x, pos.z) > WALL_STEP_HEIGHT
+    ) {
+
+      // const wallNormal = this._getTerrainNormal(newX, newZ);
+      const wallNormal = this._getWallNormal(pos, newX, newZ, terrainY);
+      console.log('[wall] hit', wallNormal.toArray().map(n => n.toFixed(2)), 'vel', vel.toArray().map(n => n.toFixed(2)));
+
+      wallNormal.y = 0;
+      const { restitution: wallE, friction: wallMu } = CourseSurfaces[CourseSurfaceType.Wall];
+      if (wallNormal.lengthSq() > 1e-8) {
+        wallNormal.normalize();
+        const vn = vel.x * wallNormal.x + vel.z * wallNormal.z;
+        if (vn < 0) {
+          // Into-wall part bounces back at wallE; sliding part loses wallMu to friction
+          const tx = vel.x - vn * wallNormal.x;
+          const tz = vel.z - vn * wallNormal.z;
+          // Friction removes sliding speed in proportion to how hard the ball
+          // hits (normal impulse), never more than the sliding speed itself
+          const vt = Math.hypot(tx, tz);
+          const keep = vt > 1e-9 ? Math.max(0, 1 - (wallMu * (1 + wallE) * -vn) / vt) : 0;
+
+          vel.x = tx * keep - wallE * vn * wallNormal.x;
+          vel.z = tz * keep - wallE * vn * wallNormal.z;
+        } else {
+          // Normal is unreliable here; reverse so the ball can't stall in place
+          vel.x *= -wallE;
+          vel.z *= -wallE;
+        }
+        
+      } else {
+        vel.x *= -wallE;
+        vel.z *= -wallE;
+      }
+      vel.y = 0;
+      // Match roll spin to the new direction so roll friction doesn't fight the bounce
+      spin.crossVectors(this.#normalClone.set(0, 1, 0), vel).divideScalar(this.ballRadius);
+      return; // ball stays where it was this step
+    }
+
+
     if (this.holeState !== 'exiting' && this._checkHole(pos, newX, newZ, vel, terrainY)) {
       // Advance to closest approach point, not the endpoint (which may be past the hole)
       const segX = newX - pos.x;
@@ -681,7 +734,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
       } else {
         // Handle rolling
         this.isGrounded = true;
-
+        if (normal.y < 0.8) console.log('[ground] steep normal', normal.toArray().map(n => n.toFixed(2)), 'surface', this.currentSurface?.type, 'rise', (terrainY - (pos.y - this.ballRadius)).toFixed(3));
         // Project velocity onto surface plane
         vel.sub(this.#normalClone.copy(normal).multiplyScalar(vel.dot(normal)));
 
@@ -704,11 +757,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
 
         if (useStimpLevel) {
           const stimpDecel = (STIMP_RELEASE_SPEED * STIMP_RELEASE_SPEED) / (2 * UnitConversions.feetToMeters(this.stimpLevel));
-          // decel = stimpDecel *
-          //   (1 + SPEED_BRAKING_SCALE * (horizontalSpeed - STIMP_RELEASE_SPEED));
-          const speedBraking = this.isPutt
-            ? 0
-            : SPEED_BRAKING_SCALE * Math.max(0, horizontalSpeed - STIMP_RELEASE_SPEED);
+          const speedBraking = this.isPutt ? 0 : SPEED_BRAKING_SCALE * Math.max(0, horizontalSpeed - STIMP_RELEASE_SPEED);
           decel = stimpDecel * (1 + speedBraking);
           const sinTheta = Math.sqrt(Math.max(0, 1 - normal.y * normal.y));
           canRest = (5 / 7) * GRAVITY * sinTheta <= stimpDecel * normal.y;
@@ -873,6 +922,33 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     return this.getTerrainInfo(x, z).height;
   }
 
+  /** Normal of the wall face the ball is moving into: cast a horizontal ray
+   *  along the step and use the hit face. Falls back to the height-sampled
+   *  normal if the ray misses or hits something that isn't vertical. */
+  _getWallNormal(pos: THREE.Vector3, newX: number, newZ: number, wallTopY: number) {
+    const ray = this.#wallRay;
+    // Cast halfway between the ball's ground and the wall top, so the ray
+    // still hits the side face if the wall's bottom edge sits above the ball
+    ray.origin.set(pos.x, (pos.y - this.ballRadius + wallTopY) / 2, pos.z);
+
+    ray.direction.set(newX - pos.x, 0, newZ - pos.z);
+    const stepLen = ray.direction.length();
+    if (this.#mergedBVH && stepLen > 1e-6) {
+      ray.direction.divideScalar(stepLen);
+      const hit = this.#mergedBVH.raycastFirst(ray, THREE.DoubleSide, 0, stepLen + this.ballRadius);
+      if (hit?.face && Math.abs(hit.face.normal.y) < 0.5) {
+        const n = this.#wallNormal.copy(hit.face.normal);
+        if (n.dot(ray.direction) > 0) n.negate(); // DoubleSide: face the ball
+        n.y = 0;
+        return n;
+      }
+    }
+    const fallback = this._getTerrainNormal(newX, newZ);
+    console.warn('[wall] face ray missed, using height-sampled normal');
+    fallback.y = 0;
+    return fallback;
+  }
+
   _getTerrainNormal(x: number, z: number) {
     const eps = 0.1;
     const hL = this.getTerrainHeight(x - eps, z);
@@ -938,11 +1014,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
     const centrality = Math.max(0, 1 - closestDist / (R + r));
 
 
-    // Fall-in speed threshold — linear scale with centrality
-    // Dead center: up to ~7 mph (3.0 m/s) drops in
-    // Half off-center: up to ~4.5 mph (2.0 m/s)
-    // Rim edge: up to ~2 mph (1.0 m/s)
-    const fallInSpeed = 1.0 + centrality * 2.5;
+    const fallInSpeed = 1.0 + centrality * HOLE_FALL_THRESHOLD;
 
     if (vh < fallInSpeed) {
       this._enterCup(terrainY);
