@@ -71,6 +71,12 @@ export class BallTrail {
   #stepMod: number;
   #stepNum = 0;
 
+  /** Raw points that are bounce contacts: the spline is broken there (sharp corner, no overshoot). */
+  #corners: Uint8Array;
+  #prevStepPos = new THREE.Vector3();
+  #prevStepDy = 0;
+  #hasPrevStep = false;
+
   #live = new THREE.Vector3();
   #lastLive = new THREE.Vector3(Infinity, Infinity, Infinity);
   #lastRawCount = -1;
@@ -137,6 +143,7 @@ export class BallTrail {
     });
 
     this.#positions = new Float32Array(this.maxPoints * 3);
+    this.#corners = new Uint8Array(this.maxPoints);
 
     this.line = new MeshLine({
       lines: this.#positions,
@@ -189,8 +196,33 @@ export class BallTrail {
   /** Call once per fixed physics step. Sampling is independent of render FPS. */
   onPhysicsStep(collectPoints: boolean) {
     if (!collectPoints) return;
+
+    // Bounce detection: descending last step, not descending this step → the previous
+    // step's position was a ground contact. Record it as a corner control point.
+    const p = this.golfBall.position;
+    if (this.#hasPrevStep) {
+      const dy = p.y - this.#prevStepPos.y;
+      if (this.#prevStepDy < 0 && dy >= 0) {
+        this.#addCorner(this.#prevStepPos);
+      }
+      this.#prevStepDy = dy;
+    }
+    this.#prevStepPos.copy(p);
+    this.#hasPrevStep = true;
+
     if (this.#stepNum++ % this.#stepMod === 0 && this.points.length < this.maxPoints) {
       this.addPoint();
+    }
+  }
+
+  #addCorner(c: THREE.Vector3) {
+    const n = this.points.length;
+    const last = this.points[n - 1];
+    if (last && last.distanceToSquared(c) <= EPS_SQ) {
+      this.#corners[n - 1] = 1; // already sampled at the contact step
+    } else if (n < this.maxPoints) {
+      this.points.push(c.clone());
+      this.#corners[n] = 1;
     }
   }
 
@@ -277,10 +309,26 @@ export class BallTrail {
     }
   }
 
+  /** DEBUG: lowest height of the drawn trail above the ground. */
+  debugClearance(heightAt: (x: number, z: number) => number) {
+    const pos = this.#positions;
+    let min = Infinity, at = -1;
+    for (let i = 0; i < this.#activePoints; i++) {
+      const o = i * 3;
+      const c = pos[o + 1] - heightAt(pos[o], pos[o + 2]);
+      if (c < min) { min = c; at = i; }
+    }
+    const o = at * 3;
+    return { min, index: at, active: this.#activePoints, point: [pos[o], pos[o + 1], pos[o + 2]] };
+  }
+
   #resetState() {
     this.line.visible = false;
     this.points = [];
     this.#stepNum = 0;
+    this.#corners.fill(0);
+    this.#hasPrevStep = false;
+    this.#prevStepDy = 0;
     this.#lastRawCount = -1;
     this.#lastLive.set(Infinity, Infinity, Infinity);
     this.#commit.seg = 0;
@@ -309,15 +357,19 @@ export class BallTrail {
       const b = this.#ctrl(k + 1);
       const len = a.distanceTo(b);
       if (len === 0) continue;
-      const p0 = k > 0 ? this.#ctrl(k - 1) : a;
-      const p3 = k + 2 < m ? this.#ctrl(k + 2) : b;
+      // One-sided tangents at bounce corners so the curve doesn't swing through the ground.
+      const p0 = k > 0 && !this.#corners[k] ? this.#ctrl(k - 1) : a;
+      const p3 = k + 2 < m && !this.#corners[k + 1] ? this.#ctrl(k + 2) : b;
+      // Safety net: never dip below the lower of the segment's two endpoints.
+      const minY = a.y < b.y ? a.y : b.y;
 
       while (cur.traveled + len >= cur.nextTarget && cur.count < limit) {
         const t = (cur.nextTarget - cur.traveled) / len;
         const t2 = t * t, t3 = t2 * t;
         const o = cur.count * 3;
         pos[o]     = cr(p0.x, a.x, b.x, p3.x, t, t2, t3);
-        pos[o + 1] = cr(p0.y, a.y, b.y, p3.y, t, t2, t3);
+        const y = cr(p0.y, a.y, b.y, p3.y, t, t2, t3);
+        pos[o + 1] = y > minY ? y : minY;
         pos[o + 2] = cr(p0.z, a.z, b.z, p3.z, t, t2, t3);
         cur.count++;
         cur.nextTarget += spacing;

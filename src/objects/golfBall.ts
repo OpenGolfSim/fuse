@@ -155,6 +155,9 @@ export class GolfBall extends EventEmitter<GolfBallEvents> {
     if (!this.stats.endPosition) {
       this.stats.endPosition = this.object?.position.clone();
     }
+    if (this.trail && this.physics) {
+      console.log('[trail clearance]', this.trail.debugClearance((x, z) => this.physics.getTerrainHeight(x, z)));
+    }
     if (event.surface) {
       this.stats.surface = event.surface;
     }
