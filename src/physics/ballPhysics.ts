@@ -430,6 +430,11 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
       const terrainY = this.getTerrainHeight(newX, newZ);
       if (newY <= terrainY + this.ballRadius + 0.01) {
         this.isLanded = true;
+        // The air step has no ground collision, so a fast descent can end up to
+        // |vel.y|·dt below the surface on the landing step. Snap it to the surface.
+        if (newY < terrainY + this.ballRadius) {
+          pos.y = terrainY + this.ballRadius;
+        }
       }
     }
 
@@ -440,6 +445,7 @@ export class BallPhysics extends EventEmitter<BallPhysicsEvents> {
       const terrainY = this.getTerrainHeight(newX, newZ);
       if (newY <= terrainY + this.ballRadius) {
         this.isLanded = true;
+        pos.y = terrainY + this.ballRadius;
       }
     }
 
