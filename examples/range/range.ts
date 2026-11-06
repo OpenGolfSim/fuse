@@ -22,7 +22,11 @@ import {
   UIMainMenu,
   CourseSurfaceType,
   FuseRenderer,
-  UILaunchMonitor
+  UILaunchMonitor,
+  UIViewToggle,
+  UIHeightChart,
+  UIDispersionChart,
+  TargetShaderMaterial,
 } from '@opengolfsim/fuse';
 import rangeMtnsModel from './models/rangeMtns.glb?url';
 import bagStandModel from './models/bagstand.glb?url';
@@ -55,6 +59,8 @@ const gameContext: {
   mountain?: THREE.Object3D,
   groundCollider?: GroundPhysics,
   yardageLines?: YardageLinesMaterial,
+  targetMaterial?: TargetShaderMaterial,
+  targetRadius: number,
 
   // Setup Data
   setupData?: OpenGolfSim.SetupData,  
@@ -67,7 +73,9 @@ const gameContext: {
   playerMenu?: UIPlayerMenu,
   mainMenu?: UIMainMenu,
   launchMonitor?: UILaunchMonitor,
-  
+  viewToggle?: UIViewToggle,
+  heightChart?: UIHeightChart,
+  dispersionChart?: UIDispersionChart,
   // Controls
   camera?: ShotPerspectiveCamera,
   controls?: CourseKeyboardControls,
@@ -85,10 +93,13 @@ const gameContext: {
   aimPoint: new THREE.Vector3(0, 0, 200),
   distanceToAim: 0,
   heightToAim: 0,
+  targetRadius: 20,
 };
 
 function launchShot(shot: OpenGolfSim.Shot) {
   if (shot.ballSpeed && !gameContext.golfBall?.isShotActive) {
+    gameContext.heightChart?.beginShot();
+    gameContext.dispersionChart?.beginShot();
     gameContext.golfBall?.launchShot(shot, gameContext.currentPlayer);
     gameContext.shotData?.updateShotData(shot);
     // start tracking after a delay based on ball speed
@@ -128,14 +139,12 @@ async function createGroundPlane() {
   console.log('grassTexture', grassTexture);
   grassTexture.wrapS = THREE.RepeatWrapping;
   grassTexture.wrapT = THREE.RepeatWrapping;
-  grassTexture.repeat.set(grassScale, grassScale * widthRatio); // tile 50x across, 100x down the 100x200 plane
   grassTexture.colorSpace = THREE.SRGBColorSpace; // correct color rendering
   grassTexture.anisotropy = gameContext.renderer?.getMaxAnisotropy() || 1;
   
   const grassNormalMap = textureLoader.load(fairwayMap);
   grassNormalMap.wrapS = THREE.RepeatWrapping;
   grassNormalMap.wrapT = THREE.RepeatWrapping;
-  grassNormalMap.repeat.set(grassScale, grassScale * widthRatio); // tile 50x across, 100x down the 100x200 plane
   grassNormalMap.colorSpace = THREE.SRGBColorSpace; // correct color rendering
   grassNormalMap.anisotropy = gameContext.renderer?.getMaxAnisotropy() || 1;
     
@@ -148,10 +157,16 @@ async function createGroundPlane() {
     metalness: 0,
   });
   
-  
-    // Floor - Lighter wood planks
-  // const floorGeometry = new THREE.PlaneGeometry(500, 700);
+  // Floor - Lighter wood planks
   const floorGeometry = new THREE.PlaneGeometry(rangeWidth, rangeHeight, 50, 70);
+
+  // Tile the grass via geometry UVs (like course meshes) rather than
+  // texture.repeat, which GrassSurface-based materials (TargetShaderMaterial)
+  // don't apply.
+  const floorUv = floorGeometry.attributes.uv;
+  for (let i = 0; i < floorUv.count; i++) {
+    floorUv.setXY(i, floorUv.getX(i) * grassScale, floorUv.getY(i) * grassScale * widthRatio);
+  }
 
   gameContext.ground = new THREE.Mesh(floorGeometry, floorMaterial);
   gameContext.ground.rotation.x = -Math.PI / 2;
@@ -159,9 +174,6 @@ async function createGroundPlane() {
   gameContext.ground.position.z = 140;
   gameContext.ground.receiveShadow = true;
   gameContext.ground.userData.surface = 'fairway';
-
-
-  // console.log('mat', mat);
 
   gameContext.scene.add(gameContext.ground);
   
@@ -236,6 +248,13 @@ async function loadMountain(
 }
 
 async function setupRange() {
+  // created before the renderer so the game pane has its layout size at init
+  gameContext.viewToggle = new UIViewToggle('#top-center', {
+    layout: '#view-layout',
+    gamePane: '#game-pane',
+    storageKey: 'fuse-range-view'
+  });
+
   await setupWorld();
   const player = gameContext.setupData?.players?.[0];
   if (!player) throw new Error('No player found in setup data');
@@ -264,10 +283,24 @@ async function setupRange() {
 
   await createGroundPlane();
 
+  // target ring on the ground around the aim point (10 yd / 10 m radius)
+  gameContext.targetRadius = gameContext.setupData?.units === 'imperial'
+    ? UnitConversions.yardsToMeters(10)
+    : 10;
+  if (gameContext.ground) {
+    gameContext.targetMaterial = new TargetShaderMaterial(gameContext.ground, gameContext.aimPoint, {
+      gimmeDistances: [gameContext.targetRadius],
+      requiresGreen: false,
+      hideHoleCutout: true
+    });
+  }
+
   if (!gameContext.renderer) throw new Error('Renderer should exist before creating camera');
   if (!gameContext.ground) throw new Error('Ground physics should exist before creating camera');
   gameContext.camera = new ShotPerspectiveCamera({
     scene: gameContext.ground,
+    // follow the canvas size (not the window) so aspect stays correct in chart view
+    canvas: document.getElementById('canvas'),
     far: 1000,
     autoPosition: true,
     // fov: 25,
@@ -325,7 +358,17 @@ async function setupRange() {
   gameContext.golfBall.on('shotEnded', onShotEnded);
 
   gameContext.shotData = new UIShotData('#shot-data', { units: gameContext.setupData?.units });
-  gameContext.rangeFinder = new UIRangeFinder('#top-center', { units: gameContext.setupData?.units });
+
+  if (gameContext.viewToggle) {
+    gameContext.heightChart = new UIHeightChart(gameContext.viewToggle.bottomPane, {
+      units: gameContext.setupData?.units
+    });
+    gameContext.dispersionChart = new UIDispersionChart(gameContext.viewToggle.rightPane, {
+      units: gameContext.setupData?.units
+    });
+  }
+
+  // gameContext.rangeFinder = new UIRangeFinder('#top-center', { units: gameContext.setupData?.units });
   
   console.log('gameContext.setupData?.players', gameContext.setupData?.players);
 
@@ -363,6 +406,11 @@ async function preLoad() {
 }
 
 function onShotEnded() {
+  const stats = gameContext.golfBall?.stats;
+  if (stats?.total) {
+    gameContext.dispersionChart?.addShot(stats.lateral, stats.total);
+  }
+
   setupNextShot();
 
   app.sendShotResult(
@@ -390,6 +438,8 @@ async function initializeDebug() {
 function clubChange(club: OpenGolfSim.Club) {
   if (!gameContext.currentPlayer) throw new Error('No active player');
   gameContext.currentPlayer.currentClub = club;
+  gameContext.heightChart?.clear();
+  gameContext.dispersionChart?.clear();
   gameContext.aimPoint = new THREE.Vector3(0, 0, club.distance);
   gameContext.camera?.setPositions(gameContext.startPoint, gameContext.aimPoint);
   gameContext.playerMenu?.update(gameContext.currentPlayer);
@@ -413,6 +463,9 @@ function updateAimPoint() {
   gameContext.distanceToAim = gameContext.startPoint.distanceTo(gameContext.aimPoint);
   gameContext.heightToAim = gameContext.startPoint.y - gameContext.aimPoint.y;
   gameContext.rangeFinder?.update(gameContext.distanceToAim, gameContext.heightToAim);
+  gameContext.heightChart?.setTarget(gameContext.distanceToAim);
+  gameContext.dispersionChart?.setTarget(gameContext.distanceToAim, gameContext.targetRadius);
+  gameContext.targetMaterial?.setPosition(gameContext.aimPoint);
   gameContext.golfBall?.aimAt(gameContext.aimPoint);
 }
 
@@ -424,6 +477,7 @@ function animate(animDelta: number) {
 
   if (gameContext.golfBall) {
     gameContext.golfBall.update(delta);
+    gameContext.targetMaterial?.update(gameContext.golfBall, delta);
   }
 
   // gameContext.renderer?.clear();
@@ -458,7 +512,18 @@ function animate(animDelta: number) {
   if (gameContext.shotData && gameContext.golfBall) {
     gameContext.shotData.updateShotResult(gameContext.golfBall.stats);
   }
-  
+
+  if (gameContext.golfBall?.isShotActive) {
+    // redraws are skipped internally when no new samples have arrived
+    gameContext.heightChart?.updateLive(
+      gameContext.golfBall.stats.heightSamples,
+      gameContext.golfBall.stats.distanceSamples
+    );
+    gameContext.dispersionChart?.updateLive(
+      gameContext.golfBall.stats.lateralSamples,
+      gameContext.golfBall.stats.distanceSamples
+    );
+  }  
   gameContext.stats?.end();
   gameContext.timer.update(animDelta);
 

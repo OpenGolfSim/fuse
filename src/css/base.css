@@ -90,7 +90,7 @@ button:hover {
 
 #bottom-left {
   position: absolute;
-  bottom: calc(var(--grid-size) / 4);
+  bottom: var(--grid-size);
   left: var(--grid-size);
   display: flex;
   flex-direction: column;

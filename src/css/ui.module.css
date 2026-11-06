@@ -802,3 +802,84 @@
   text-align: center;
   text-transform: uppercase;
 }
+
+/* UIViewToggle layout */
+.viewLayout {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+.viewLayout.viewLayoutCharts {
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 2fr 1fr;
+  gap: var(--grid-size);
+  background-color: var(--bg-color-solid);
+  /* reserved column on the right so the fixed shot-data panel
+     doesn't cover the chart panes; sized in root.css */
+  padding-right: var(--chart-view-stats-width);
+}
+.gamePane {
+  position: relative;
+  overflow: hidden;
+  grid-column: 1;
+  grid-row: 1;
+}
+.chartPaneRight,
+.chartPaneBottom {
+  display: none;
+  background-color: var(--bg-color);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+.viewLayoutCharts .chartPaneRight {
+  display: block;
+  grid-column: 2;
+  grid-row: 1;
+}
+.viewLayoutCharts .chartPaneBottom {
+  display: block;
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+.viewToggleGroup {
+  display: flex;
+  flex-direction: row;
+  background-color: var(--bg-color);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+.viewToggleButton {
+  width: calc(var(--base-padding) * 6);
+  height: calc(var(--base-padding) * 3.5);
+  padding: calc(var(--base-padding) / 2);
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.viewToggleButton svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+  display: block;
+}
+.viewToggleButton.viewToggleButtonActive,
+.viewToggleButton.viewToggleButtonActive:hover {
+  background-color: var(--primary-color);
+  color: var(--bg-color-solid);
+}
+
+.uiChart {
+  width: 100%;
+  height: 100%;
+}
+.uiChart canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
