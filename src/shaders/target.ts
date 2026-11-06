@@ -46,26 +46,18 @@ export class TargetShaderMaterial {
       // Turf base: fade/discolor/terrain shading from the shared green preset
       const mat = new GrassSurface(origMat, options.surfaceOptions ?? {});
 
-      // --- Distance from fragment to hole (XZ plane) ---
+      // Distance from fragment to hole (XZ plane)
       const dist: any = positionWorld.xz.sub(this.holePosUniform.xz).length();
 
-      // // --- Hole mask: fade to transparent inside the hole ---
-      // const g = fwidth(dist).clamp(0.0008, 0.02);
-      // const holeMask = tslSmoothstep(holeRadius.sub(g), holeRadius.add(g), dist);
-
-      // --- Gimme rings over the turf color ---
+      // Gimme rings over the turf color
       const { color, emissive } = this.rings.build(mat.surfaceColor, dist);
       mat.emissiveNode = emissive;
       
       
       const finalColor = color;
-      // mat.colorNode = Fn(() => {
-      //   Discard(holeMask.lessThan(0.5));
-      //   return vec4(finalColor.rgb, 1.0);
-      // })();
 
       if (!options.hideHoleCutout) {
-        // --- Hole mask: fade to transparent inside the hole ---
+        // Hole mask: fade to transparent inside the hole
         const g = fwidth(dist).clamp(0.0008, 0.02);
         const holeMask = tslSmoothstep(holeRadius.sub(g), holeRadius.add(g), dist);
 

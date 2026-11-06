@@ -139,14 +139,12 @@ async function createGroundPlane() {
   console.log('grassTexture', grassTexture);
   grassTexture.wrapS = THREE.RepeatWrapping;
   grassTexture.wrapT = THREE.RepeatWrapping;
-  // grassTexture.repeat.set(grassScale, grassScale * widthRatio); // tile 50x across, 100x down the 100x200 plane
   grassTexture.colorSpace = THREE.SRGBColorSpace; // correct color rendering
   grassTexture.anisotropy = gameContext.renderer?.getMaxAnisotropy() || 1;
   
   const grassNormalMap = textureLoader.load(fairwayMap);
   grassNormalMap.wrapS = THREE.RepeatWrapping;
   grassNormalMap.wrapT = THREE.RepeatWrapping;
-  // grassNormalMap.repeat.set(grassScale, grassScale * widthRatio); // tile 50x across, 100x down the 100x200 plane
   grassNormalMap.colorSpace = THREE.SRGBColorSpace; // correct color rendering
   grassNormalMap.anisotropy = gameContext.renderer?.getMaxAnisotropy() || 1;
     
@@ -159,9 +157,7 @@ async function createGroundPlane() {
     metalness: 0,
   });
   
-  
-    // Floor - Lighter wood planks
-  // const floorGeometry = new THREE.PlaneGeometry(500, 700);
+  // Floor - Lighter wood planks
   const floorGeometry = new THREE.PlaneGeometry(rangeWidth, rangeHeight, 50, 70);
 
   // Tile the grass via geometry UVs (like course meshes) rather than
@@ -178,9 +174,6 @@ async function createGroundPlane() {
   gameContext.ground.position.z = 140;
   gameContext.ground.receiveShadow = true;
   gameContext.ground.userData.surface = 'fairway';
-
-
-  // console.log('mat', mat);
 
   gameContext.scene.add(gameContext.ground);
   
