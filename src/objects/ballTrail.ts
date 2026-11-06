@@ -309,19 +309,6 @@ export class BallTrail {
     }
   }
 
-  /** DEBUG: lowest height of the drawn trail above the ground. */
-  debugClearance(heightAt: (x: number, z: number) => number) {
-    const pos = this.#positions;
-    let min = Infinity, at = -1;
-    for (let i = 0; i < this.#activePoints; i++) {
-      const o = i * 3;
-      const c = pos[o + 1] - heightAt(pos[o], pos[o + 2]);
-      if (c < min) { min = c; at = i; }
-    }
-    const o = at * 3;
-    return { min, index: at, active: this.#activePoints, point: [pos[o], pos[o + 1], pos[o + 2]] };
-  }
-
   #resetState() {
     this.line.visible = false;
     this.points = [];
