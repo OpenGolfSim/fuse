@@ -36,6 +36,11 @@
   --unit-font-size: 7px;
 
   --shot-data-grid: repeat(2, 1fr);
+  /* chart view: width reserved for the shot-data panel. Derived:
+     shotDataItemValue min-width (9bp) + padding (2bp) per --shot-data-grid
+     column, + panel edge offset (1bp) + gap (1bp) */
+  --chart-view-stats-width: calc(var(--base-padding) * 24.5);
+
 }
 
 @media (min-height: 480px) {
@@ -55,6 +60,7 @@
     --xl-font-size: 4vh;
     --unit-font-size: 0.9vh;
     --shot-data-grid: repeat(1, 1fr);
+    --chart-view-stats-width: calc(var(--base-padding) * 13);
   }
 }
 

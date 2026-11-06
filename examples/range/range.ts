@@ -22,7 +22,10 @@ import {
   UIMainMenu,
   CourseSurfaceType,
   FuseRenderer,
-  UILaunchMonitor
+  UILaunchMonitor,
+  UIViewToggle,
+  UIHeightChart,
+  UIDispersionChart,
 } from '@opengolfsim/fuse';
 import rangeMtnsModel from './models/rangeMtns.glb?url';
 import bagStandModel from './models/bagstand.glb?url';
@@ -67,7 +70,9 @@ const gameContext: {
   playerMenu?: UIPlayerMenu,
   mainMenu?: UIMainMenu,
   launchMonitor?: UILaunchMonitor,
-  
+  viewToggle?: UIViewToggle,
+  heightChart?: UIHeightChart,
+  dispersionChart?: UIDispersionChart,
   // Controls
   camera?: ShotPerspectiveCamera,
   controls?: CourseKeyboardControls,
@@ -89,6 +94,8 @@ const gameContext: {
 
 function launchShot(shot: OpenGolfSim.Shot) {
   if (shot.ballSpeed && !gameContext.golfBall?.isShotActive) {
+    gameContext.heightChart?.beginShot();
+    gameContext.dispersionChart?.beginShot();
     gameContext.golfBall?.launchShot(shot, gameContext.currentPlayer);
     gameContext.shotData?.updateShotData(shot);
     // start tracking after a delay based on ball speed
@@ -236,6 +243,13 @@ async function loadMountain(
 }
 
 async function setupRange() {
+  // created before the renderer so the game pane has its layout size at init
+  gameContext.viewToggle = new UIViewToggle('#top-center', {
+    layout: '#view-layout',
+    gamePane: '#game-pane',
+    storageKey: 'fuse-range-view'
+  });
+
   await setupWorld();
   const player = gameContext.setupData?.players?.[0];
   if (!player) throw new Error('No player found in setup data');
@@ -268,6 +282,8 @@ async function setupRange() {
   if (!gameContext.ground) throw new Error('Ground physics should exist before creating camera');
   gameContext.camera = new ShotPerspectiveCamera({
     scene: gameContext.ground,
+    // follow the canvas size (not the window) so aspect stays correct in chart view
+    canvas: document.getElementById('canvas'),
     far: 1000,
     autoPosition: true,
     // fov: 25,
@@ -325,7 +341,17 @@ async function setupRange() {
   gameContext.golfBall.on('shotEnded', onShotEnded);
 
   gameContext.shotData = new UIShotData('#shot-data', { units: gameContext.setupData?.units });
-  gameContext.rangeFinder = new UIRangeFinder('#top-center', { units: gameContext.setupData?.units });
+
+  if (gameContext.viewToggle) {
+    gameContext.heightChart = new UIHeightChart(gameContext.viewToggle.bottomPane, {
+      units: gameContext.setupData?.units
+    });
+    gameContext.dispersionChart = new UIDispersionChart(gameContext.viewToggle.rightPane, {
+      units: gameContext.setupData?.units
+    });
+  }
+
+  // gameContext.rangeFinder = new UIRangeFinder('#top-center', { units: gameContext.setupData?.units });
   
   console.log('gameContext.setupData?.players', gameContext.setupData?.players);
 
@@ -363,6 +389,11 @@ async function preLoad() {
 }
 
 function onShotEnded() {
+  const stats = gameContext.golfBall?.stats;
+  if (stats?.total) {
+    gameContext.dispersionChart?.addShot(stats.lateral, stats.total);
+  }
+
   setupNextShot();
 
   app.sendShotResult(
@@ -390,6 +421,8 @@ async function initializeDebug() {
 function clubChange(club: OpenGolfSim.Club) {
   if (!gameContext.currentPlayer) throw new Error('No active player');
   gameContext.currentPlayer.currentClub = club;
+  gameContext.heightChart?.clear();
+  gameContext.dispersionChart?.clear();
   gameContext.aimPoint = new THREE.Vector3(0, 0, club.distance);
   gameContext.camera?.setPositions(gameContext.startPoint, gameContext.aimPoint);
   gameContext.playerMenu?.update(gameContext.currentPlayer);
@@ -413,6 +446,8 @@ function updateAimPoint() {
   gameContext.distanceToAim = gameContext.startPoint.distanceTo(gameContext.aimPoint);
   gameContext.heightToAim = gameContext.startPoint.y - gameContext.aimPoint.y;
   gameContext.rangeFinder?.update(gameContext.distanceToAim, gameContext.heightToAim);
+  gameContext.heightChart?.setTarget(gameContext.distanceToAim);
+  gameContext.dispersionChart?.setTarget(gameContext.distanceToAim);
   gameContext.golfBall?.aimAt(gameContext.aimPoint);
 }
 
@@ -458,7 +493,18 @@ function animate(animDelta: number) {
   if (gameContext.shotData && gameContext.golfBall) {
     gameContext.shotData.updateShotResult(gameContext.golfBall.stats);
   }
-  
+
+  if (gameContext.golfBall?.isShotActive) {
+    // redraws are skipped internally when no new samples have arrived
+    gameContext.heightChart?.updateLive(
+      gameContext.golfBall.stats.heightSamples,
+      gameContext.golfBall.stats.distanceSamples
+    );
+    gameContext.dispersionChart?.updateLive(
+      gameContext.golfBall.stats.lateralSamples,
+      gameContext.golfBall.stats.distanceSamples
+    );
+  }  
   gameContext.stats?.end();
   gameContext.timer.update(animDelta);
 
