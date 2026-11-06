@@ -44,12 +44,14 @@ export class GimmeRings {
 
   private currentActive = new THREE.Vector3(0, 0, 0);
   private ringWidth: number;
+  private requiresGreen: boolean;
 
-  constructor(gimmeDistances: number[], ringWidth = 0.05) {
+  constructor(gimmeDistances: number[], ringWidth = 0.05, requiresGreen = true) {
     // 1–3 rings supported (activeUniform is a vec3).
     // Non-positive distances = disabled ring; skip so nothing is drawn.
     this.ringSizes = gimmeDistances.filter(d => d > 0).slice(0, 3);
     this.ringWidth = ringWidth;
+    this.requiresGreen = requiresGreen;
   }
 
   /**
@@ -112,7 +114,10 @@ export class GimmeRings {
     }
 
     const target = new THREE.Vector3(0, 0, 0);
-    if (golfBall.isOnGreen()) {
+    const active = this.requiresGreen
+      ? golfBall.isOnGreen()
+      : golfBall.physics?.isGrounded;
+    if (active) {
       const dist = Math.hypot(
         golfBall.object.position.x - holePos.x,
         golfBall.object.position.z - holePos.z

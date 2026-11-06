@@ -16,6 +16,12 @@ export type TargetShaderMaterialOptions = {
   ringWidth?: number,
   puttingEnabled?: boolean,
   surfaceOptions?: GrassSurfaceOptions,
+  /** When true (default) a ring activates only with the ball grounded on a
+   *  green; false activates grounded on any surface (e.g. a range target). */
+  requiresGreen?: boolean,
+  /** Set true to skip cutting the hole out of the surface at the target
+   *  position, for targets without a hole (e.g. a range target). */
+  hideHoleCutout?: boolean,
 };
 
 
@@ -27,8 +33,7 @@ export class TargetShaderMaterial {
 
   constructor(object: THREE.Object3D, holeWorldPos: THREE.Vector3, options: TargetShaderMaterialOptions) {
     this.holeWorldPos = holeWorldPos;
-    this.rings = new GimmeRings(options.gimmeDistances, options.ringWidth);
-
+    this.rings = new GimmeRings(options.gimmeDistances, options.ringWidth, options.requiresGreen);
     // Dynamic uniforms (updated at runtime)
     this.holePosUniform = tslUniform(new THREE.Vector3(holeWorldPos.x, 0, holeWorldPos.z));
 
@@ -44,21 +49,36 @@ export class TargetShaderMaterial {
       // --- Distance from fragment to hole (XZ plane) ---
       const dist: any = positionWorld.xz.sub(this.holePosUniform.xz).length();
 
-      // --- Hole mask: fade to transparent inside the hole ---
-      const g = fwidth(dist).clamp(0.0008, 0.02);
-      const holeMask = tslSmoothstep(holeRadius.sub(g), holeRadius.add(g), dist);
+      // // --- Hole mask: fade to transparent inside the hole ---
+      // const g = fwidth(dist).clamp(0.0008, 0.02);
+      // const holeMask = tslSmoothstep(holeRadius.sub(g), holeRadius.add(g), dist);
 
       // --- Gimme rings over the turf color ---
       const { color, emissive } = this.rings.build(mat.surfaceColor, dist);
       mat.emissiveNode = emissive;
       
-      // Discard must live inside an Fn() that is wired into the
-      // material, otherwise the statement never enters the node graph.
+      
       const finalColor = color;
-      mat.colorNode = Fn(() => {
-        Discard(holeMask.lessThan(0.5));
-        return vec4(finalColor.rgb, 1.0);
-      })();
+      // mat.colorNode = Fn(() => {
+      //   Discard(holeMask.lessThan(0.5));
+      //   return vec4(finalColor.rgb, 1.0);
+      // })();
+
+      if (!options.hideHoleCutout) {
+        // --- Hole mask: fade to transparent inside the hole ---
+        const g = fwidth(dist).clamp(0.0008, 0.02);
+        const holeMask = tslSmoothstep(holeRadius.sub(g), holeRadius.add(g), dist);
+
+        // Discard must live inside an Fn() that is wired into the
+        // material, otherwise the statement never enters the node graph.
+        mat.colorNode = Fn(() => {
+          Discard(holeMask.lessThan(0.5));
+          return vec4(finalColor.rgb, 1.0);
+        })();
+      } else {
+        mat.colorNode = vec4(finalColor.rgb, 1.0);
+      }
+
       mat.transparent = false;
 
       mat.needsUpdate = true;

@@ -852,7 +852,7 @@
 }
 .viewToggleButton {
   width: calc(var(--base-padding) * 6);
-  height: calc(var(--base-padding) * 4);
+  height: calc(var(--base-padding) * 3.5);
   padding: calc(var(--base-padding) / 2);
   background-color: transparent;
   border: 0;

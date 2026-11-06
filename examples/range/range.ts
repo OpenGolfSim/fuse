@@ -26,6 +26,7 @@ import {
   UIViewToggle,
   UIHeightChart,
   UIDispersionChart,
+  TargetShaderMaterial,
 } from '@opengolfsim/fuse';
 import rangeMtnsModel from './models/rangeMtns.glb?url';
 import bagStandModel from './models/bagstand.glb?url';
@@ -58,6 +59,8 @@ const gameContext: {
   mountain?: THREE.Object3D,
   groundCollider?: GroundPhysics,
   yardageLines?: YardageLinesMaterial,
+  targetMaterial?: TargetShaderMaterial,
+  targetRadius: number,
 
   // Setup Data
   setupData?: OpenGolfSim.SetupData,  
@@ -90,6 +93,7 @@ const gameContext: {
   aimPoint: new THREE.Vector3(0, 0, 200),
   distanceToAim: 0,
   heightToAim: 0,
+  targetRadius: 20,
 };
 
 function launchShot(shot: OpenGolfSim.Shot) {
@@ -135,14 +139,14 @@ async function createGroundPlane() {
   console.log('grassTexture', grassTexture);
   grassTexture.wrapS = THREE.RepeatWrapping;
   grassTexture.wrapT = THREE.RepeatWrapping;
-  grassTexture.repeat.set(grassScale, grassScale * widthRatio); // tile 50x across, 100x down the 100x200 plane
+  // grassTexture.repeat.set(grassScale, grassScale * widthRatio); // tile 50x across, 100x down the 100x200 plane
   grassTexture.colorSpace = THREE.SRGBColorSpace; // correct color rendering
   grassTexture.anisotropy = gameContext.renderer?.getMaxAnisotropy() || 1;
   
   const grassNormalMap = textureLoader.load(fairwayMap);
   grassNormalMap.wrapS = THREE.RepeatWrapping;
   grassNormalMap.wrapT = THREE.RepeatWrapping;
-  grassNormalMap.repeat.set(grassScale, grassScale * widthRatio); // tile 50x across, 100x down the 100x200 plane
+  // grassNormalMap.repeat.set(grassScale, grassScale * widthRatio); // tile 50x across, 100x down the 100x200 plane
   grassNormalMap.colorSpace = THREE.SRGBColorSpace; // correct color rendering
   grassNormalMap.anisotropy = gameContext.renderer?.getMaxAnisotropy() || 1;
     
@@ -159,6 +163,14 @@ async function createGroundPlane() {
     // Floor - Lighter wood planks
   // const floorGeometry = new THREE.PlaneGeometry(500, 700);
   const floorGeometry = new THREE.PlaneGeometry(rangeWidth, rangeHeight, 50, 70);
+
+  // Tile the grass via geometry UVs (like course meshes) rather than
+  // texture.repeat, which GrassSurface-based materials (TargetShaderMaterial)
+  // don't apply.
+  const floorUv = floorGeometry.attributes.uv;
+  for (let i = 0; i < floorUv.count; i++) {
+    floorUv.setXY(i, floorUv.getX(i) * grassScale, floorUv.getY(i) * grassScale * widthRatio);
+  }
 
   gameContext.ground = new THREE.Mesh(floorGeometry, floorMaterial);
   gameContext.ground.rotation.x = -Math.PI / 2;
@@ -277,6 +289,18 @@ async function setupRange() {
   gameContext.scene.fog = gameContext.fog;
 
   await createGroundPlane();
+
+  // target ring on the ground around the aim point (10 yd / 10 m radius)
+  gameContext.targetRadius = gameContext.setupData?.units === 'imperial'
+    ? UnitConversions.yardsToMeters(10)
+    : 10;
+  if (gameContext.ground) {
+    gameContext.targetMaterial = new TargetShaderMaterial(gameContext.ground, gameContext.aimPoint, {
+      gimmeDistances: [gameContext.targetRadius],
+      requiresGreen: false,
+      hideHoleCutout: true
+    });
+  }
 
   if (!gameContext.renderer) throw new Error('Renderer should exist before creating camera');
   if (!gameContext.ground) throw new Error('Ground physics should exist before creating camera');
@@ -447,7 +471,8 @@ function updateAimPoint() {
   gameContext.heightToAim = gameContext.startPoint.y - gameContext.aimPoint.y;
   gameContext.rangeFinder?.update(gameContext.distanceToAim, gameContext.heightToAim);
   gameContext.heightChart?.setTarget(gameContext.distanceToAim);
-  gameContext.dispersionChart?.setTarget(gameContext.distanceToAim);
+  gameContext.dispersionChart?.setTarget(gameContext.distanceToAim, gameContext.targetRadius);
+  gameContext.targetMaterial?.setPosition(gameContext.aimPoint);
   gameContext.golfBall?.aimAt(gameContext.aimPoint);
 }
 
@@ -459,6 +484,7 @@ function animate(animDelta: number) {
 
   if (gameContext.golfBall) {
     gameContext.golfBall.update(delta);
+    gameContext.targetMaterial?.update(gameContext.golfBall, delta);
   }
 
   // gameContext.renderer?.clear();
