@@ -555,8 +555,13 @@ async function setupGame() {
   }
 
   gameContext.eventQueue = new gameContext.rapier.EventQueue(true);
+  const canvas = document.getElementById('canvas');
+  if (!canvas) {
+    throw new Error('Missing canvas!');
+  }
+  gameContext.canvas = canvas;
 
-  gameContext.controls = new CourseKeyboardControls({ testShots: false, swipeShots: true });
+  gameContext.controls = new CourseKeyboardControls({ element: gameContext.canvas, testShots: false, swipeShots: true });
   gameContext.controls.on('aim', aimKeys => {
     if (gameContext.camera) gameContext.camera.aimKeys = aimKeys;
   });
@@ -565,10 +570,6 @@ async function setupGame() {
     launchShot({ ballSpeed: 12 + (Math.random() * 2), verticalLaunchAngle: 35, horizontalLaunchAngle: -5 + (Math.random() * 10) });
   });
 
-  const canvas = document.getElementById('canvas');
-  if (!canvas) {
-    throw new Error('Missing canvas!');
-  }
   gameContext.renderer = new FuseRenderer({
     canvas,
     adaptive: true,
