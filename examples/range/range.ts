@@ -46,6 +46,7 @@ const gameContext: {
   startPoint: THREE.Vector3,
   aimPoint: THREE.Vector3,
   currentPlayer?: CoursePlayer,
+  canvas?: HTMLCanvasElement,
   // Environment
   timer: THREE.Timer,
   scene?: THREE.Scene,
@@ -114,7 +115,7 @@ async function setupWorld() {
 
   const canvas = document.getElementById('canvas');
   if (!canvas || !(canvas instanceof HTMLCanvasElement)) throw new Error('Unable to find canvas in HTML. Make sure you create a root canvas element (e.g. <canvas id="canvas"></canvas>)');
-  
+  gameContext.canvas = canvas;
   gameContext.renderer = new FuseRenderer({
     canvas,
     adaptive: true,
@@ -314,8 +315,10 @@ async function setupRange() {
   await gameContext.visualAimPoint.load();
   gameContext.scene.add(gameContext.visualAimPoint.object);
 
-
-  gameContext.controls = new CourseKeyboardControls({ testShots: true, swipeShots: true });
+  if (!gameContext.canvas) {
+    throw new Error('Missing canvas in gameContext');
+  }
+  gameContext.controls = new CourseKeyboardControls({ testShots: true, swipeShots: true, element: gameContext.canvas });
   gameContext.controls.on('aim', aimKeys => {
     if (gameContext.camera) gameContext.camera.aimKeys = aimKeys;
   });

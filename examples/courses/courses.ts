@@ -1,4 +1,3 @@
-import { UIHazardDialog } from '@/ui/UIHazardDialog';
 import { QualityMode } from '@/utils/quality';
 
 import {
@@ -24,7 +23,8 @@ import {
   UIScorecard,
   AudioPlayer,
   UILaunchMonitor,
-  UIHoleScoreToast
+  UIHoleScoreToast,
+  UIHazardDialog,
  } from '@opengolfsim/fuse';
 
 const HoleOutSound = '../sounds/holeout.wav';
@@ -37,6 +37,7 @@ const gameContext: {
   startPoint: THREE.Vector3,
   aimPoint: THREE.Vector3,
   qualityLevel: QualityMode,
+  canvas?: HTMLCanvasElement,
   // Environment
   timer: THREE.Timer,
   scene?: THREE.Scene;
@@ -139,6 +140,7 @@ async function setupRenderer() {
   
   const canvas = document.getElementById('canvas');
   if (!canvas || !(canvas instanceof HTMLCanvasElement)) throw new Error('Unable to find canvas in HTML. Make sure you create a root canvas element (e.g. <canvas id="canvas"></canvas>)');
+  gameContext.canvas = canvas;
   gameContext.renderer = new FuseRenderer({
     canvas,
     renderMode: 'webgpu',
@@ -226,8 +228,11 @@ async function setupControls() {
     setupNextShot();
   });
 
+  if (!gameContext.canvas) {
+    throw new Error('Missing canvas in gameContext');
+  }  
   // Controls
-  gameContext.controls = new CourseKeyboardControls({ testShots: true, swipeShots: true });
+  gameContext.controls = new CourseKeyboardControls({ element: gameContext.canvas, testShots: true, swipeShots: true });
   gameContext.controls.on('aim', aimKeys => {
     if (gameContext.camera) gameContext.camera.aimKeys = aimKeys;
   });

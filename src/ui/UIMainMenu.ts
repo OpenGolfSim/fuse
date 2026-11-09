@@ -53,7 +53,9 @@ export class UIMainMenu extends UIElementBase<UIMainMenuEvents> {
         action: () => app.exit()
       }      
     ];
+    
     if (app.appType !== 'web') {
+      // TODO: remove this condition for web and make this open an in-game settings dialog instead
       menuItems.unshift({
         label: 'Settings',
         id: 'settings',

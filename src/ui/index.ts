@@ -1,5 +1,4 @@
 export * from '@/ui/UICourseMap';
-export * from '@/ui/UIDialog';
 export * from '@/ui/UIMainMenu';
 export * from '@/ui/UIPlayerMenu';
 export * from '@/ui/UILaunchMonitor';
@@ -13,3 +12,6 @@ export * from '@/ui/UIHoleScoreToast';
 export * from '@/ui/UIViewToggle';
 export * from '@/ui/UIHeightChart';
 export * from '@/ui/UIDispersionChart';
+// dialogs
+export * from '@/ui/UIDialog';
+export * from '@/ui/UIHazardDialog';

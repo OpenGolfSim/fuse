@@ -36,15 +36,22 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
   } | null = null;
   #swipeShots: boolean;
   #enabled = true;
-  constructor(options: { testShots?: boolean; swipeShots?: boolean } = {}) {
+  
+  constructor(options: { element: HTMLElement, testShots?: boolean; swipeShots?: boolean; }) {
+
     super();
     this.#testShots = options.testShots ?? false;
     this.#swipeShots = options.swipeShots ?? false;
     this.aimKeys = { left: false, right: false, forward: false, backward: false };    
 
+    // Gestures are scoped to the game surface. Dialogs/HUD sit above it, so
+    // touches on them never reach these listeners.
+    const surface = options.element;
+    if (!surface) throw new Error('CourseKeyboardControls: options.element (the game canvas) is required');
     // Stop the browser from claiming touches for pan/zoom. Without this,
     // Chrome fires pointercancel after a few px of movement.
-    document.documentElement.style.touchAction = 'none';
+    surface.style.touchAction = 'none';
+
 
     window.addEventListener('keydown', this.#keyHandler.bind(this), true); // true = capture phase
     window.addEventListener('keyup',   this.#keyHandler.bind(this), true);
@@ -56,12 +63,13 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
     });
 
     // Pointer events unify mouse + touch
-    document.addEventListener('pointerdown', this.#pointerDown.bind(this));
-    document.addEventListener('pointermove', this.#pointerMove.bind(this));
-    document.addEventListener('pointerup', this.#pointerUp.bind(this));
-    document.addEventListener('pointercancel', this.#gestureCancel.bind(this));
+    surface.addEventListener('pointerdown', this.#pointerDown.bind(this));
+    surface.addEventListener('pointermove', this.#pointerMove.bind(this));
+    surface.addEventListener('pointerup', this.#pointerUp.bind(this));
+    surface.addEventListener('pointercancel', this.#gestureCancel.bind(this));
+
     // preventDefault on pointermove doesn't stop touch scrolling; this shim does.
-    document.addEventListener('touchmove', (e) => {
+    surface.addEventListener('touchmove', (e) => {
       if (this.#gesture && this.#gesture.mode !== 'pending') e.preventDefault();
     }, { passive: false });
 
@@ -274,6 +282,9 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
     if (!this.#enabled) {
       return;
     }
+    // Only start gestures that begin on the surface itself, never on
+    // interactive UI that happens to be a descendant of it.
+    if (event.target !== event.currentTarget) return;
     if (!event.isPrimary) {
       // ignore multi-touch
       this.#gestureCancel();
@@ -282,6 +293,9 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
     if (event.pointerType === 'mouse' && event.button !== 0) {
       return; // left button only
     }
+    // keep receiving move/up even if the finger drifts off the canvas onto HUD
+    try { (event.currentTarget as Element).setPointerCapture(event.pointerId); } catch { /* pointer already gone */ }
+
     this.#gesture = {
       id: event.pointerId,
       startX: event.clientX, startY: event.clientY,
