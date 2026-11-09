@@ -12,6 +12,7 @@ interface CourseKeyboardControlEvents {
   rehit: () => void;
   fullscreen: () => void;
   aim: (aimKeys: AimKeys) => void;
+  map: () => void;
 }
 
 const MODIFIER_KEYS = new Set(['Meta', 'Control', 'Alt', 'Shift']);
@@ -79,6 +80,14 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
       } else if (key.ogs_code === OGSKeyCommands.DistanceDecrease) {
         this.aimKeys.backward = state === 'down';
         this.emit('aim', this.aimKeys);
+      } else if (key.ogs_code === OGSKeyCommands.ClubUp) {
+        if (state === 'press' || state === 'down') this.emit('club', -1);
+      } else if (key.ogs_code === OGSKeyCommands.ClubDown) {
+        if (state === 'press' || state === 'down') this.emit('club', 1);
+      } else if (key.ogs_code === OGSKeyCommands.Scorecard) {
+        if (state === 'press' || state === 'down') this.emit('scorecard');
+      } else if (key.ogs_code === OGSKeyCommands.ToggleMap) {
+        if (state === 'press' || state === 'down') this.emit('map');
       }
 
     });
@@ -116,11 +125,11 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
           handled = true;
           break;
         case 'KeyW':
-          this.emit('club', 1);
+          this.emit('club', -1);
           handled = true;
           break;
         case 'KeyQ':
-          this.emit('club', -1);
+          this.emit('club', 1);
           handled = true;
           break;
         case 'KeyC':
