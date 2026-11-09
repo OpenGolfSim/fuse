@@ -104,7 +104,7 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
     this.expandIcon = document.createElement('a');
     this.expandIcon.classList.add(styles.mapIcon, styles.clickableArea);
     this.expandIcon.innerHTML = caretUpIcon;
-    this.expandIcon.addEventListener('click', (e) => this._expandMap());
+    this.expandIcon.addEventListener('click', (e) => this.toggleMap());
 
 
     this.header.append(this.holeText, this.parText, this.distText, this.expandIcon);
@@ -410,7 +410,7 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
     }
   }
 
-  _expandMap() {
+  toggleMap() {
     this.expanded = !this.expanded;
     this.expandIcon.innerHTML = this.expanded ? caretDownIcon : caretUpIcon;
     this.placeBallButton.classList.toggle(styles.mapPlaceBallButtonVisible, this.expanded);

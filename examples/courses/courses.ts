@@ -243,6 +243,7 @@ async function setupControls() {
   });
   gameContext.controls.on('rehit', () => gameContext.game?.rehit());
   gameContext.controls.on('scorecard', () => gameContext.dialogs.scorecard?.toggle());
+  gameContext.controls.on('map', () => gameContext.courseMap?.toggleMap());
 }
 
 /**
