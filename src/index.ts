@@ -31,6 +31,7 @@ export * from '@/courses/player';
 export * from '@/physics/ballPhysics';
 export * from '@/physics/groundPhysics';
 export * from '@/physics/constants';
+export * from '@/physics/estimator';
 
 // UI
 export * from '@/ui';

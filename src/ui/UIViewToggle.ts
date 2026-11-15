@@ -15,6 +15,8 @@ type UIViewToggleOptions = {
   /** localStorage key. When set, the selected mode persists between
    *  sessions and overrides the mode option on load. */
   storageKey?: string;
+  /** Add a narrow column between the right pane and the shot data panel. */
+  detailPane?: boolean;
 }
 
 interface UIViewToggleEvents {
@@ -38,6 +40,8 @@ export class UIViewToggle extends UIElementBase<UIViewToggleEvents> {
   rightPane: HTMLDivElement;
   /** Pane along the bottom in chart view. Empty; mount content here. */
   bottomPane: HTMLDivElement;
+  /** Narrow column to the right of rightPane in chart view. Only created with the detailPane option. */
+  detailPane?: HTMLDivElement;
   gameButton: HTMLButtonElement;
   chartsButton: HTMLButtonElement;
   #storageKey?: string;
@@ -55,6 +59,13 @@ export class UIViewToggle extends UIElementBase<UIViewToggleEvents> {
     this.bottomPane = document.createElement('div');
     this.bottomPane.className = styles.chartPaneBottom;
     this.layout.append(this.rightPane, this.bottomPane);
+
+    if (options.detailPane) {
+      this.detailPane = document.createElement('div');
+      this.detailPane.className = styles.chartPaneDetail;
+      this.layout.append(this.detailPane);
+      this.layout.classList.add(styles.viewLayoutDetail);
+    }
 
     this.element.className = styles.viewToggleGroup;
     this.gameButton = this.#createButton(frameCornersIcon, 'Game view', 'game');

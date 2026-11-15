@@ -1,9 +1,11 @@
 import Sortable from 'sortablejs';
 import styles from '@/css/ui.module.css';
 import { UnitConversions } from '@/utils/units';
+import { ClubEstimate } from '@/physics/estimator';
 
+type ShotDataGridOptionId = keyof OpenGolfSim.Shot | keyof OpenGolfSim.ShotResult | keyof ClubEstimate;
 type ShotDataGridOption = {
-  id: keyof OpenGolfSim.Shot | keyof OpenGolfSim.ShotResult;
+  id: ShotDataGridOptionId;
   precision: number;
   label: string;
   units: string | ((val: number) => string);
@@ -12,7 +14,7 @@ type ShotDataGridOption = {
 }
 
 export type UIShotDataOptions = {
-  gridOptionsEnabled?: (keyof OpenGolfSim.Shot | keyof OpenGolfSim.ShotResult)[];
+  gridOptionsEnabled?: (ShotDataGridOptionId)[];
   units?: OpenGolfSim.SetupData['units'];
   columns?: number;
   style?: {
@@ -133,6 +135,13 @@ export class UIShotData {
         units: this.#distanceUnit,
         conversion: (val) => this.units === 'imperial' ? UnitConversions.metersToYards(val) : val,
       },
+      {
+        id: 'clubSpeed',
+        label: 'Club Speed',
+        precision: 0,
+        conversion: (val) => this.units === 'metric' ? UnitConversions.milesPerHourToMetersPerSecond(val) : val,
+        units: this.#speedUnit
+      },
     ];
     
     if (options.gridOptionsEnabled?.length) {
@@ -160,19 +169,19 @@ export class UIShotData {
     this.#updateGrid(shotResult);
   }
 
-  #updateGrid(data: Partial<OpenGolfSim.Shot & OpenGolfSim.ShotResult>) {
+  #updateGrid(data: Partial<OpenGolfSim.Shot & OpenGolfSim.ShotResult & ClubEstimate>) {
     this.gridOptions.forEach(option => {
       if (option._element) {
         let rawValue = data[option.id];
         if (typeof rawValue === 'undefined') return;
         let value = rawValue;
         const digit = option._element.querySelector('.grid-digit');
-        if (typeof option.conversion === 'function') {
+        if (typeof option.conversion === 'function' && typeof rawValue === 'number') {
           value = option.conversion(rawValue);
         }
-        if (digit) digit.textContent = value.toFixed(option.precision ?? 0);
+        if (digit && typeof value === 'number') digit.textContent = value.toFixed(option.precision ?? 0);
         const unit = option._element.querySelector('.grid-unit');
-        if (unit && typeof option.units === 'function') {
+        if (unit && typeof option.units === 'function' && typeof rawValue === 'number') {
           unit.textContent = option.units(rawValue);
         } else if (unit && typeof option.units === 'string') {
           unit.textContent = option.units;
