@@ -9,20 +9,6 @@ import driverSide from '@/images/driver-side.png?url';
 import driverFront from '@/images/driver-front.png?url';
 
 export type ClubViewName = 'top' | 'side' | 'front';
-export type ClubViewSet = 'driver' | 'iron';
-
-/** Built-in club art. Strike point is the image center. */
-export const CLUB_VIEW_SETS: Record<ClubViewSet, ClubViewImages> = {
-  driver: { top: { src: driverTop }, side: { src: driverSide }, front: { src: driverFront } },
-  iron: { top: { src: ironTop }, side: { src: ironSide }, front: { src: ironFront } },
-};
-
-/** Driver art for clubs with id 'DR' or 'driver' in the id/name; iron art for everything else. */
-export function clubViewSetFor(club?: OpenGolfSim.Club): ClubViewSet {
-  if (!club) return 'iron';
-  const isDriver = club.id.toUpperCase() === 'DR' || /driver/i.test(club.id) || /driver/i.test(club.name);
-  return isDriver ? 'driver' : 'iron';
-}
 
 export type ClubViewImage = {
   /**
@@ -40,10 +26,28 @@ export type ClubViewImage = {
 
 export type ClubViewImages = Record<ClubViewName, ClubViewImage>;
 
+export type ClubViewSet = 'driver' | 'iron';
+
+/** Built-in club art. Strike point is the image center. */
+export const CLUB_VIEW_SETS: Record<ClubViewSet, ClubViewImages> = {
+  driver: { top: { src: driverTop }, side: { src: driverSide }, front: { src: driverFront } },
+  iron: { top: { src: ironTop }, side: { src: ironSide }, front: { src: ironFront } },
+};
+
+/** Driver art for clubs with id 'DR' or 'driver' in the id/name; iron art for everything else. */
+export function clubViewSetFor(club?: OpenGolfSim.Club): ClubViewSet {
+  if (!club) return 'iron';
+  const isDriver = club.id.toUpperCase() === 'DR' || /driver/i.test(club.id) || /driver/i.test(club.name);
+  return isDriver ? 'driver' : 'iron';
+}
+
+type Handedness = OpenGolfSim.Player['handedness'];
+
 type UIClubViewsOptions = {
   /** Custom art. Defaults to the built-in set picked by setClub(). */
   images?: ClubViewImages;
-
+  /** Mirrors the views for left-handed players. Defaults to 'right'. */
+  handedness?: Handedness;
   /** Ball launch lines (HLA, VLA, spin axis). Defaults to the theme primary color. */
   launchColor?: string;
   /** Club path / attack angle lines. */
@@ -62,7 +66,6 @@ type Cell = {
   digit?: HTMLDivElement;
   unit?: HTMLDivElement;
 };
-
 
 type Panel = {
   view: ClubViewName;
@@ -98,12 +101,14 @@ export class UIClubViews extends UIElementBase {
   #pathColor: string;
   #faceColor: string;
   #set?: ClubViewSet;
+  #handedness: Handedness;
 
   constructor(parent: string | Element, options: UIClubViewsOptions = {}) {
     super(parent);
     this.#launchColor = options.launchColor;
     this.#pathColor = options.pathColor ?? '#4da3ff';
     this.#faceColor = options.faceColor ?? '#ff8a3d';
+    this.#handedness = options.handedness ?? 'right';
     this.element.className = styles.clubViews;
     const images = options.images ?? CLUB_VIEW_SETS.iron;
     if (!options.images) this.#set = 'iron';
@@ -121,7 +126,6 @@ export class UIClubViews extends UIElementBase {
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('UIClubViews: unable to get 2d context');
       const panel: Panel = { view, element, cells, canvas, ctx, config: images[view], image: new Image() };
-
       this.#loadImage(panel);
       return panel;
     });
@@ -131,7 +135,6 @@ export class UIClubViews extends UIElementBase {
       this.#fitCells();
       this.#resize();
     });
-
     this.#observer.observe(this.element);
     for (const panel of this.#panels) this.#observer.observe(panel.element);
     this.#fitCells();
@@ -146,6 +149,14 @@ export class UIClubViews extends UIElementBase {
     this.#applyImages(CLUB_VIEW_SETS[set]);
   }
 
+  /** Mirror the views for this player's handedness. */
+  setHandedness(handedness: Handedness = 'right') {
+    if (handedness === this.#handedness) return;
+    this.#handedness = handedness;
+    this.#drawAll();
+  }
+
+  /** Use custom club art. */
   setImages(images: ClubViewImages) {
     this.#set = undefined;
     this.#applyImages(images);
@@ -190,7 +201,7 @@ export class UIClubViews extends UIElementBase {
     if (view === 'side') return [
       { label: 'Launch', color: launch, value: shot => vertical(shot.verticalLaunchAngle) },
       { label: 'Attack', color: this.#pathColor, value: (_, est) => vertical(est.attackAngle) },
-      { label: 'Loft', color: this.#faceColor, value: (_, est) => vertical(est.dynamicLoft) },
+      { label: 'Dyn Loft', color: this.#faceColor, value: (_, est) => vertical(est.dynamicLoft) },
     ];
     return [
       { label: 'Spin axis', color: launch, value: shot => horizontal(shot.spinAxis) },
@@ -227,7 +238,7 @@ export class UIClubViews extends UIElementBase {
     for (const panel of this.#panels) {
       for (const cell of panel.cells) {
         if (!cell.digit || !cell.unit) continue;
-        const v = this.#shot && this.#estimate ? cell.value(this.#shot, this.#estimate) : { digit: '–', unit: '' };
+        const v = this.#shot && this.#estimate ? cell.value(this.#shot, this.#estimate) : { digit: '-', unit: '' };
         cell.digit.textContent = v.digit;
         cell.unit.textContent = v.unit;
       }
@@ -287,6 +298,17 @@ export class UIClubViews extends UIElementBase {
 
     ctx.clearRect(0, 0, w, h);
 
+    // The art is right-handed with the target on the left. For a left-handed
+    // player, mirror the panel (target on the right) and flip the left/right
+    // angles, which puts right-of-target toward the golfer as it should be.
+    const lefty = this.#handedness === 'left';
+    const flip = lefty ? -1 : 1;
+    ctx.save();
+    if (lefty) {
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+    }
+
     // club art, scaled to fit ("contain") and centered
     let pivot: Vec = [w / 2, h / 2];
     let scale = 1;
@@ -301,35 +323,49 @@ export class UIClubViews extends UIElementBase {
       pivot = [ox + px * scale, oy + py * scale];
     }
 
-    // panel title
+    const shot = this.#shot;
+    const est = this.#estimate;
+    if (shot && est) this.#drawLines(panel, pivot, scale, w, h, flip, launchColor, shot, est);
+    ctx.restore();
+
+    // panel title (never mirrored)
     ctx.font = font;
     ctx.fillStyle = labelColor;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     const margin = fontSize * 0.75;
     ctx.fillText(TITLES[panel.view], margin, margin);
+  }
 
-    const shot = this.#shot;
-    const est = this.#estimate;
-    if (!shot || !est) return;
+  #drawLines(
+    panel: Panel,
+    pivot: Vec,
+    scale: number,
+    w: number,
+    h: number,
+    flip: number,
+    launchColor: string,
+    shot: OpenGolfSim.Shot,
+    est: ClubEstimate
+  ) {
+    const { ctx, image, config } = panel;
 
     const ray = Math.min(w, h) * 0.45; // arrow length
     const face = Math.min(w, h) * 0.22; // half-length of face/loft segments
 
     if (panel.view === 'top') {
-      // target is left; right of target is up the panel (away from the golfer)
-      this.#arrow(ctx, pivot, toward(shot.horizontalLaunchAngle), ray, launchColor);
-      this.#arrow(ctx, pivot, toward(est.clubPath), ray * 0.85, this.#pathColor);
-      this.#segment(ctx, pivot, perpendicular(toward(est.faceAngle)), face, this.#faceColor);
+      // (right-handed frame, mirrored for lefties) target is left; right of target is up the panel
+      this.#arrow(ctx, pivot, toward(flip * shot.horizontalLaunchAngle), ray, launchColor);
+      this.#arrow(ctx, pivot, toward(flip * est.clubPath), ray * 0.85, this.#pathColor);
+      this.#segment(ctx, pivot, perpendicular(toward(flip * est.faceAngle)), face, this.#faceColor);
     } else if (panel.view === 'side') {
-      // target is left; up is up
+      // (right-handed frame, mirrored for lefties) target is left; up is up
       this.#arrow(ctx, pivot, toward(shot.verticalLaunchAngle), ray, launchColor);
       this.#arrow(ctx, pivot, toward(est.attackAngle), ray * 0.85, this.#pathColor);
       this.#segment(ctx, pivot, perpendicular(toward(est.dynamicLoft)), face, this.#faceColor);
-
     } else {
-      // looking from the target, so the golfer's right is on the left:
-      // a positive (fade) axis dips toward the left side of the panel
+      // looking back from the target: a positive (curves right) axis dips toward
+      // the viewer's left, for either hand (flip undoes the mirror)
       const radius = (config.ballRadius ?? (image.naturalWidth || 800) * 0.16) * scale;
       ctx.globalAlpha = 0.85;
       ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
@@ -340,10 +376,9 @@ export class UIClubViews extends UIElementBase {
       ctx.fill();
       ctx.stroke();
       ctx.globalAlpha = 1;
-      const tilt = (-shot.spinAxis * Math.PI) / 180;
+      const tilt = (-flip * shot.spinAxis * Math.PI) / 180;
       this.#segment(ctx, pivot, [Math.cos(tilt), Math.sin(tilt)], radius * 1.5, launchColor);
     }
-
   }
 
   #arrow(ctx: CanvasRenderingContext2D, from: Vec, dir: Vec, length: number, color: string) {
@@ -396,6 +431,7 @@ function horizontal(degrees: number) {
   if (digit === '0.0') return { digit, unit: '°' };
   return { digit, unit: `° ${degrees > 0 ? 'R' : 'L'}` };
 }
+
 
 /** Up/down angle, signed. */
 function vertical(degrees: number) {

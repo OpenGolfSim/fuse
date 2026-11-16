@@ -15,12 +15,10 @@ import {
   VolumetricClouds,
   MeshLoader,
   YardageLinesMaterial,
-  CourseSurfaces,
   generateSetupData,
   CoursePlayer,
   UIPlayerMenu,
   UIMainMenu,
-  CourseSurfaceType,
   FuseRenderer,
   UILaunchMonitor,
   UIViewToggle,
@@ -29,7 +27,6 @@ import {
   TargetShaderMaterial,
   UIClubViews,
   estimateClubDelivery,
-  toGolferRelative,
 } from '@opengolfsim/fuse';
 import rangeMtnsModel from './models/rangeMtns.glb?url';
 import bagStandModel from './models/bagstand.glb?url';
@@ -107,12 +104,6 @@ function launchShot(shot: OpenGolfSim.Shot) {
     gameContext.heightChart?.beginShot();
     gameContext.dispersionChart?.beginShot();
     gameContext.golfBall?.launchShot(shot, gameContext.currentPlayer);
-
-    const estimate = estimateClubDelivery(shot, gameContext.currentPlayer?.currentClub);
-    console.log('estimated shot values (right)', estimate);
-    // To label for the golfer: path in-to-out, face open to target, face open to path
-    const relative = toGolferRelative(estimate, gameContext.currentPlayer?.handedness);
-    console.log('estimated shot values (relative)', relative);
 
     gameContext.shotData?.updateShotData(shot);
 
@@ -389,7 +380,9 @@ async function setupRange() {
 
     if (gameContext.viewToggle.detailPane) {
       // one iron set for every club for now; strike point is the image center
-      gameContext.clubViews = new UIClubViews(gameContext.viewToggle.detailPane);
+      gameContext.clubViews = new UIClubViews(gameContext.viewToggle.detailPane, {
+        handedness: gameContext.currentPlayer.player.handedness
+      });
       gameContext.clubViews.setClub(gameContext.currentPlayer.currentClub);
     }
 

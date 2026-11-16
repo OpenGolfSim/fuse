@@ -134,14 +134,7 @@ export class UIShotData {
         precision: 0,
         units: this.#distanceUnit,
         conversion: (val) => this.units === 'imperial' ? UnitConversions.metersToYards(val) : val,
-      },
-      {
-        id: 'clubSpeed',
-        label: 'Club Speed',
-        precision: 0,
-        conversion: (val) => this.units === 'metric' ? UnitConversions.milesPerHourToMetersPerSecond(val) : val,
-        units: this.#speedUnit
-      },
+      }
     ];
     
     if (options.gridOptionsEnabled?.length) {
