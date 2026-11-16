@@ -10,6 +10,7 @@ export * from '@/ui/UIStats';
 export * from '@/ui/UIToast';
 export * from '@/ui/UIHoleScoreToast';
 export * from '@/ui/UIViewToggle';
+export * from '@/ui/UISettings';
 export * from '@/ui/UIHeightChart';
 export * from '@/ui/UIDispersionChart';
 export * from '@/ui/UIClubViews';

@@ -54,6 +54,7 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
   placeBallMode = false;
   #lastStart?: THREE.Vector3;
   #lastEnd?: THREE.Vector3;
+  #lastHole?: Hole;
 
   #crop?: ImageBitmap;
   #cropRect?: { x0: number; z0: number; x1: number; z1: number };
@@ -175,6 +176,7 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
 
 
   updateHole(currentHole: Hole) {
+    this.#lastHole = currentHole;
     this.holeText.textContent = `Hole ${currentHole.number}`;
     this.parText.textContent = `Par ${currentHole.par}`;
     const tee = currentHole.waypoints.get('tee');
@@ -192,6 +194,13 @@ export class UICourseMap extends EventEmitter<UICourseMapsEvents> {
     } else {
       this.distText.textContent = '';
     }
+  }
+
+  /** Switches units in place and refreshes the hole distance label. */
+  setUnits(units: OpenGolfSim.MeasurementUnits) {
+    if (!units || units === this.units) return;
+    this.units = units;
+    if (this.#lastHole) this.updateHole(this.#lastHole);
   }
 
   render(scene: THREE.Scene, currentHole: Hole, currentPositions: { ball?: THREE.Vector3, aim?: THREE.Vector3 } = {}) {

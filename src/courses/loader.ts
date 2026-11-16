@@ -1011,6 +1011,18 @@ export class CourseLoader extends EventEmitter<CourseLoaderEvents> {
     }  
   }
 
+  /**
+   * Retunes every green's gimme rings in place. Used by in-game settings so
+   * concessions can change without reloading the course.
+   */
+  setGimmeDistances(distances: number[]) {
+    const rings = this.gameMode === 'minigolf' ? [distances[0] ?? 0] : distances;
+    for (const hole of this.holes.values()) {
+      hole.green?.target?.setGimmeDistances(rings);
+      hole.green?.grid?.setGimmeDistance(rings[0] ?? 0);
+    }
+  }
+
   afterSetup(golfBall: GolfBall) {
     // Ocean as a water hazard: raycast against the live mesh, so yOffset is respected
     if (this.ocean) {

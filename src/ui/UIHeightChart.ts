@@ -71,6 +71,13 @@ export class UIHeightChart extends UIElementBase {
     this.#draw();
   }
 
+  /** Switches units in place; axis labels and conversions update on redraw. */
+  setUnits(units: OpenGolfSim.SetupData['units']) {
+    if (!units || units === this.units) return;
+    this.units = units;
+    this.#draw();
+  }
+
   /** Move the current live trace into faded history. Call when a shot launches. */
   beginShot() {
     if (this.#live.heights.length) {

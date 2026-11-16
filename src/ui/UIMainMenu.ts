@@ -38,6 +38,16 @@ export class UIMainMenu extends UIElementBase<UIMainMenuEvents> {
  
     const menuItems: UIDropDownMenuItem[] = [
       {
+        label: 'Settings',
+        id: 'settings',
+        action: () => {
+          // Games can open their own panel (e.g. UISettings); the host still
+          // gets the message when it owns the settings UI.
+          this.emit('settings');
+          if (app.appType !== 'web') app.settings();
+        }
+      },
+      {
         label: 'Debug Stats',
         id: 'stats',
         action: () => this.emit('stats')
@@ -53,15 +63,6 @@ export class UIMainMenu extends UIElementBase<UIMainMenuEvents> {
         action: () => app.exit()
       }      
     ];
-    
-    if (app.appType !== 'web') {
-      // TODO: remove this condition for web and make this open an in-game settings dialog instead
-      menuItems.unshift({
-        label: 'Settings',
-        id: 'settings',
-        action: () => app.settings()
-      });
-    }
 
     this.dropdown = new UIDropDownMenu({
       anchor: this.link, 

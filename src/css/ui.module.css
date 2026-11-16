@@ -999,3 +999,359 @@
   width: 100%;
   height: 100%;
 }
+/* --------------------------------------------------------------------------
+   Settings dialog
+   -------------------------------------------------------------------------- */
+.settingsOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(12px, 2vh, 24px);
+  background: rgba(6, 14, 11, 0.55);
+  backdrop-filter: blur(6px);
+  font-family: var(--font-family);
+  color: var(--text-color);
+}
+
+.settingsOverlayOpen {
+  display: flex;
+}
+
+.settingsCard {
+  /* border-box so max-height includes the padding and the card never outgrows the screen */
+  box-sizing: border-box;
+  width: min(92vw, 1000px);
+  max-height: 92vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 1.6vh, 18px);
+  /* Padding lives in variables so the sticky title can stretch across it. */
+  --settings-pad-y: clamp(20px, 4vh, 44px);
+  --settings-pad-x: clamp(20px, 4vh, 44px);
+  padding: var(--settings-pad-y) var(--settings-pad-x);
+  background: var(--bg-color-solid);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+}
+
+/* Scrollbar in the interface palette: rounded primary-colour thumb on a faint
+   track, inset so it clears the card's rounded corners. The transparent
+   borders plus padding-box clip make the bar look thinner than its hit area. */
+.settingsCard::-webkit-scrollbar {
+  width: 12px;
+}
+
+.settingsCard::-webkit-scrollbar-button {
+  display: none;
+}
+
+.settingsCard::-webkit-scrollbar-track {
+  margin: 16px 0;
+  border: 4px solid transparent;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  background-clip: padding-box;
+}
+
+.settingsCard::-webkit-scrollbar-thumb {
+  border: 4px solid transparent;
+  border-radius: 999px;
+  background: var(--primary-color);
+  background-clip: padding-box;
+}
+
+.settingsCard::-webkit-scrollbar-thumb:hover {
+  background-color: var(--primary-color-light);
+}
+
+/* Firefox has no ::-webkit-scrollbar; the standard properties get it close. */
+@supports not selector(::-webkit-scrollbar) {
+  .settingsCard {
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-color) transparent;
+  }
+}
+
+.settingsTitle {
+  /* Sticky header: the negative margins pull it over the card's padding so
+     rows scrolling up are hidden behind it rather than showing above it. */
+  position: sticky;
+  top: calc(-1 * var(--settings-pad-y));
+  z-index: 1;
+  margin: calc(-1 * var(--settings-pad-y)) calc(-1 * var(--settings-pad-x)) 0;
+  padding: var(--settings-pad-y) var(--settings-pad-x) clamp(4px, 1.2vh, 14px);
+  background: var(--bg-color-solid);
+  font-size: clamp(22px, 3.2vh, 32px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.settingsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(12px, 3vw, 32px);
+  min-height: clamp(44px, 6.4vh, 68px);
+}
+
+.settingsRowLabel {
+  font-size: clamp(14px, 1.9vh, 21px);
+  font-weight: 500;
+}
+
+.settingsSegments {
+  display: flex;
+  gap: clamp(5px, 0.9vh, 9px);
+}
+
+.settingsSegment {
+  min-width: clamp(58px, 7.5vw, 104px);
+  height: clamp(38px, 5.4vh, 58px);
+  padding: 0 clamp(10px, 1.4vw, 18px);
+  border: 1.5px solid var(--border-color);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-color-secondary);
+  font-family: var(--font-family);
+  font-size: clamp(13px, 1.8vh, 20px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.settingsSegment:hover {
+  background: var(--hover-bg-color);
+  color: var(--text-color);
+}
+
+.settingsSegment[aria-pressed='true'] {
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.settingsSegment:focus-visible,
+.settingsPrimary:focus-visible,
+.settingsSecondary:focus-visible,
+.settingsSlider:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 3px;
+}
+
+.settingsSliderWrap {
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 1.8vw, 20px);
+}
+
+.settingsSlider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: clamp(150px, 30vw, 420px);
+  height: 22px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.settingsSlider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--primary-color) var(--fill, 0%),
+    rgba(255, 255, 255, 0.16) var(--fill, 0%)
+  );
+}
+
+.settingsSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -7px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--primary-color);
+}
+
+.settingsSlider::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.settingsSlider::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--primary-color);
+}
+
+.settingsSlider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--primary-color);
+}
+
+.settingsSliderValue {
+  min-width: clamp(56px, 6vw, 92px);
+  text-align: right;
+  font-size: clamp(14px, 1.9vh, 20px);
+  font-variant-numeric: tabular-nums;
+}
+
+.settingsActions {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 1.2vh, 12px);
+  margin-top: clamp(8px, 2.4vh, 24px);
+}
+
+.settingsPrimary,
+.settingsSecondary {
+  width: 100%;
+  height: clamp(44px, 5.6vh, 58px);
+  border-radius: 8px;
+  font-family: var(--font-family);
+  font-size: clamp(15px, 2vh, 20px);
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.settingsPrimary {
+  border: 0;
+  background: var(--primary-color);
+  color: #07130d;
+}
+
+.settingsPrimary:hover {
+  background: var(--primary-color-light);
+}
+
+.settingsSecondary {
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-color);
+}
+
+.settingsSecondary:hover {
+  background: var(--hover-bg-color);
+}
+
+/* Small screens keep full-size, touch-friendly controls and scroll the card
+   instead of shrinking it to fit. The base sizes above scale with vh, so on a
+   short phone they would bottom out at their minimums; these fix them instead.
+   More settings rows will be added, so scrolling is the expected behaviour. */
+@media (max-width: 600px), (max-height: 500px) {
+  .settingsOverlay {
+    padding: 12px;
+  }
+
+  .settingsCard {
+    gap: 16px;
+    --settings-pad-y: 24px;
+    --settings-pad-x: 20px;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    overscroll-behavior: contain;
+  }
+
+  .settingsTitle {
+    padding-bottom: 4px;
+    font-size: 24px;
+  }
+
+  .settingsRowLabel {
+    font-size: 16px;
+  }
+
+  .settingsSegment {
+    height: 48px;
+    font-size: 15px;
+  }
+
+  .settingsSliderValue {
+    font-size: 16px;
+  }
+
+  .settingsPrimary,
+  .settingsSecondary {
+    height: 50px;
+    font-size: 16px;
+  }
+}
+
+/* Portrait phones: each label sits above its control, which fills the width. */
+@media (max-width: 600px) {
+  .settingsRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    min-height: 0;
+  }
+
+  .settingsSegments {
+    width: 100%;
+    gap: 8px;
+  }
+
+  .settingsSegment {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 8px;
+  }
+
+  .settingsSliderWrap {
+    width: 100%;
+  }
+
+  .settingsSlider {
+    width: 100%;
+  }
+}
+
+/* Landscape phones: keep label and control on one row, as on desktop. */
+@media (max-height: 500px) and (min-width: 601px) {
+  .settingsRow {
+    min-height: 52px;
+  }
+
+  .settingsSlider {
+    width: clamp(160px, 34vw, 320px);
+  }
+}
+
+/* Larger slider thumb and track for finger input. */
+@media (pointer: coarse) {
+  .settingsSlider {
+    height: 28px;
+  }
+
+  .settingsSlider::-webkit-slider-runnable-track {
+    height: 8px;
+  }
+
+  .settingsSlider::-webkit-slider-thumb {
+    width: 28px;
+    height: 28px;
+    margin-top: -10px;
+  }
+
+  .settingsSlider::-moz-range-track,
+  .settingsSlider::-moz-range-progress {
+    height: 8px;
+  }
+
+  .settingsSlider::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+  }
+}

@@ -27,6 +27,7 @@ import {
   TargetShaderMaterial,
   UIClubViews,
   estimateClubDelivery,
+  UISettings,
 } from '@opengolfsim/fuse';
 import rangeMtnsModel from './models/rangeMtns.glb?url';
 import bagStandModel from './models/bagstand.glb?url';
@@ -79,6 +80,7 @@ const gameContext: {
   heightChart?: UIHeightChart,
   dispersionChart?: UIDispersionChart,
   clubViews?: UIClubViews,
+  settings?: UISettings,
   // Controls
   camera?: ShotPerspectiveCamera,
   controls?: CourseKeyboardControls,
@@ -89,6 +91,7 @@ const gameContext: {
   // State
   distanceToAim: number,
   heightToAim: number,
+  elevation: number,
 
 } = {
   timer: new THREE.Timer(),
@@ -96,6 +99,7 @@ const gameContext: {
   aimPoint: new THREE.Vector3(0, 0, 200),
   distanceToAim: 0,
   heightToAim: 0,
+  elevation: 0,
   targetRadius: 20,
 };
 
@@ -401,6 +405,7 @@ async function setupRange() {
     players: [gameContext.currentPlayer]
   });
   gameContext.playerMenu.on('selectClub', club => clubChange(club));
+  setupSettings();
   
 
   gameContext.renderer.generateEnvironment(gameContext.scene, gameContext.clouds.object);
@@ -467,6 +472,88 @@ function clubChange(club: OpenGolfSim.Club) {
   gameContext.playerMenu?.update(gameContext.currentPlayer);
   app.sendPlayerUpdate(gameContext.currentPlayer, gameContext.startPoint.toArray());
   updateAimPoint();
+}
+
+/** Live settings panel: units, green speed, elevation, camera offset. Club is picked from the player menu. */
+function setupSettings() {
+  const player = gameContext.currentPlayer;
+  if (!player) return;
+
+  gameContext.settings = new UISettings(document.body, {
+    title: 'Settings',
+    rows: [
+      {
+        kind: 'segments',
+        id: 'units',
+        label: 'Units',
+        options: [
+          { label: 'Metric', value: 'metric' },
+          { label: 'Imperial', value: 'imperial' },
+        ],
+        value: gameContext.setupData?.units ?? 'metric',
+      },
+      {
+        kind: 'slider',
+        id: 'stimp',
+        label: 'Green speed',
+        min: 6,
+        max: 14,
+        step: 1,
+        value: gameContext.setupData?.stimpLevel ?? 8,
+        format: value => String(value),
+      },
+      {
+        kind: 'slider',
+        id: 'elevation',
+        label: 'Elevation',
+        min: 0,
+        max: 3000,
+        step: 100,
+        value: gameContext.elevation,
+        format: value => `${value} m`,
+      },
+      {
+        kind: 'slider',
+        id: 'cameraOffset',
+        label: 'Camera offset',
+        min: -100,
+        max: 100,
+        step: 5,
+        value: gameContext.setupData?.cameraOffset ?? 0,
+        format: value => `${value}%`,
+      },
+    ],
+  });
+
+  gameContext.settings.on('change', (id, value) => {
+    if (id === 'units') {
+      const units = value as OpenGolfSim.MeasurementUnits;
+      if (gameContext.setupData) gameContext.setupData.units = units;
+      gameContext.shotData?.setUnits(units);
+      gameContext.heightChart?.setUnits(units);
+      gameContext.dispersionChart?.setUnits(units);
+      gameContext.visualAimPoint?.setUnits(units);
+      updateAimPoint();
+      return;
+    }
+
+    if (id === 'stimp' && gameContext.golfBall) {
+      gameContext.golfBall.physics.stimpLevel = Number(value);
+      return;
+    }
+
+    if (id === 'elevation' && gameContext.golfBall) {
+      gameContext.elevation = Number(value);
+      gameContext.golfBall.physics.setElevation(gameContext.elevation);
+      return;
+    }
+
+    if (id === 'cameraOffset' && gameContext.camera) {
+      gameContext.camera.cameraOffsetX = -(Number(value) / 100);
+    }
+  });
+
+  gameContext.mainMenu?.on('settings', () => gameContext.settings?.open());
 }
 
 function setupNextShot(playerStatus?: CoursePlayer) {

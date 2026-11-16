@@ -83,6 +83,11 @@ export class TargetShaderMaterial {
     this.holePosUniform.value.set(position.x, 0, position.z);
   }
 
+  /** Updates the gimme rings in place (live settings changes). */
+  setGimmeDistances(distances: number[]) {
+    this.rings.setDistances(distances);
+  }
+
   dispose() {
     if (this.material) {
       this.material.dispose();

@@ -13,6 +13,7 @@ export class UIRangeFinder {
   heightValue: HTMLElement;
   heightUnit: HTMLElement;
   units: OpenGolfSim.MeasurementUnits;
+  #last?: { distance: number; height: number };
 
   constructor(element: string | Element, options: UIRangeFinderOptions = {}) {
     if (typeof element === 'string') {
@@ -73,6 +74,7 @@ export class UIRangeFinder {
   }
 
   update(distanceMeters: number, heightMeters: number) {
+    this.#last = { distance: distanceMeters, height: heightMeters };
     if (this.units === 'imperial') {
       this.distanceValue.textContent = UnitConversions.metersToYards(distanceMeters).toFixed(0);
       const heightYards = UnitConversions.metersToYards(heightMeters);
@@ -85,5 +87,12 @@ export class UIRangeFinder {
       this.distanceUnit.textContent = 'm';
       this.heightUnit.textContent = 'm';
     }
+  }
+
+  /** Switches units in place and re-renders the last reading. */
+  setUnits(units: OpenGolfSim.MeasurementUnits) {
+    if (!units || units === this.units) return;
+    this.units = units;
+    if (this.#last) this.update(this.#last.distance, this.#last.height);
   }
 }
