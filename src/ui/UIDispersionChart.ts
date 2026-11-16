@@ -76,6 +76,13 @@ export class UIDispersionChart extends UIElementBase {
     this.#draw();
   }
 
+  /** Switches units in place; axis labels and conversions update on redraw. */
+  setUnits(units: OpenGolfSim.SetupData['units']) {
+    if (!units || units === this.units) return;
+    this.units = units;
+    this.#draw();
+  }
+
   /** Clear the live trace. Call when a shot launches. */
   beginShot() {
     this.#live = [];

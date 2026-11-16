@@ -32,6 +32,7 @@ export class UIShotData {
   #speedUnit: string;
   #distanceUnit: string;
   #heightUnit: string;
+  #lastData: Partial<OpenGolfSim.Shot & OpenGolfSim.ShotResult & ClubEstimate> = {};
 
   constructor(element: string | Element, options: UIShotDataOptions = {}) {
     if (typeof element === 'string') {
@@ -162,7 +163,31 @@ export class UIShotData {
     this.#updateGrid(shotResult);
   }
 
+  /** Switches units in place and re-renders the last values. */
+  setUnits(units: OpenGolfSim.SetupData['units']) {
+    if (!units || units === this.units) return;
+    this.units = units;
+    this.#speedUnit = units === 'imperial' ? 'MPH' : 'm/s';
+    this.#distanceUnit = units === 'imperial' ? 'YD' : 'm';
+    this.#heightUnit = units === 'imperial' ? 'FT' : 'm';
+
+    for (const option of this.gridOptions) {
+      if (option.id === 'ballSpeed') option.units = this.#speedUnit;
+      if (option.id === 'apex') option.units = this.#heightUnit;
+      if (option.id === 'lateral') option.units = this.#distanceUnit;
+
+      // Refresh the label even for fields with no reading yet.
+      const label = option._element?.querySelector('.grid-unit');
+      if (label) {
+        label.textContent = typeof option.units === 'function' ? option.units(0) : option.units;
+      }
+    }
+
+    this.#updateGrid(this.#lastData);
+  }
+
   #updateGrid(data: Partial<OpenGolfSim.Shot & OpenGolfSim.ShotResult & ClubEstimate>) {
+    this.#lastData = { ...this.#lastData, ...data };
     this.gridOptions.forEach(option => {
       if (option._element) {
         let rawValue = data[option.id];

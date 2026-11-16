@@ -25,6 +25,7 @@ import {
   UILaunchMonitor,
   UIHoleScoreToast,
   UIHazardDialog,
+  UISettings,
  } from '@opengolfsim/fuse';
 
 const HoleOutSound = '../sounds/holeout.wav';
@@ -69,6 +70,7 @@ const gameContext: {
   loadingScreen?: UILoadingScreen,
   rangeFinder?: UIRangeFinder,
   stats?: UIStats,
+  settings?: UISettings,
   dialogs: {
     scorecard?: UIScorecard,
     hazard?: UIHazardDialog,
@@ -105,6 +107,89 @@ function launchShot(shot: OpenGolfSim.Shot) {
     const trackingScale = Math.min(shot.ballSpeed / 150, 1);
     gameContext.camera?.setTracking(true, trackingScale);
   }
+}
+
+/** Live settings panel: units, green speed, gimme radius, camera offset. */
+function setupSettings() {
+  const game = gameContext.game;
+  if (!game) return;
+
+  const setupData = gameContext.setupData;
+  gameContext.settings = new UISettings(document.body, {
+    title: 'Settings',
+    rows: [
+      {
+        kind: 'segments',
+        id: 'units',
+        label: 'Units',
+        options: [
+          { label: 'Metric', value: 'metric' },
+          { label: 'Imperial', value: 'imperial' },
+        ],
+        value: setupData?.units ?? 'metric',
+      },
+      {
+        kind: 'slider',
+        id: 'stimp',
+        label: 'Green speed',
+        min: 6,
+        max: 14,
+        step: 1,
+        value: setupData?.stimpLevel ?? 8,
+        format: value => String(value),
+      },
+      {
+        kind: 'slider',
+        id: 'gimme',
+        label: 'Gimme radius',
+        min: 1,
+        max: 6,
+        step: 0.5,
+        value: game.gimmeDistances[0] ?? 2,
+        format: value => `${value} m`,
+      },
+      {
+        kind: 'slider',
+        id: 'cameraOffset',
+        label: 'Camera offset',
+        min: -100,
+        max: 100,
+        step: 5,
+        value: setupData?.cameraOffset ?? 0,
+        format: value => `${value}%`,
+      },
+    ],
+  });
+
+  gameContext.settings.on('change', (id, value) => {
+    if (id === 'units') {
+      const units = value as OpenGolfSim.MeasurementUnits;
+      if (gameContext.setupData) gameContext.setupData.units = units;
+      gameContext.shotData?.setUnits(units);
+      gameContext.rangeFinder?.setUnits(units);
+      gameContext.courseMap?.setUnits(units);
+      gameContext.visualAimPoint?.setUnits(units);
+      return;
+    }
+
+    if (id === 'stimp' && gameContext.golfBall) {
+      gameContext.golfBall.physics.stimpLevel = Number(value);
+      return;
+    }
+
+    if (id === 'gimme') {
+      // Same array the rules read, so gimme/auto-putt follow immediately.
+      game.gimmeDistances[0] = Number(value);
+      gameContext.course?.setGimmeDistances([...game.gimmeDistances]);
+      return;
+    }
+
+    if (id === 'cameraOffset' && gameContext.camera) {
+      gameContext.camera.cameraOffsetX = -(Number(value) / 100);
+    }
+  });
+
+  gameContext.mainMenu?.on('settings', () => gameContext.settings?.open());
 }
 
 function setupNextShot() {
@@ -481,6 +566,8 @@ async function setupCourse() {
       app.sendPlayerUpdate(gameContext.game.activePlayer, gameContext.startPoint.toArray());
     }
   });
+
+  setupSettings();
 
   console.log('Setting up first shot...');
 

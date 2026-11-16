@@ -121,9 +121,7 @@ export class PuttingGridMaterial {
       this.holePosUniform.value.set(options.holeWorldPos.x, 0, options.holeWorldPos.z);
     }
 
-    if (options.gimmeDistance && options.gimmeDistance > 0) {
-      this.rings = new GimmeRings([options.gimmeDistance]);
-    }
+    this.rings = new GimmeRings(options.gimmeDistance && options.gimmeDistance > 0 ? [options.gimmeDistance] : []);
 
     if (!(object instanceof THREE.Mesh)) return;
     this.mesh = object;
@@ -363,6 +361,11 @@ export class PuttingGridMaterial {
   /** Show/hide the gimme ring. Call wherever TargetShaderMaterial.setVisible() is called. */
   setGimmeVisible(visible: boolean) {
     this.rings?.setVisible(visible);
+  }
+
+  /** Updates the gimme ring radius in place (live settings changes). */
+  setGimmeDistance(distance: number) {
+    this.rings?.setDistances(distance > 0 ? [distance] : []);
   }
 
   updateGrid(camera: ShotPerspectiveCamera) {

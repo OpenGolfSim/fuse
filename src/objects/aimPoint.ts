@@ -231,6 +231,14 @@ export class AimPoint {
     // }
   }
 
+  /** Switches units in place; the label repaints on the next update. */
+  setUnits(units: OpenGolfSim.MeasurementUnits) {
+    if (!units || units === this.units) return;
+    this.units = units;
+    this.#cachedTextureKey = undefined;
+    this.#lastAimPoint = undefined;
+  }
+
   update(aimPoint: THREE.Vector3, distance: number, height: number, isShotActive: boolean, isPutting = false) {
     this.object.visible = !isShotActive;
     if (isShotActive) {
