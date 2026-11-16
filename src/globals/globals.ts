@@ -22,6 +22,7 @@ declare global {
       name: string;
       id: string;
       distance: number;
+      loft?: number;
     }
 
     interface Player {
@@ -29,6 +30,7 @@ declare global {
       id: string;
       clubs: Club[];
       boost?: number;
+      handedness?: 'left' | 'right';
     }
     
     /** The data used to simulate a golf shot */

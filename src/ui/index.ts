@@ -12,6 +12,8 @@ export * from '@/ui/UIHoleScoreToast';
 export * from '@/ui/UIViewToggle';
 export * from '@/ui/UIHeightChart';
 export * from '@/ui/UIDispersionChart';
+export * from '@/ui/UIClubViews';
+
 // dialogs
 export * from '@/ui/UIDialog';
 export * from '@/ui/UIHazardDialog';

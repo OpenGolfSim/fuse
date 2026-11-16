@@ -15,23 +15,24 @@ import {
   VolumetricClouds,
   MeshLoader,
   YardageLinesMaterial,
-  CourseSurfaces,
   generateSetupData,
   CoursePlayer,
   UIPlayerMenu,
   UIMainMenu,
-  CourseSurfaceType,
   FuseRenderer,
   UILaunchMonitor,
   UIViewToggle,
   UIHeightChart,
   UIDispersionChart,
   TargetShaderMaterial,
+  UIClubViews,
+  estimateClubDelivery,
 } from '@opengolfsim/fuse';
 import rangeMtnsModel from './models/rangeMtns.glb?url';
 import bagStandModel from './models/bagstand.glb?url';
 import fairwayTexture from './textures/gen_fairway_tex.png?url';
 import fairwayMap from './textures/gen_fairway_map.png?url';
+
 import { PlayerState } from '@/courses/types';
 import { clubUpDown } from '@/utils/clubs';
 
@@ -77,6 +78,7 @@ const gameContext: {
   viewToggle?: UIViewToggle,
   heightChart?: UIHeightChart,
   dispersionChart?: UIDispersionChart,
+  clubViews?: UIClubViews,
   // Controls
   camera?: ShotPerspectiveCamera,
   controls?: CourseKeyboardControls,
@@ -102,7 +104,12 @@ function launchShot(shot: OpenGolfSim.Shot) {
     gameContext.heightChart?.beginShot();
     gameContext.dispersionChart?.beginShot();
     gameContext.golfBall?.launchShot(shot, gameContext.currentPlayer);
+
     gameContext.shotData?.updateShotData(shot);
+
+    const club = gameContext.currentPlayer?.currentClub;
+    gameContext.clubViews?.update(shot, estimateClubDelivery(shot, club));
+
     // start tracking after a delay based on ball speed
     // the default is 3 seconds
     const trackingDelayScale = Math.min(shot.ballSpeed / 150, 1);
@@ -253,7 +260,8 @@ async function setupRange() {
   gameContext.viewToggle = new UIViewToggle('#top-center', {
     layout: '#view-layout',
     gamePane: '#game-pane',
-    storageKey: 'fuse-range-view'
+    storageKey: 'fuse-range-view',
+    detailPane: true
   });
 
   await setupWorld();
@@ -369,6 +377,15 @@ async function setupRange() {
     gameContext.dispersionChart = new UIDispersionChart(gameContext.viewToggle.rightPane, {
       units: gameContext.setupData?.units
     });
+
+    if (gameContext.viewToggle.detailPane) {
+      // one iron set for every club for now; strike point is the image center
+      gameContext.clubViews = new UIClubViews(gameContext.viewToggle.detailPane, {
+        handedness: gameContext.currentPlayer.player.handedness
+      });
+      gameContext.clubViews.setClub(gameContext.currentPlayer.currentClub);
+    }
+
   }
 
   // gameContext.rangeFinder = new UIRangeFinder('#top-center', { units: gameContext.setupData?.units });
@@ -443,6 +460,8 @@ function clubChange(club: OpenGolfSim.Club) {
   gameContext.currentPlayer.currentClub = club;
   gameContext.heightChart?.clear();
   gameContext.dispersionChart?.clear();
+  gameContext.clubViews?.clear();
+  gameContext.clubViews?.setClub(club);
   gameContext.aimPoint = new THREE.Vector3(0, 0, club.distance);
   gameContext.camera?.setPositions(gameContext.startPoint, gameContext.aimPoint);
   gameContext.playerMenu?.update(gameContext.currentPlayer);
