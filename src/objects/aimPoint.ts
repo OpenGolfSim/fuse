@@ -18,6 +18,7 @@ export class AimPoint {
   point: THREE.Mesh;
   panel: THREE.Mesh;
   object: THREE.Group;
+  #hidden: boolean;
   #pointHeight: number;
   #pointOffsetY: number;
   #panelWidth: number;
@@ -43,6 +44,7 @@ export class AimPoint {
     this.opacity = 0.98;
     this.fadeDistance = [2, 1];
     this.color = new THREE.Color(colors.background);
+    this.#hidden = false;
     this.#pointHeight = 5;
     this.#pointOffsetY = 0.25;
     this.#panelWidth = 8;
@@ -232,8 +234,11 @@ export class AimPoint {
   }
 
   update(aimPoint: THREE.Vector3, distance: number, height: number, isShotActive: boolean, isPutting = false) {
-    this.object.visible = !isShotActive;
-    if (isShotActive) {
+    // this.object.visible = !isShotActive;
+    // this.object.visible = !isShotActive && !this.#hidden;
+    if (isShotActive || this.#hidden) {
+      this.object.visible = false;
+      this.#lastAimPoint = undefined; // force full recompute when shown again
       return;
     }
 
@@ -262,11 +267,14 @@ export class AimPoint {
     const fadeStart = this.fadeDistance[0];
     const fadeEnd = this.fadeDistance[1];
     const opacity = THREE.MathUtils.clamp((cameraDistance - fadeEnd) / (fadeStart - fadeEnd), 0, 1);
-    if (opacity < 0.001) {
-      this.object.visible = false;
-    } else {
-      this.object.visible = true;
-    }
+    this.object.visible = opacity >= 0.001;    
+    // if (opacity < 0.001) {
+    //   // this.hide();
+    //   this.object.visible = false;
+    // } else {
+    //   this.object.visible = true;
+    //   // this.show();
+    // }
 
     //@ts-expect-error
     this.point.material.opacity = this.opacity * opacity;
@@ -295,5 +303,19 @@ export class AimPoint {
     }
     //@ts-expect-error
     this.panel.material.needsUpdate = true;
+  }
+
+  setVisible(visible: boolean) {
+    this.#hidden = !visible;
+    if (visible) {
+      // force a full recompute (position, scale, fade) on the next update()
+      this.#lastAimPoint = undefined;
+    } else {
+      this.object.visible = false;
+    }
+  }
+
+  toggleVisibility() {
+    this.setVisible(this.#hidden);
   }
 }

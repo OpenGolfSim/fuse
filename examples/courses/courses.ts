@@ -233,6 +233,7 @@ async function setupControls() {
   }  
   // Controls
   gameContext.controls = new CourseKeyboardControls({ element: gameContext.canvas, testShots: true, swipeShots: true });
+  
   gameContext.controls.on('aim', aimKeys => {
     if (gameContext.camera) gameContext.camera.aimKeys = aimKeys;
   });
@@ -249,6 +250,9 @@ async function setupControls() {
   gameContext.controls.on('rehit', () => gameContext.game?.rehit());
   gameContext.controls.on('scorecard', () => gameContext.dialogs.scorecard?.toggle());
   gameContext.controls.on('map', () => gameContext.courseMap?.toggleMap());
+  gameContext.controls.on('hideUI', () => {
+    gameContext.visualAimPoint?.toggleVisibility();
+  });
 }
 
 /**

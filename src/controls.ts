@@ -13,6 +13,7 @@ interface CourseKeyboardControlEvents {
   fullscreen: () => void;
   aim: (aimKeys: AimKeys) => void;
   map: () => void;
+  hideUI: () => void;
 }
 
 const MODIFIER_KEYS = new Set(['Meta', 'Control', 'Alt', 'Shift']);
@@ -135,6 +136,12 @@ export class CourseKeyboardControls extends EventEmitter<CourseKeyboardControlEv
         case 'KeyW':
           this.emit('club', -1);
           handled = true;
+          break;
+        case 'KeyH':
+          if (event.shiftKey) {
+            this.emit('hideUI');
+            handled = true;
+          }
           break;
         case 'KeyQ':
           this.emit('club', 1);
